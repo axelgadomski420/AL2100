@@ -1322,7 +1322,7 @@ screen Zadania {
   }
 }
 
-screen Pamięć {
+screen "Pamięć" {
   title "Pamięć"
   TopBar("Pamięć", "Długoterminowa pamięć użytkownika i projektów")
   toolbar {
@@ -1600,7 +1600,7 @@ screen Ustawienia {
         render AuditRow(item)
       }
     }
-    section Język {
+    section "Język" {
       select {
         value user.locale
         options ["pl", "en"]
@@ -1609,7 +1609,7 @@ screen Ustawienia {
         }
       }
     }
-    section Motyw {
+    section "Motyw" {
       select {
         value user.theme
         options ["dark", "darker", "system"]
