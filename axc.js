@@ -81,17 +81,39 @@ class Lexer {
         const e = this.advance();
         const map = {
           n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v',
-          '\\': '\\', '"': '"', "'": "'", u: 'u'
+          '\\': '\\', '"': '"', "'": "'", '0': '\0'
         };
         if (e === 'u') {
-          const hex = this.src.slice(this.pos, this.pos + 4);
-          if (/^[0-9A-Fa-f]{4}$/u.test(hex)) {
-            s += String.fromCodePoint(parseInt(hex, 16));
+          const code = this.src.slice(this.pos, this.pos + 4);
+          if (/^[0-9A-Fa-f]{4}$/u.test(code)) {
+            s += String.fromCodePoint(parseInt(code, 16));
             this.pos += 4;
             continue;
           }
-          s += map[e] ?? e;
+          const brace = this.peek();
+          if (brace === '{') {
+            this.advance();
+            const braces = this.src.slice(this.pos, this.pos + 6);
+            const m = braces.match(/^([0-9A-Fa-f]+)}/u);
+            if (m) {
+              s += String.fromCodePoint(parseInt(m[1], 16));
+              this.pos += m[1].length + 1;
+              continue;
+            }
+            this.advance();
+            s += '{';
+            continue;
+          }
+          s += 'u';
           continue;
+        }
+        if (e === 'x') {
+          const hex = this.src.slice(this.pos, this.pos + 2);
+          if (/^[0-9A-Fa-f]{2}$/u.test(hex)) {
+            s += String.fromCodePoint(parseInt(hex, 16));
+            this.pos += 2;
+            continue;
+          }
         }
         s += map[e] ?? e;
         continue;
