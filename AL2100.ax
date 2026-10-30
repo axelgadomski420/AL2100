@@ -1010,7 +1010,7 @@ component ContextPanel(conversationId, memoryStatus, contextTokens, sourcesCount
           value contextTokens
         }
       }
-      section Pamięć {
+      section "Pamięć" {
         list {
           items memory.entries
           onToggleDisabled {
