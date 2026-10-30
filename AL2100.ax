@@ -4860,7 +4860,7 @@ component ProjectDetail(project) {
           render FileRow(item)
         }
       }
-      section Pamięć {
+      section "Pamięć" {
         list {
           items memory.entries.filter(map { "scope_id": project.id })
           render MemoryCard(item)
