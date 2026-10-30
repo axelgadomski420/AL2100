@@ -1191,14 +1191,6 @@ bucket_name = "${name}-bucket"
 binding = "AL_KV"
 id = ""
 
-[[queues.producers]]
-binding = "AL_QUEUE"
-queue = "${name}-jobs"
-
-[[queues.consumers]]
-queue = "${name}-jobs"
-max_batch_size = 10
-max_batch_timeout = 5
 `;
   }
   genPackageJson() {
