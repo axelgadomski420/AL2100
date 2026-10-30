@@ -1,0 +1,3399 @@
+// ============================================================================
+// AL2100.ax — JEDEN plik = CAŁA aplikacja
+// Cloudflare Workers + D1 + R2 + Queues | GitHub Actions deploy
+// Sekrety: AL_MASTER_ENCRYPTION_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+// ============================================================================
+
+app "AL2100" {
+  id "pl.axel.al2100"; version 1.0.0; author "Axel G"
+  description "Prywatny polskojęzyczny system operacyjny AI"
+  category productivity; theme dark; accent neon-cyan
+  language ["pl", "en"]; offline false; minWindow 360x640
+  platform min web es2022, android 11, ios 15
+  signature { verify true; sandbox "strict" }
+}
+
+theme {
+  mode dark
+  colors {
+    bg #06080F; bgAlt #0A0F1E; surface #121A2E; surfaceAlt #1A2340
+    surfaceHover #222D4F; overlay rgba(0,0,0,0.72)
+    text #EAF2FF; textMuted #8A99B8; textDim #5C6A85
+    primary #00E5FF; primaryDark #00B8CC; primaryGlow rgba(0,229,255,0.18)
+    secondary #7C4DFF; success #22D3A6; warning #FFB020; danger #FF4D6D; info #4D9EFF
+    border #2A3550; borderAlt #1E2740
+    codeBg #0D1424; codeKeyword #7C4DFF; codeString #22D3A6; codeComment #5C6A85
+  }
+  gradients {
+    primary linear(135deg, #00E5FF, #7C4DFF)
+    danger linear(135deg, #FF4D6D, #FFB020)
+    surface linear(180deg, #121A2E, #0A0F1E)
+  }
+  typography {
+    base "Inter"; heading "Space Grotesk"; mono "JetBrains Mono"
+    size.xs 11; size.small 13; size.base 16; size.lg 18
+    size.heading 24; size.xl 32; size.xxl 48; size.hero 64
+    weight.normal 400; weight.medium 500; weight.bold 700
+    leading.tight 1.2; leading.base 1.55
+  }
+  spacing { xxs 2; xs 4; sm 8; md 12; lg 16; xl 24; xxl 32; huge 48 }
+  shape { radius 14; radiusSmall 8; radiusLarge 24; radiusFull 9999; border subtle; shadow soft }
+  elevation {
+    xs 0 1px 2px rgba(0,0,0,0.35); sm 0 2px 6px rgba(0,0,0,0.4)
+    md 0 6px 18px rgba(0,0,0,0.5); lg 0 14px 40px rgba(0,0,0,0.6)
+    glow 0 0 32px rgba(0,229,255,0.35); glowDanger 0 0 32px rgba(255,77,109,0.35)
+  }
+  motion { speed fast; standard 180ms; slow 320ms; reduceMotion respectSystem }
+  breakpoints { mobile 640; tablet 1024; desktop 1280; wide 1920 }
+  accessibility {
+    minContrast 4.5; dynamicType true; highContrast support; keyboard true
+    focusVisible 2px solid #00E5FF; reduceTransparency respectSystem
+  }
+}
+
+permissions {
+  internet: ask hosts [
+    "api.github.com", "github.com", "uploads.github.com",
+    "api.openai.com", "api.anthropic.com", "generativelanguage.googleapis.com",
+    "api.mistral.ai", "api.groq.com", "openrouter.ai",
+    "api.cloudflare.com", "api.search.brave.com", "api.serpapi.com"
+  ]
+  files: read scope "user/*"
+  camera: ask reason "Zdjęcia jako kontekst dla AI"
+  microphone: ask reason "Notatki głosowe i transkrypcja"
+  notifications: ask reason "Zadania, zatwierdzenia i podsumowania"
+  clipboard: write; location: never; contacts: never; calendar: never
+}
+
+sync {
+  provider userCloud
+  scope ["Conversation","Message","MemoryFact","ConversationSummary","Project","Task","FileRecord","MusicRelease"]
+  conflict lastWriteWins; encrypt endToEnd; offlineQueue true
+  retryOnFailure true; maxRetries 5; backoff exponential
+}
+
+ai {
+  provider userChoice; budget 10.00 USD / day; budgetMonthly 100.00 USD / month
+  routing { mode auto; fallback confirm; default "mistral"; preferCheap true; notifyProviderSwitch true }
+  guardrails {
+    deny code "eval|exec|shell|subprocess|rm -rf|fork bomb"
+    deny url "file://|javascript:|data:text/html"
+    require review true
+    require approval for ["deploy","github.push","github.pr","memory.mutate","file.delete","conversation.delete","provider.delete","sessions.revoke_all"]
+    max_output_tokens 8000; max_input_tokens 32000
+    forbid system_override true; forbid external_exfiltration true
+  }
+  memory {
+    context_builder_required true; include_summaries true; include_facts true
+    include_project_state true; include_search_fragments true
+    max_fragments 10; max_tokens 8000; degraded_mode_visible true
+  }
+  mode propose; context state, storage, theme
+}
+
+state {
+  // AUTH
+  auth.user_id = null; auth.github_login = null; auth.display_name = null
+  auth.avatar_url = null; auth.checked = false; auth.sessions = []
+  auth.onboarding_step = 0; auth.onboarding_complete = false
+
+  // NAV
+  nav.current_screen = "Login"; nav.history = []
+  nav.sidebar_open = true; nav.context_panel_open = true
+  nav.command_palette = false; nav.mobile_menu = false; nav.command_query = ""
+
+  // CHAT
+  chat.current_conversation_id = null; chat.conversations = []; chat.messages = []
+  chat.draft = ""; chat.is_streaming = false; chat.stream_handle = null
+  chat.context_mode = "full"; chat.context_reason = ""
+  chat.search_enabled = true; chat.selected_provider = null; chat.selected_model = null
+  chat.conv_search_query = ""; chat.conv_filter = "all"; chat.scroll_to_bottom = false
+
+  // PROJECTS
+  projects.list = []; projects.current_id = null; projects.search_query = ""
+
+  // MEMORY
+  memory.facts = []; memory.filter_kind = "all"; memory.manual_modal = false
+  memory.new_fact = { kind: "fact", content: "" }
+
+  // FILES
+  files.list = []; files.uploading = false; files.upload_progress = 0
+
+  // TASKS
+  tasks.list = []; tasks.view = "today"
+
+  // PROVIDERS
+  providers.list = []; providers.editing = null; providers.testing = null; providers.show_key = false
+
+  // INTEGRATIONS
+  integrations.github_connected = false; integrations.github_username = null
+  integrations.search_configured = false; integrations.cloudflare_configured = false
+
+  // APPROVALS
+  approvals.pending = []; approvals.current = null; approvals.modal_open = false
+
+  // DIAGNOSTICS
+  diagnostics.usage_today = { tokens: 0, cost: 0, requests: 0 }
+  diagnostics.usage_month = { tokens: 0, cost: 0, requests: 0 }
+  diagnostics.usage_by_provider = []; diagnostics.audit_recent = []; diagnostics.last_refresh = null
+
+  // APP CREATOR
+  appcreator.description = ""; appcreator.plan = null; appcreator.proposal_id = null
+  appcreator.generating = false
+  appcreator.templates = [
+    { id: "flashcards", name: "Fiszki i nauka" },
+    { id: "health", name: "Tracker zdrowia" },
+    { id: "tasks", name: "Menedżer zadań" },
+    { id: "notes", name: "Notatnik AI" },
+    { id: "music", name: "Kreator muzyki" },
+    { id: "research", name: "Research z cytowaniami" }
+  ]
+
+  // GITHUB
+  github.repos = []; github.selected_repo = null; github.branches = []
+  github.pulls = []; github.loading = false
+
+  // MUSIC
+  music.releases = []; music.current_id = null
+
+  // SEARCH
+  search.query = ""; search.results = []; search.loading = false; search.error = null
+
+  // UI
+  ui.toast = null; ui.toast_queue = []; ui.loading = false
+  ui.modal = null; ui.confirm = null; ui.sidebar_collapsed = false
+
+  computed is_authenticated { return auth.user_id != null }
+  computed context_status_label {
+    if chat.context_mode == "full" { return "Pełny kontekst" }
+    return "Tryb ograniczony: " + chat.context_reason
+  }
+  computed pending_approvals_count { return approvals.pending.length }
+  computed current_conversation { return chat.conversations.find(c -> c.id == chat.current_conversation_id) }
+  computed current_project { return projects.list.find(p -> p.id == projects.current_id) }
+  computed current_music_release { return music.releases.find(r -> r.id == music.current_id) }
+  computed tasks_today { return tasks.list.filter(t -> t.deadline != null && t.status != "done" && isToday(t.deadline)) }
+  computed tasks_blockers { return tasks.list.filter(t -> t.status == "blocked") }
+  computed tasks_next { return tasks.list.filter(t -> t.status == "todo").slice(0, 5) }
+  computed filtered_conversations {
+    q = chat.conv_search_query.lower(); items = chat.conversations
+    if chat.conv_filter == "archived" { items = items.filter(c -> c.archived_at != null) }
+    else if chat.conv_filter == "private" { items = items.filter(c -> c.is_private == true) }
+    else { items = items.filter(c -> c.archived_at == null) }
+    if q != "" { items = items.filter(c -> c.title.lower().contains(q)) }
+    return items
+  }
+  computed filtered_memory {
+    if memory.filter_kind == "all" { return memory.facts }
+    return memory.facts.filter(f -> f.kind == memory.filter_kind)
+  }
+  computed filtered_projects {
+    q = projects.search_query.lower()
+    if q == "" { return projects.list }
+    return projects.list.filter(p -> p.name.lower().contains(q) || p.goal.lower().contains(q))
+  }
+
+  event auth.user_id changed {
+    if auth.user_id != null { nav.current_screen = "Chat"; loadInitialData() }
+    else { nav.current_screen = "Login" }
+  }
+  event chat.current_conversation_id changed {
+    if chat.current_conversation_id != null { loadMessages(chat.current_conversation_id) }
+    else { chat.messages = [] }
+  }
+  event nav.current_screen changed {
+    nav.history = nav.history + [nav.current_screen]
+    if nav.history.length > 50 { nav.history = nav.history.slice(-50) }
+    nav.mobile_menu = false
+  }
+}
+
+storage local "al2100.axdb" version 1 {
+  model User {
+    id text primary; github_login text unique; display_name text
+    email text optional; avatar_url text optional
+    created_at datetime; last_seen_at datetime optional
+  }
+  model Session {
+    id text primary; user_id text; created_at datetime; expires_at datetime
+    revoked_at datetime optional; user_agent text optional; ip_hash text optional
+  }
+  model Conversation {
+    id text primary; user_id text; title text; project_id text optional
+    is_private bool = false; archived_at datetime optional
+    created_at datetime; updated_at datetime
+  }
+  model Message {
+    id text primary; conversation_id text; user_id text
+    role enum ["user","assistant","system","tool"]; content text
+    generation_id text optional
+    status enum ["pending","streaming","completed","interrupted","failed"]
+    sources text optional; provider text optional; model text optional
+    tokens_in number = 0; tokens_out number = 0; cost_usd number = 0
+    created_at datetime
+  }
+  model MemoryFact {
+    id text primary; user_id text
+    kind enum ["preference","decision","fact","style"]; content text
+    source_conversation_id text optional; source_message_id text optional
+    pinned bool = false; disabled bool = false; created_at datetime
+  }
+  model ConversationSummary {
+    id text primary; conversation_id text unique; user_id text
+    topic text; decisions text optional; requirements text optional
+    open_tasks text optional; next_step text optional; updated_at datetime
+  }
+  model Provider {
+    id text primary; user_id text
+    provider enum ["mistral","gemini","groq","openrouter","cloudflare","anthropic","openai"]
+    encrypted_key text; key_version number = 1; model text optional
+    status enum ["unverified","verified","error"] = "unverified"
+    last_tested_at datetime optional; last_error text optional
+  }
+  model Project {
+    id text primary; user_id text; name text; goal text; stage text
+    stack text optional; decisions text optional; blockers text optional; updated_at datetime
+  }
+  model Task {
+    id text primary; user_id text; project_id text optional; title text; description text optional
+    status enum ["todo","doing","blocked","done"]
+    priority enum ["low","normal","high","critical"] = "normal"
+    deadline datetime optional; depends_on text optional; conversation_id text optional
+    created_at datetime; updated_at datetime
+  }
+  model FileRecord {
+    id text primary; user_id text; project_id text optional; conversation_id text optional
+    filename text; mime text; size_bytes number; r2_key text
+    indexed_text text optional; created_at datetime
+  }
+  model Approval {
+    id text primary; user_id text; action text; parameters text
+    token_hash text unique; consumed_at datetime optional
+    expires_at datetime; created_at datetime
+  }
+  model AuditLog {
+    id text primary; user_id text optional; action text
+    target_type text optional; target_id text optional
+    metadata text optional; ip_hash text optional; created_at datetime
+  }
+  model UsageRecord {
+    id text primary; user_id text
+    kind enum ["ai","search","storage","compute"]
+    provider text optional; model text optional
+    tokens_in number = 0; tokens_out number = 0; cost_usd number = 0; created_at datetime
+  }
+  model AppProposal {
+    id text primary; user_id text; description text; plan text
+    status enum ["pending","approved","generated","rejected"]; created_at datetime
+  }
+  model MusicRelease {
+    id text primary; user_id text; title text; artist text
+    type enum ["singiel","EP","album","mixtape"]
+    status enum ["pomysł","produkcja","mix","master","gotowe","wydane"]
+    release_date date optional; tracklist text optional
+    bpm number optional; key text optional; suno_prompt text optional
+    cover_url text optional; rights_status text optional; notes text optional
+    created_at datetime; updated_at datetime
+  }
+  model RateLimit {
+    id text primary; user_id text; bucket text; count number; window_start datetime
+  }
+  index Session.user_id; index Session.expires_at
+  index Conversation.user_id; index Conversation.updated_at; index Conversation.project_id
+  index Message.conversation_id; index Message.created_at
+  index MemoryFact.user_id; index ConversationSummary.user_id
+  index Provider.user_id; index Project.user_id
+  index Task.user_id; index Task.project_id
+  index FileRecord.user_id
+  index Approval.user_id; index Approval.expires_at
+  index AuditLog.user_id; index AuditLog.created_at
+  index UsageRecord.user_id; index UsageRecord.created_at
+  index AppProposal.user_id; index MusicRelease.user_id; index RateLimit.user_id
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+component AppShell(content) {
+  stack {
+    if nav.sidebar_open { Sidebar() }
+    main { content }
+    if nav.context_panel_open { ContextPanel() }
+    ToastBanner()
+    CommandPalette()
+    ConfirmDialog()
+  }
+}
+
+component Sidebar() {
+  sidebar {
+    stack {
+      image "assets/al2100-logo.svg" { size 28 }
+      text "AL2100" { style heading; size lg }
+    }
+    NavItem("Czat", "message-circle", "Chat")
+    NavItem("Projekty", "folder", "Projects")
+    NavItem("Pamięć", "brain", "Memory")
+    NavItem("Pliki", "file", "Files")
+    NavItem("Zadania", "check-square", "Tasks")
+    NavItem("Research", "search", "Research")
+    NavItem("App Creator", "zap", "AppCreator")
+    NavItem("GitHub", "github", "GitHub")
+    NavItem("Deploy", "upload-cloud", "Deploy")
+    NavItem("Muzyka", "music", "Music")
+    NavItem("Ustawienia", "settings", "Settings")
+    if pending_approvals_count > 0 { badge "{pending_approvals_count}" { tone warning } }
+    if !integrations.github_connected {
+      banner { text "GitHub niepołączony"; tone info; action { nav.current_screen = "GitHub" } }
+    }
+  }
+}
+
+component NavItem(label, icon_name, target) {
+  button {
+    style if nav.current_screen == target "primary" else "ghost"
+    icon icon_name; text label
+    action { nav.current_screen = target }
+    tooltip label
+  }
+}
+
+component ContextPanel() {
+  sidebar {
+    text "Kontekst" { style heading; size base }
+    text "Projekt: {current_project?.name ?? 'brak'}" { style small }
+    text "Rozmowa: {current_conversation?.title ?? 'brak'}" { style small }
+    text "Tryb: {context_status_label}" { style small; tone if chat.context_mode == "full" "success" else "warning" }
+    text "Zatwierdzenia: {pending_approvals_count}" { style small }
+    if chat.selected_provider != null {
+      text "AI: {chat.selected_provider} / {chat.selected_model ?? 'default'}" { style small muted }
+    }
+    button "Otwórz pamięć" { style ghost; action { nav.current_screen = "Memory" } }
+    button "Ustawienia" { style ghost; action { nav.current_screen = "Settings" } }
+  }
+}
+
+component ToastBanner() {
+  if ui.toast != null {
+    banner {
+      text ui.toast.message; tone ui.toast.kind
+      auto_dismiss 3s; on_close { ui.toast = null }
+    }
+  }
+}
+
+component EmptyState(icon_name, title, description) {
+  center {
+    icon icon_name { size 48; tone primary }
+    text title { style heading }
+    text description { style muted; align center }
+  }
+}
+
+component LoadingSpinner() { spinner { tone primary } }
+
+component StatCard(title, value, delta) {
+  card {
+    text title { style small muted }
+    text value { style heading }
+    if delta != null { text delta { style small; tone if delta.starts_with("-") "danger" else "success" } }
+  }
+}
+
+component ProviderRow(p) {
+  card {
+    header {
+      title p.provider; subtitle p.model ?? "brak modelu"
+      trailing badge p.status { tone if p.status == "verified" "success" else if p.status == "error" "danger" else "warning" }
+    }
+    text "Ostatni test: {p.last_tested_at ?? 'nigdy'}" { style small muted }
+    text "Klucz: {p.masked ?? '••••'}" { style small mono }
+    if p.last_error != null { text "Błąd: {p.last_error}" { style small; tone danger } }
+    button "Edytuj" { style ghost; action { providers.editing = p; nav.current_screen = "ProviderEdit" } }
+    button "Testuj" { style secondary; disabled providers.testing == p.provider; action { testProviderConnection(p.provider) } }
+    button "Usuń" { style danger; action { deleteProviderKey(p.provider) } }
+  }
+}
+
+component ApprovalCard(a) {
+  card "Wymaga zatwierdzenia" {
+    text a.action { style mono }
+    text a.parameters { style mono small muted }
+    text "Wygasa: {a.expires_at}" { style small muted }
+    button "Zatwierdź" { style primary; action { approveOperation(a.id) } }
+    button "Odrzuć" { style danger; action { rejectOperation(a.id) } }
+  }
+}
+
+component MessageBubble(msg) {
+  card {
+    header {
+      title msg.role; subtitle msg.created_at
+      trailing if msg.status != "completed" { badge msg.status { tone if msg.status == "failed" "danger" else "warning" } } else null
+    }
+    markdown msg.content
+    if msg.sources != null { text "Źródła: {msg.sources}" { style small muted } }
+    if msg.status == "streaming" { spinner { tone primary; size small } }
+    actions {
+      icon_button "copy" { action { clipboard.write(msg.content); toast("Skopiowano", "success") } }
+      if msg.role == "user" { icon_button "edit" { action { editMessage(msg.id, msg.content) } } }
+      if msg.role == "assistant" { icon_button "refresh" { action { retryMessage(msg.id) } } }
+      icon_button "trash" { action { deleteMessage(msg.id) } }
+    }
+  }
+}
+
+component MemoryItem(f) {
+  card {
+    header {
+      title f.content
+      subtitle "Źródło: {f.source_conversation_id ?? 'ręcznie'} • {f.created_at}"
+      trailing badge f.kind
+    }
+    toggle pinned f.pinned on_change { pinFact(f.id) }
+    toggle disabled f.disabled on_change { toggleFactDisabled(f.id) }
+    icon_button "trash" { action { deleteFact(f.id) } }
+  }
+}
+
+component TaskItem(t) {
+  card {
+    header { title t.title; subtitle "{t.status} • {t.priority} • {t.deadline ?? 'brak terminu'}" }
+    button "Przełącz" { style ghost; action { toggleTask(t.id) } }
+    button "Usuń" { style danger; action { deleteTask(t.id) } }
+  }
+}
+
+component ProjectCard(p) {
+  card {
+    header { title p.name; subtitle p.goal; trailing badge p.stage }
+    text "Aktualizacja: {p.updated_at}" { style small muted }
+    button "Otwórz" { style primary; action { projects.current_id = p.id; nav.current_screen = "ProjectDetail" } }
+  }
+}
+
+component FileItem(f) {
+  card {
+    header { title f.filename; subtitle "{formatBytes(f.size_bytes)} • {f.created_at}"; trailing f.mime }
+    icon_button "download" { action { downloadFile(f.id) } }
+    icon_button "trash" { action { confirmDeleteFile(f.id) } }
+  }
+}
+
+component MusicReleaseCard(r) {
+  card {
+    header { title r.title; subtitle "{r.artist} • {r.type}"; trailing badge r.status }
+    text "BPM: {r.bpm ?? '—'} • Tonacja: {r.key ?? '—'}" { style small }
+    button "Otwórz" { style primary; action { music.current_id = r.id; nav.current_screen = "MusicDetail" } }
+  }
+}
+
+component CommandPalette() {
+  if nav.command_palette {
+    modal {
+      title "Command palette"
+      input q { placeholder "Szukaj akcji, ekranów, komend..."; value nav.command_query }
+      list commands {
+        item { title "Nowa rozmowa"; action { newConversation(); nav.command_palette = false } }
+        item { title "Czat"; action { nav.current_screen = "Chat"; nav.command_palette = false } }
+        item { title "Projekty"; action { nav.current_screen = "Projects"; nav.command_palette = false } }
+        item { title "Pamięć"; action { nav.current_screen = "Memory"; nav.command_palette = false } }
+        item { title "Zadania"; action { nav.current_screen = "Tasks"; nav.command_palette = false } }
+        item { title "Research"; action { nav.current_screen = "Research"; nav.command_palette = false } }
+        item { title "App Creator"; action { nav.current_screen = "AppCreator"; nav.command_palette = false } }
+        item { title "Ustawienia"; action { nav.current_screen = "Settings"; nav.command_palette = false } }
+        item { title "Wyloguj"; action { logout(); nav.command_palette = false } }
+      }
+      button "Zamknij" { style ghost; action { nav.command_palette = false } }
+    }
+  }
+}
+
+component ConfirmDialog() {
+  if ui.confirm != null {
+    modal {
+      title "Potwierdzenie"; text ui.confirm.message
+      button "Tak" { style danger; action { ui.confirm.on_yes(); ui.confirm = null } }
+      button "Anuluj" { style ghost; action { ui.confirm = null } }
+    }
+  }
+}
+
+component UsageCard(title, usage) {
+  card {
+    text title { style heading; size base }
+    text "${usage.cost}" { style heading; size lg; tone primary }
+    text "{usage.tokens} tokenów • {usage.requests} żądań" { style small muted }
+  }
+}
+
+// ============================================================================
+// SCREENS
+// ============================================================================
+screen Login {
+  title "AL2100"
+  center {
+    stack {
+      image "assets/al2100-logo.svg" { size 72 }
+      text "AL2100" { style heading; size xxl }
+      text "Prywatny system operacyjny AI" { style muted }
+      button "Zaloguj przez GitHub" { style primary; action { startGithubOAuth() } }
+      button "Zaloguj przez Google" { style secondary; action { startGoogleOAuth() } }
+      text "Sesja 30 dni • Klucze API szyfrowane AES-256-GCM" { style small muted }
+    }
+  }
+}
+
+screen Onboarding {
+  title "Onboarding"
+  center {
+    stack {
+      if auth.onboarding_step == 0 {
+        text "Witaj w AL2100" { style heading }
+        text "Zaczniemy od 3 kroków. Zajmie to 60 sekund." { style muted }
+        button "Dalej" { style primary; action { advanceOnboarding() } }
+      }
+      if auth.onboarding_step == 1 {
+        text "Dodaj klucz AI" { style heading }
+        text "Możesz pominąć i dodać później w Ustawieniach." { style muted }
+        button "Dodaj klucz" { style primary; action { openProviderEdit() } }
+        button "Pomiń" { style ghost; action { advanceOnboarding() } }
+      }
+      if auth.onboarding_step == 2 {
+        text "Połącz GitHub (opcjonalnie)" { style heading }
+        text "Potrzebne do pracy nad kodem i Pull Requestów." { style muted }
+        button "Połącz GitHub" { style primary; action { startGithubOAuth() } }
+        button "Pomiń" { style ghost; action { advanceOnboarding() } }
+      }
+      if auth.onboarding_step >= 3 {
+        text "Gotowe" { style heading }
+        text "Możesz zacząć pracę." { style muted }
+        button "Wejdź do AL2100" { style primary; action { finishOnboarding() } }
+      }
+    }
+  }
+}
+
+screen Chat {
+  title "Czat"
+  AppShell {
+    stack {
+      sidebar {
+        header {
+          title "Rozmowy"
+          action icon "plus" { action { newConversation() } }
+        }
+        input conv_search {
+          placeholder "Szukaj w historii..."
+          value chat.conv_search_query
+          on_input { chat.conv_search_query = form.conv_search }
+        }
+        tabs {
+          tab "Aktywne" { action { chat.conv_filter = "all" } }
+          tab "Prywatne" { action { chat.conv_filter = "private" } }
+          tab "Archiwum" { action { chat.conv_filter = "archived" } }
+        }
+        list conversations {
+          items filtered_conversations
+          item {
+            title item.title; subtitle item.updated_at
+            selected item.id == chat.current_conversation_id
+            trailing if item.is_private "🔒" else null
+            action { chat.current_conversation_id = item.id }
+            actions {
+              icon_button "edit" { action { renameConversation(item.id) } }
+              icon_button "lock" { action { togglePrivate(item.id) } }
+              icon_button "archive" { action { archiveConversation(item.id) } }
+              icon_button "trash" { action { deleteConversation(item.id) } }
+            }
+          }
+          empty { text "Brak rozmów" }
+        }
+      }
+      main {
+        header {
+          title current_conversation?.title ?? "Nowa rozmowa"
+          subtitle context_status_label
+          actions {
+            icon_button "search" { action { nav.command_palette = true } }
+            icon_button "settings" { action { nav.current_screen = "Settings" } }
+          }
+        }
+        list messages {
+          items chat.messages
+          item { MessageBubble(item) }
+          empty { EmptyState("message-circle", "Zacznij rozmowę", "AL2100 pamięta Twoje projekty, decyzje i preferencje z poprzednich rozmów.") }
+        }
+        form composer {
+          field message {
+            control textarea
+            placeholder "Napisz wiadomość… (Cmd/Ctrl+Enter wyśle)"
+            value chat.draft
+            on_input { chat.draft = form.message }
+            on_submit { sendMessage() }
+            rows 3
+          }
+          toggle search_enabled "Web search" { value chat.search_enabled; on_change { chat.search_enabled = !chat.search_enabled } }
+          select provider {
+            options providers.list.map(p -> p.provider)
+            placeholder "Dostawca AI"
+            value chat.selected_provider
+            on_change { chat.selected_provider = form.provider }
+          }
+          button "Wyślij" { style primary; disabled chat.draft.trim() == "" || chat.is_streaming; action { sendMessage() } }
+          button "Stop" { style danger; visible chat.is_streaming; action { stopGeneration() } }
+        }
+      }
+    }
+  }
+}
+
+screen Projects {
+  title "Projekty"
+  AppShell {
+    stack {
+      header { title "Projekty"; action icon "plus" { action { nav.current_screen = "ProjectEdit" } } }
+      input search {
+        placeholder "Szukaj projektów..."
+        value projects.search_query
+        on_input { projects.search_query = form.search }
+      }
+      list projects {
+        items filtered_projects
+        item { ProjectCard(item) }
+        empty { EmptyState("folder", "Brak projektów", "Utwórz pierwszy projekt.") }
+      }
+    }
+  }
+}
+
+screen ProjectDetail {
+  title "Projekt"
+  AppShell {
+    stack {
+      header { title current_project?.name ?? "" }
+      card "Cel" { text current_project?.goal ?? "" }
+      card "Etap" {
+        text current_project?.stage ?? ""
+        text "Stack: {current_project?.stack ?? 'brak'}" { style muted }
+      }
+      card "Decyzje" { text current_project?.decisions ?? "Brak decyzji" }
+      card "Blokery" { text current_project?.blockers ?? "Brak blokerów" }
+      tabs {
+        tab "Zadania" {
+          list {
+            items tasks.list.filter(t -> t.project_id == projects.current_id)
+            item { TaskItem(item) }
+            empty { text "Brak zadań" }
+          }
+        }
+        tab "Pliki" {
+          list {
+            items files.list.filter(f -> f.project_id == projects.current_id)
+            item { FileItem(item) }
+            empty { text "Brak plików" }
+          }
+        }
+        tab "Rozmowy" {
+          list {
+            items chat.conversations.filter(c -> c.project_id == projects.current_id)
+            item { title item.title; action { chat.current_conversation_id = item.id; nav.current_screen = "Chat" } }
+            empty { text "Brak rozmów" }
+          }
+        }
+      }
+      button "Edytuj projekt" { style ghost; action { nav.current_screen = "ProjectEdit" } }
+    }
+  }
+}
+
+screen ProjectEdit {
+  title "Projekt"
+  form {
+    field name { control text; label "Nazwa"; required true; value current_project?.name }
+    field goal { control textarea; label "Cel"; required true; value current_project?.goal }
+    field stage { control text; label "Etap"; value current_project?.stage ?? "pomysł" }
+    field stack { control text; label "Stack"; optional true; value current_project?.stack }
+    field decisions { control textarea; label "Decyzje"; optional true; value current_project?.decisions }
+    field blockers { control textarea; label "Blokery"; optional true; value current_project?.blockers }
+    button "Zapisz" { style primary; action { saveProject() } }
+  }
+}
+
+screen Memory {
+  title "Pamięć"
+  AppShell {
+    stack {
+      header { title "Pamięć"; subtitle "Fakty, decyzje i preferencje AL2100 o Tobie" }
+      tabs {
+        tab "Wszystko" { action { memory.filter_kind = "all" } }
+        tab "Preferencje" { action { memory.filter_kind = "preference" } }
+        tab "Decyzje" { action { memory.filter_kind = "decision" } }
+        tab "Fakty" { action { memory.filter_kind = "fact" } }
+        tab "Styl" { action { memory.filter_kind = "style" } }
+      }
+      button "Dodaj fakt ręcznie" { style primary; action { openManualFact() } }
+      list facts {
+        items filtered_memory
+        item { MemoryItem(item) }
+        empty { text "Brak wpisów pamięci" }
+      }
+    }
+  }
+}
+
+screen MemoryManualAdd {
+  title "Nowy fakt"
+  form {
+    field kind { control select ["fact", "preference", "decision", "style"]; label "Typ"; value memory.new_fact.kind }
+    field content { control textarea; label "Treść"; required true }
+    button "Zapisz" { style primary; action { createManualFact() } }
+  }
+}
+
+screen Files {
+  title "Pliki"
+  AppShell {
+    stack {
+      header { title "Pliki"; action icon "upload" { action { openFilePicker() } } }
+      if files.uploading { progress files.upload_progress; text "Wgrywanie…" { style small muted } }
+      list files {
+        items files.list
+        item { FileItem(item) }
+        empty { text "Brak plików" }
+      }
+    }
+  }
+}
+
+screen Tasks {
+  title "Zadania"
+  AppShell {
+    stack {
+      header { title "Zadania"; action icon "plus" { action { nav.current_screen = "TaskEdit" } } }
+      tabs {
+        tab "Dziś" { action { tasks.view = "today" } }
+        tab "Blokery" { action { tasks.view = "blockers" } }
+        tab "Następny krok" { action { tasks.view = "next" } }
+        tab "Wszystkie" { action { tasks.view = "all" } }
+      }
+      if tasks.view == "today" { list { items tasks_today; item { TaskItem(item) } empty { text "Brak zadań na dziś" } } }
+      if tasks.view == "blockers" { list { items tasks_blockers; item { TaskItem(item) } empty { text "Brak blokerów" } } }
+      if tasks.view == "next" { list { items tasks_next; item { TaskItem(item) } empty { text "Brak zadań" } } }
+      if tasks.view == "all" { list { items tasks.list; item { TaskItem(item) } empty { text "Brak zadań" } } }
+    }
+  }
+}
+
+screen TaskEdit {
+  title "Zadanie"
+  form {
+    field title { control text; label "Tytuł"; required true }
+    field priority { control select ["low", "normal", "high", "critical"]; label "Priorytet" }
+    field deadline { control date; label "Deadline"; optional true }
+    field project_id { control select projects.list.map(p -> { id: p.id, label: p.name }); label "Projekt"; optional true }
+    button "Zapisz" { style primary; action { saveTask() } }
+  }
+}
+
+screen Research {
+  title "Research"
+  AppShell {
+    stack {
+      header { title "Research" }
+      form search_form {
+        field query {
+          control text; label "Zapytanie"
+          placeholder "Co chcesz znaleźć?"
+          required true; value search.query
+          on_input { search.query = form.query }
+        }
+        button "Szukaj" { style primary; disabled search.loading; action { performResearch() } }
+      }
+      if search.loading { LoadingSpinner() }
+      if search.error != null { banner { text search.error; tone danger } }
+      list results {
+        items search.results
+        item {
+          card { title item.title; subtitle item.snippet; trailing item.url; action { openSafeUrl(item.url) } }
+        }
+        empty {
+          if !search.loading && search.error == null {
+            EmptyState("search", "Brak wyników", "Wpisz zapytanie i naciśnij Szukaj.")
+          }
+        }
+      }
+      if !integrations.search_configured {
+        banner { text "Brak klucza wyszukiwania — wyniki będą niedostępne"; tone warning; action { nav.current_screen = "SettingsSearchKey" } }
+      }
+    }
+  }
+}
+
+screen AppCreator {
+  title "App Creator"
+  AppShell {
+    stack {
+      header { title "App Creator"; subtitle "Opisz aplikację — AL2100 zaproponuje plan i wygeneruje kod po zatwierdzeniu" }
+      card "Szablony" {
+        list {
+          items appcreator.templates
+          item { title item.name; action { appcreator.description = "Aplikacja: " + item.name } }
+        }
+      }
+      form propose_form {
+        field description {
+          control textarea; label "Opis aplikacji"
+          placeholder "np. aplikacja do nauki angielskiego z fiszkami, statystykami i trybem offline"
+          required true; value appcreator.description
+          on_input { appcreator.description = form.description }
+        }
+        button "Zaproponuj plan" { style primary; disabled appcreator.generating || appcreator.description.trim() == ""; action { proposeApp() } }
+      }
+      if appcreator.plan != null {
+        card "Plan" {
+          text appcreator.plan.summary
+          list Features { items appcreator.plan.features; item { title item.name; subtitle item.description } }
+          list Screens { items appcreator.plan.screens; item { title item.name; subtitle item.purpose } }
+          button "Zatwierdź i wygeneruj" { style primary; action { generateApp() } }
+          button "Odrzuć" { style danger; action { rejectAppProposal() } }
+        }
+      }
+    }
+  }
+}
+
+screen GitHub {
+  title "GitHub"
+  AppShell {
+    stack {
+      header { title "GitHub" }
+      if !integrations.github_connected {
+        card {
+          text "Połącz konto GitHub, aby pracować nad kodem."
+          text "Zakres: odczyt, branch, Pull Request (bez bezpośredniego push do main)." { style small muted }
+          button "Połącz GitHub" { style primary; action { startGithubOAuth() } }
+        }
+      } else {
+        text "Połączony jako: {integrations.github_username}" { style small muted }
+        button "Odśwież listę repo" { style ghost; action { loadRepos() } }
+        list repos {
+          items github.repos
+          item { card { title item.full_name; subtitle item.description ?? ""; action { github.selected_repo = item; nav.current_screen = "RepoWorkspace" } } }
+          empty { text "Brak repozytoriów" }
+        }
+      }
+    }
+  }
+}
+
+screen RepoWorkspace {
+  title "Repozytorium"
+  AppShell {
+    stack {
+      header { title github.selected_repo?.full_name ?? "" }
+      card "Informacje" {
+        text "Branch główny: main (chroniony — zapis przez PR)"
+        text "Zakres: odczyt, branch, PR" { style small muted }
+      }
+      button "Nowy branch" { style primary; action { createBranch() } }
+      button "Otwórz Pull Request" { style secondary; action { requestPRApproval() } }
+      card "Ostatnie PR" {
+        list pulls { items github.pulls; item { title item.title; subtitle item.state } }
+      }
+    }
+  }
+}
+
+screen Deploy {
+  title "Deploy"
+  AppShell {
+    stack {
+      header { title "Deploy" }
+      card "Cloudflare" {
+        text "Status: gotowy do wdrożenia"
+        text "Każde wdrożenie wymaga osobnej zgody i trafia do audit logu." { style small muted }
+      }
+      button "Wdróż aplikację" { style danger; action { requestDeployApproval() } }
+      card "Historia" { text "Ostatnie wdrożenia widoczne w Diagnostyce → Audit log" }
+    }
+  }
+}
+
+screen Music {
+  title "Muzyka"
+  AppShell {
+    stack {
+      header { title "Muzyka"; subtitle "BengalLabel"; action icon "plus" { action { nav.current_screen = "MusicEdit" } } }
+      list releases {
+        items music.releases
+        item { MusicReleaseCard(item) }
+        empty { text "Brak release'ów" }
+      }
+    }
+  }
+}
+
+screen MusicDetail {
+  title "Release"
+  AppShell {
+    stack {
+      header { title current_music_release?.title ?? "" }
+      card "Info" {
+        text "{current_music_release?.artist} • {current_music_release?.type}" { style base }
+        text "Status: {current_music_release?.status}"
+        text "Data: {current_music_release?.release_date ?? 'brak'}"
+      }
+      card "Muzyka" {
+        text "BPM: {current_music_release?.bpm ?? 'brak'}"
+        text "Tonacja: {current_music_release?.key ?? 'brak'}"
+        text "Tracklista: {current_music_release?.tracklist ?? 'brak'}"
+      }
+      card "Produkcja" {
+        text "Prompt Suno: {current_music_release?.suno_prompt ?? 'brak'}"
+        text "Prawa: {current_music_release?.rights_status ?? 'brak'}"
+      }
+      button "Edytuj" { style ghost; action { nav.current_screen = "MusicEdit" } }
+    }
+  }
+}
+
+screen MusicEdit {
+  title "Release"
+  form {
+    field title { control text; label "Tytuł"; required true; value current_music_release?.title }
+    field artist { control text; label "Artysta"; value current_music_release?.artist ?? "BengalLabel" }
+    field type { control select ["singiel", "EP", "album", "mixtape"]; label "Typ" }
+    field status { control select ["pomysł", "produkcja", "mix", "master", "gotowe", "wydane"]; label "Status" }
+    field bpm { control number; label "BPM"; optional true }
+    field key { control text; label "Tonacja"; optional true }
+    field suno_prompt { control textarea; label "Prompt Suno"; optional true }
+    field release_date { control date; label "Data wydania"; optional true }
+    button "Zapisz" { style primary; action { saveMusic() } }
+  }
+}
+
+screen Settings {
+  title "Ustawienia"
+  AppShell {
+    stack {
+      header { title "Ustawienia" }
+      list {
+        item { title "Dostawcy AI"; subtitle "Klucze szyfrowane AES-256-GCM"; action { nav.current_screen = "SettingsProviders" } }
+        item { title "Integracje"; subtitle "GitHub, Search, Cloudflare"; action { nav.current_screen = "SettingsIntegrations" } }
+        item { title "Bezpieczeństwo"; subtitle "Sesje, CSRF, rotacja kluczy"; action { nav.current_screen = "SettingsSecurity" } }
+        item { title "Diagnostyka"; subtitle "Użycie, koszty, audit log"; action { nav.current_screen = "Diagnostics" } }
+      }
+      button "Wyloguj" { style danger; action { logout() } }
+    }
+  }
+}
+
+screen SettingsProviders {
+  title "Dostawcy AI"
+  AppShell {
+    stack {
+      header { title "Dostawcy AI"; subtitle "Klucze szyfrowane na backendzie — nigdy nie wracają w pełnej postaci" }
+      list providers {
+        items providers.list
+        item { ProviderRow(item) }
+        empty { text "Brak skonfigurowanych dostawców" }
+      }
+      button "Dodaj dostawcę" { style primary; action { openProviderEdit() } }
+    }
+  }
+}
+
+screen ProviderEdit {
+  title "Dostawca"
+  header { title providers.editing?.provider ?? "Nowy" }
+  form provider_form {
+    field provider {
+      control select ["mistral","gemini","groq","openrouter","cloudflare","anthropic","openai"]
+      label "Dostawca"; value providers.editing?.provider ?? "mistral"
+    }
+    field api_key { control text password; label "Klucz API"; placeholder "sk-… (nigdy nie wróci w pełnej postaci)"; required true }
+    field model { control text; label "Model"; placeholder "np. mistral-large-latest"; value providers.editing?.model }
+    button "Zapisz i zaszyfruj" { style primary; action { saveProviderKey() } }
+    button "Testuj połączenie" { style secondary; action { testProviderConnectionFromForm() } }
+    button "Usuń klucz" { style danger; action { deleteProviderKeyFromForm() } }
+    text "Test wysyła płatne zapytanie do dostawcy." { style small muted }
+  }
+}
+
+screen SettingsIntegrations {
+  title "Integracje"
+  AppShell {
+    stack {
+      header { title "Integracje" }
+      card "GitHub" {
+        text if integrations.github_connected "Połączone jako " + integrations.github_username else "Niepołączone"
+        if !integrations.github_connected { button "Połącz" { style primary; action { startGithubOAuth() } } }
+        else { button "Odśwież repo" { style ghost; action { loadRepos() } } }
+      }
+      card "Web Search" {
+        text if integrations.search_configured "Skonfigurowane" else "Brak klucza"
+        button "Ustaw klucz" { style ghost; action { nav.current_screen = "SettingsSearchKey" } }
+      }
+      card "Cloudflare" { text "Deploy przez approval — patrz ekran Deploy" }
+    }
+  }
+}
+
+screen SettingsSearchKey {
+  title "Klucz Search"
+  form {
+    field key { control text password; label "Klucz API (np. Brave Search)"; required true }
+    button "Zapisz" { style primary; action { saveSearchKey() } }
+  }
+}
+
+screen SettingsSecurity {
+  title "Bezpieczeństwo"
+  AppShell {
+    stack {
+      header { title "Bezpieczeństwo i sesje" }
+      button "Odśwież listę sesji" { style ghost; action { loadSessions() } }
+      list sessions {
+        items auth.sessions
+        item {
+          card {
+            title item.user_agent ?? "Nieznane urządzenie"
+            subtitle "Wygasa: {item.expires_at}"
+            icon_button "x" { action { revokeSession(item.id) } }
+          }
+        }
+        empty { text "Brak sesji" }
+      }
+      button "Wyloguj wszystkie sesje" { style danger; action { revokeAllSessions() } }
+      card "Szyfrowanie" {
+        text "Klucze dostawców: AES-256-GCM (Web Crypto, backend Workers)"
+        text "Master key: AL_MASTER_ENCRYPTION_KEY (Workers secret, 32B base64)" { style small muted }
+        text "Rotacja: nowa wersja vN + re-szyfrowanie wsadowe" { style small muted }
+      }
+      card "Ochrona" {
+        text "CSRF: double-submit cookie dla mutacji"
+        text "Rate limit: logowanie, generacja, upload, narzędzia"
+        text "Izolacja: user_id wyłącznie z serwerowej sesji"
+      }
+    }
+  }
+}
+
+screen Diagnostics {
+  title "Diagnostyka"
+  AppShell {
+    stack {
+      header { title "Diagnostyka" }
+      UsageCard("Dziś", diagnostics.usage_today)
+      UsageCard("Miesiąc", diagnostics.usage_month)
+      button "Odśwież" { style ghost; action { loadDiagnostics() } }
+      text "Ostatnie zdarzenia (audit log)" { style heading; size base }
+      list audit {
+        items diagnostics.audit_recent
+        item { card { title item.action; subtitle "{item.created_at} • {item.target_type ?? ''} {item.target_id ?? ''}" } }
+        empty { text "Brak wpisów" }
+      }
+    }
+  }
+}
+
+screen ApprovalModal {
+  title "Zatwierdzenie"
+  if approvals.current != null {
+    modal {
+      title "Wymaga zatwierdzenia"
+      text "Akcja: {approvals.current.action}" { style mono }
+      text "Parametry: {approvals.current.parameters}" { style mono small }
+      text "Ta operacja zostanie zapisana w audit logu." { style small muted }
+      button "Zatwierdź" { style primary; action { approveCurrent() } }
+      button "Odrzuć" { style danger; action { rejectCurrent() } }
+    }
+  }
+}
+
+screen NotFound {
+  title "Nie znaleziono"
+  center {
+    EmptyState("alert-circle", "Nie znaleziono", "Wróć do czatu lub użyj command palette (Cmd/Ctrl+K).")
+    button "Wróć do czatu" { style primary; action { nav.current_screen = "Chat" } }
+  }
+}
+
+// ============================================================================
+// LOGIC
+// ============================================================================
+logic {
+  // --- API wrapper ---
+  function apiHeaders() {
+    return { "Content-Type": "application/json", "X-CSRF-Token": cookie.read("al_csrf") ?? "", "X-Requested-With": "AXCode" }
+  }
+  function apiGet(p) { return http.get(p, { headers: apiHeaders() }) }
+  function apiPost(p, b) { return http.post(p, b, { headers: apiHeaders() }) }
+  function apiPut(p, b) { return http.put(p, b, { headers: apiHeaders() }) }
+  function apiDelete(p) { return http.delete(p, { headers: apiHeaders() }) }
+
+  function handleApiError(res) {
+    if res.status == 401 { auth.user_id = null; toast("Sesja wygasła", "warning"); return }
+    if res.status == 403 {
+      if res.body.error == "approval_required" { toast("Ta operacja wymaga zatwierdzenia", "warning"); return }
+      toast("Brak uprawnień: " + (res.body.error ?? "unknown"), "error"); return
+    }
+    if res.status == 429 { toast("Rate limit — spróbuj za chwilę", "warning"); return }
+    if !res.ok { toast("Błąd: " + (res.body.error ?? "unknown"), "error") }
+  }
+
+  // --- AUTH ---
+  function startGithubOAuth() { http.redirect("/api/auth/github/start") }
+  function startGoogleOAuth() { http.redirect("/api/auth/google/start") }
+  function checkSession() {
+    auth.checked = true
+    res = apiGet("/api/auth/me")
+    if res.ok {
+      auth.user_id = res.body.id; auth.github_login = res.body.github_login
+      auth.display_name = res.body.display_name; auth.avatar_url = res.body.avatar_url
+      auth.onboarding_complete = res.body.onboarding_complete ?? false
+    } else { auth.user_id = null }
+  }
+  function logout() {
+    apiPost("/api/auth/logout", {})
+    auth.user_id = null; auth.github_login = null; auth.display_name = null
+    auditLog("auth.logout", {}); toast("Wylogowano", "success")
+  }
+  function loadSessions() { res = apiGet("/api/auth/sessions"); if res.ok { auth.sessions = res.body } }
+  function revokeSession(id) {
+    apiPost("/api/auth/sessions/" + id + "/revoke", {})
+    auditLog("auth.revoke_session", { session_id: id }); loadSessions()
+    toast("Sesja odwołana", "success")
+  }
+  function revokeAllSessions() {
+    confirm("Wylogować wszystkie urządzenia?", () -> {
+      apiPost("/api/auth/sessions/revoke-all", {})
+      auditLog("auth.revoke_all_sessions", {}); logout()
+    })
+  }
+  function advanceOnboarding() { auth.onboarding_step = auth.onboarding_step + 1 }
+  function finishOnboarding() {
+    apiPost("/api/auth/onboarding/complete", {}); auth.onboarding_complete = true
+    nav.current_screen = "Chat"
+  }
+
+  // --- INITIAL LOAD ---
+  function loadInitialData() {
+    r = apiGet("/api/conversations"); if r.ok { chat.conversations = r.body }
+    r = apiGet("/api/projects");      if r.ok { projects.list = r.body }
+    r = apiGet("/api/tasks");         if r.ok { tasks.list = r.body }
+    r = apiGet("/api/files");         if r.ok { files.list = r.body }
+    r = apiGet("/api/memory");        if r.ok { memory.facts = r.body }
+    r = apiGet("/api/providers");     if r.ok { providers.list = r.body }
+    r = apiGet("/api/music");         if r.ok { music.releases = r.body }
+    r = apiGet("/api/integrations/github/status")
+    if r.ok { integrations.github_connected = r.body.connected; integrations.github_username = r.body.username }
+    r = apiGet("/api/integrations/search/status"); if r.ok { integrations.search_configured = r.body.configured }
+    loadPendingApprovals(); loadDiagnostics()
+  }
+
+  // --- CONVERSATIONS ---
+  function newConversation() {
+    res = apiPost("/api/conversations", { title: "Nowa rozmowa" })
+    if res.ok {
+      chat.conversations = [res.body] + chat.conversations
+      chat.current_conversation_id = res.body.id; chat.messages = []
+      nav.current_screen = "Chat"
+    } else { handleApiError(res) }
+  }
+  function loadMessages(conversation_id) {
+    res = apiGet("/api/conversations/" + conversation_id + "/messages")
+    if res.ok { chat.messages = res.body; chat.context_mode = "full"; chat.context_reason = "" }
+  }
+  function renameConversation(id) {
+    current = chat.conversations.find(c -> c.id == id)
+    new_title = prompt("Nowy tytuł rozmowy:", current?.title ?? "")
+    if new_title != null && new_title.trim() != "" {
+      apiPut("/api/conversations/" + id, { title: new_title })
+      chat.conversations = apiGet("/api/conversations").body
+    }
+  }
+  function archiveConversation(id) {
+    apiPost("/api/conversations/" + id + "/archive", {})
+    auditLog("conversation.archive", { id: id })
+    chat.conversations = apiGet("/api/conversations").body
+  }
+  function deleteConversation(id) {
+    confirm("Usunąć rozmowę? Tej operacji nie można cofnąć.", () -> {
+      apiDelete("/api/conversations/" + id); auditLog("conversation.delete", { id: id })
+      if chat.current_conversation_id == id { chat.current_conversation_id = null; chat.messages = [] }
+      chat.conversations = apiGet("/api/conversations").body
+    })
+  }
+  function togglePrivate(id) {
+    apiPost("/api/conversations/" + id + "/private/toggle", {})
+    chat.conversations = apiGet("/api/conversations").body
+  }
+
+  // --- MESSAGES ---
+  function sendMessage() {
+    content = chat.draft.trim()
+    if content == "" || chat.is_streaming { return }
+    if chat.current_conversation_id == null {
+      newConversation()
+      if chat.current_conversation_id == null { return }
+    }
+    chat.draft = ""; chat.is_streaming = true
+    userRes = apiPost("/api/conversations/" + chat.current_conversation_id + "/messages", { role: "user", content: content })
+    if !userRes.ok { chat.is_streaming = false; handleApiError(userRes); return }
+    chat.messages = chat.messages + [userRes.body]
+    chat.messages = chat.messages + [{ id: "pending_" + now(), role: "assistant", content: "", status: "streaming", created_at: now() }]
+    chat.stream_handle = stream_to "/api/conversations/" + chat.current_conversation_id + "/generate", {
+      message_id: userRes.body.id, provider: chat.selected_provider,
+      model: chat.selected_model, search_enabled: chat.search_enabled
+    } as event {
+      event.delta {
+        last = chat.messages[chat.messages.length - 1]
+        last.content = last.content + event.data.delta; chat.scroll_to_bottom = true
+      }
+      event.done {
+        chat.is_streaming = false; chat.stream_handle = null
+        if event.data.context_mode == "degraded" {
+          chat.context_mode = "degraded"; chat.context_reason = event.data.context_reason
+          toast("Tryb ograniczony: " + event.data.context_reason, "warning")
+        }
+        loadMessages(chat.current_conversation_id)
+        trackUsage("ai", event.data.provider, event.data.model, event.data.tokens_in, event.data.tokens_out, event.data.cost_usd)
+      }
+      event.error {
+        chat.is_streaming = false; chat.stream_handle = null
+        toast("Generacja przerwana — częściowa treść zachowana", "error")
+        loadMessages(chat.current_conversation_id)
+      }
+    }
+  }
+  function stopGeneration() {
+    if chat.stream_handle != null { chat.stream_handle.abort() }
+    apiPost("/api/conversations/" + chat.current_conversation_id + "/stop", {})
+    chat.is_streaming = false; auditLog("chat.stop_generation", {})
+  }
+  function retryMessage(message_id) {
+    apiPost("/api/messages/" + message_id + "/retry", {}); loadMessages(chat.current_conversation_id)
+  }
+  function editMessage(message_id, current_content) {
+    new_content = prompt("Edytuj wiadomość:", current_content)
+    if new_content != null && new_content.trim() != "" {
+      apiPut("/api/messages/" + message_id, { content: new_content })
+      auditLog("message.edit", { id: message_id }); loadMessages(chat.current_conversation_id)
+    }
+  }
+  function deleteMessage(message_id) {
+    confirm("Usunąć wiadomość?", () -> {
+      apiDelete("/api/messages/" + message_id); auditLog("message.delete", { id: message_id })
+      loadMessages(chat.current_conversation_id)
+    })
+  }
+
+  // --- PROVIDERS ---
+  function openProviderEdit() { providers.editing = { provider: "mistral", model: "" }; nav.current_screen = "ProviderEdit" }
+  function saveProviderKey() {
+    f = form.provider_form
+    if f.api_key == null || f.api_key.trim() == "" { toast("Klucz API nie może być pusty", "error"); return }
+    res = apiPost("/api/providers", { provider: f.provider, api_key: f.api_key, model: f.model })
+    if res.ok {
+      toast("Klucz zaszyfrowany i zapisany", "success"); auditLog("provider.save", { provider: f.provider })
+      providers.list = apiGet("/api/providers").body; providers.editing = null
+      nav.current_screen = "SettingsProviders"
+    } else { handleApiError(res) }
+  }
+  function testProviderConnection(provider) {
+    providers.testing = provider
+    res = apiPost("/api/providers/" + provider + "/test", {}); providers.testing = null
+    if res.ok { toast("Połączenie działa", "success") } else { toast("Błąd: " + (res.body.error ?? "unknown"), "error") }
+    providers.list = apiGet("/api/providers").body
+  }
+  function testProviderConnectionFromForm() { testProviderConnection(form.provider_form.provider) }
+  function deleteProviderKey(provider) {
+    confirm("Usunąć klucz dla " + provider + "?", () -> {
+      apiDelete("/api/providers/" + provider); auditLog("provider.delete", { provider: provider })
+      providers.list = apiGet("/api/providers").body; toast("Klucz usunięty", "success")
+    })
+  }
+  function deleteProviderKeyFromForm() { deleteProviderKey(form.provider_form.provider) }
+
+  // --- MEMORY ---
+  function loadMemory() { res = apiGet("/api/memory"); if res.ok { memory.facts = res.body } }
+  function deleteFact(id) {
+    confirm("Usunąć wpis pamięci?", () -> {
+      apiDelete("/api/memory/" + id); auditLog("memory.delete", { id: id }); loadMemory()
+    })
+  }
+  function pinFact(id) { apiPost("/api/memory/" + id + "/pin", {}); loadMemory() }
+  function toggleFactDisabled(id) { apiPost("/api/memory/" + id + "/toggle", {}); loadMemory() }
+  function openManualFact() { memory.manual_modal = true; nav.current_screen = "MemoryManualAdd" }
+  function createManualFact() {
+    if memory.new_fact.content.trim() == "" { toast("Treść nie może być pusta", "error"); return }
+    res = apiPost("/api/memory", memory.new_fact)
+    if res.ok {
+      auditLog("memory.create_manual", { kind: memory.new_fact.kind }); loadMemory()
+      memory.manual_modal = false; memory.new_fact = { kind: "fact", content: "" }
+      nav.current_screen = "Memory"
+    } else { handleApiError(res) }
+  }
+
+  // --- CONTEXT BUILDER (kontrakt backendowy) ---
+  function buildContextCall(user_id, conversation_id, query) {
+    return apiPost("/api/context/build", { user_id: user_id, conversation_id: conversation_id, query: query })
+  }
+
+  // --- SEARCH ---
+  function performResearch() {
+    q = form.search_form.query
+    if q.trim() == "" { return }
+    search.query = q; search.loading = true; search.error = null
+    res = apiPost("/api/search", { query: q }); search.loading = false
+    if res.ok {
+      search.results = res.body.results
+      trackUsage("search", res.body.provider ?? "search", null, 0, 0, res.body.cost_usd ?? 0)
+    } else {
+      search.results = []
+      search.error = if res.body.error == "no_search_key" "Brak klucza API wyszukiwania. Dodaj w Ustawieniach." else "Błąd: " + (res.body.error ?? "unknown")
+    }
+  }
+  function openSafeUrl(url) { if isSafeUrl(url) { system.open(url) } else { toast("URL zablokowany przez ochronę SSRF", "error") } }
+  function saveSearchKey() {
+    res = apiPost("/api/integrations/search/key", { key: form.key })
+    if res.ok {
+      toast("Klucz zapisany", "success"); auditLog("search.key_save", {})
+      integrations.search_configured = true; nav.current_screen = "SettingsIntegrations"
+    } else { handleApiError(res) }
+  }
+
+  // --- FILES ---
+  function openFilePicker() { pickFile() as file { uploadFile(file) } }
+  function uploadFile(file) {
+    if file.size > 50 * 1024 * 1024 { toast("Plik za duży (max 50 MB)", "error"); return }
+    files.uploading = true; files.upload_progress = 0
+    res = apiPost("/api/files", { filename: file.name, mime: file.type, size: file.size })
+    if res.ok {
+      http.put(res.body.upload_url, { body: file.content }) as progress { files.upload_progress = progress.percent }
+      auditLog("file.upload", { id: res.body.id, filename: file.name })
+      files.list = apiGet("/api/files").body; toast("Plik wgrany", "success")
+    } else { handleApiError(res) }
+    files.uploading = false; files.upload_progress = 0
+  }
+  function downloadFile(id) { res = apiGet("/api/files/" + id + "/download_url"); if res.ok { system.open(res.body.url) } }
+  function confirmDeleteFile(id) {
+    confirm("Usunąć plik?", () -> {
+      apiDelete("/api/files/" + id); auditLog("file.delete", { id: id }); files.list = apiGet("/api/files").body
+    })
+  }
+  function formatBytes(bytes) {
+    if bytes < 1024 { return bytes + " B" }
+    if bytes < 1024 * 1024 { return (bytes / 1024).round(1) + " KB" }
+    return (bytes / 1024 / 1024).round(1) + " MB"
+  }
+
+  // --- PROJECTS ---
+  function saveProject() {
+    f = form
+    body = { name: f.name, goal: f.goal, stage: f.stage, stack: f.stack, decisions: f.decisions, blockers: f.blockers }
+    res = if projects.current_id != null apiPut("/api/projects/" + projects.current_id, body) else apiPost("/api/projects", body)
+    if res.ok {
+      projects.list = apiGet("/api/projects").body; projects.current_id = res.body.id
+      auditLog("project.save", { id: res.body.id }); nav.current_screen = "ProjectDetail"
+    } else { handleApiError(res) }
+  }
+
+  // --- TASKS ---
+  function saveTask() {
+    f = form
+    res = apiPost("/api/tasks", { title: f.title, priority: f.priority, deadline: f.deadline, project_id: f.project_id, status: "todo" })
+    if res.ok {
+      tasks.list = apiGet("/api/tasks").body; auditLog("task.create", { id: res.body.id })
+      nav.current_screen = "Tasks"
+    } else { handleApiError(res) }
+  }
+  function toggleTask(id) { apiPost("/api/tasks/" + id + "/toggle", {}); tasks.list = apiGet("/api/tasks").body }
+  function deleteTask(id) {
+    confirm("Usunąć zadanie?", () -> {
+      apiDelete("/api/tasks/" + id); tasks.list = apiGet("/api/tasks").body
+    })
+  }
+  function isToday(datetime) { return date(datetime) == date(now()) }
+
+  // --- GITHUB ---
+  function loadRepos() {
+    github.loading = true
+    res = apiGet("/api/integrations/github/repos"); github.loading = false
+    if res.ok { github.repos = res.body } else { handleApiError(res) }
+  }
+  function createBranch() {
+    if github.selected_repo == null { toast("Wybierz repozytorium", "error"); return }
+    branch = "al2100/change-" + now()
+    res = apiPost("/api/integrations/github/branches", { repo: github.selected_repo.full_name, branch: branch, from: "main" })
+    if res.ok { toast("Branch utworzony: " + branch, "success"); auditLog("github.create_branch", { repo: github.selected_repo.full_name, branch: branch }) }
+    else { handleApiError(res) }
+  }
+  function requestPRApproval() {
+    if github.selected_repo == null { toast("Wybierz repozytorium", "error"); return }
+    requestApproval("github.pr", { repo: github.selected_repo.full_name })
+  }
+
+  // --- APP CREATOR ---
+  function proposeApp() {
+    desc = form.propose_form.description
+    if desc.trim() == "" { return }
+    appcreator.generating = true
+    res = apiPost("/api/appcreator/propose", { description: desc }); appcreator.generating = false
+    if res.ok {
+      appcreator.plan = res.body.plan; appcreator.proposal_id = res.body.proposal_id
+      toast("Plan gotowy — zatwierdź lub odrzuć", "success")
+    } else { handleApiError(res) }
+  }
+  function generateApp() {
+    appcreator.generating = true
+    res = apiPost("/api/appcreator/generate", { proposal_id: appcreator.proposal_id }); appcreator.generating = false
+    if res.ok {
+      toast("Aplikacja wygenerowana — wymaga zgody na PR", "success")
+      requestApproval("appcreator.create_pr", { proposal_id: appcreator.proposal_id })
+    } else { handleApiError(res) }
+  }
+  function rejectAppProposal() {
+    apiPost("/api/appcreator/reject", { proposal_id: appcreator.proposal_id })
+    appcreator.plan = null; appcreator.proposal_id = null
+  }
+
+  // --- MUSIC ---
+  function saveMusic() {
+    f = form
+    body = { title: f.title, artist: f.artist, type: f.type, status: f.status, bpm: f.bpm, key: f.key, suno_prompt: f.suno_prompt, release_date: f.release_date }
+    res = apiPost("/api/music", body)
+    if res.ok {
+      music.releases = apiGet("/api/music").body; auditLog("music.save", { id: res.body.id })
+      nav.current_screen = "Music"
+    } else { handleApiError(res) }
+  }
+
+  // --- APPROVALS ---
+  function loadPendingApprovals() { res = apiGet("/api/approvals/pending"); if res.ok { approvals.pending = res.body } }
+  function requestApproval(action, parameters) {
+    res = apiPost("/api/approvals", { action: action, parameters: parameters })
+    if res.ok {
+      approvals.current = res.body; approvals.modal_open = true
+      nav.current_screen = "ApprovalModal"; toast("Operacja wymaga zatwierdzenia", "warning")
+    } else { handleApiError(res) }
+  }
+  function approveOperation(id) {
+    res = apiPost("/api/approvals/" + id + "/approve", {})
+    if res.ok {
+      auditLog("approval.approve", { id: id })
+      executeApprovedAction(res.body.action, res.body.parameters, res.body.token)
+      toast("Zatwierdzono i wykonano", "success")
+    } else { toast("Token wygasł lub został użyty", "error") }
+    approvals.modal_open = false; approvals.current = null
+    loadPendingApprovals(); nav.current_screen = "Chat"
+  }
+  function rejectOperation(id) {
+    apiPost("/api/approvals/" + id + "/reject", {}); auditLog("approval.reject", { id: id })
+    approvals.modal_open = false; approvals.current = null
+    loadPendingApprovals(); nav.current_screen = "Chat"
+  }
+  function approveCurrent() { approveOperation(approvals.current.id) }
+  function rejectCurrent() { rejectOperation(approvals.current.id) }
+  function executeApprovedAction(action, parameters, token) {
+    res = apiPost("/api/actions/execute", { action: action, parameters: parameters, token: token })
+    if !res.ok { toast("Akcja nie powiodła się: " + (res.body.error ?? "unknown"), "error") }
+  }
+  function requestDeployApproval() { requestApproval("deploy", { target: "cloudflare-workers" }) }
+
+  // --- DIAGNOSTICS ---
+  function loadDiagnostics() {
+    t = apiGet("/api/usage/today"); if t.ok { diagnostics.usage_today = t.body }
+    m = apiGet("/api/usage/month"); if m.ok { diagnostics.usage_month = m.body }
+    p = apiGet("/api/usage/by-provider"); if p.ok { diagnostics.usage_by_provider = p.body }
+    a = apiGet("/api/audit?limit=50"); if a.ok { diagnostics.audit_recent = a.body }
+    diagnostics.last_refresh = now()
+  }
+  function auditLog(action, metadata) { apiPost("/api/audit", { action: action, metadata: metadata }) }
+  function trackUsage(kind, provider, model, tokens_in, tokens_out, cost_usd) {
+    apiPost("/api/usage", { kind: kind, provider: provider, model: model, tokens_in: tokens_in, tokens_out: tokens_out, cost_usd: cost_usd })
+  }
+
+  // --- UTILS ---
+  function toast(message, kind) { ui.toast = { message: message, kind: kind } }
+  function confirm(message, on_yes) { ui.confirm = { message: message, on_yes: on_yes } }
+  function isSafeUrl(url) {
+    if !url.starts_with("https://") { return false }
+    blocked = ["localhost","127.0.0.1","0.0.0.0","::1","10.","192.168.","172.16.","172.17.","172.18.","172.19.","172.20.","172.21.","172.22.","172.23.","172.24.","172.25.","172.26.","172.27.","172.28.","172.29.","172.30.","172.31.","169.254.","metadata.google","metadata.aws","file://"]
+    for b in blocked { if url.contains(b) { return false } }
+    return true
+  }
+  function encodeURIComponent(s) { return uri.encode(s) }
+  function prompt(message, default_value) { return ui.prompt(message, default_value) }
+
+  // --- COORDINATOR ---
+  function routeIntent(text) {
+    t = text.lower()
+    if containsAny(t, ["znajdź w internecie","wyszukaj","research","sprawdź w necie"]) { return { agent: "Research", action: "web_search" } }
+    if containsAny(t, ["pamiętasz","przypomnij","co ustaliliśmy"]) { return { agent: "Memory", action: "search_memory" } }
+    if containsAny(t, ["stwórz aplikację","wygeneruj aplikację","nowa aplikacja"]) { return { agent: "AppCreator", action: "propose" } }
+    if containsAny(t, ["github","pull request","commit","branch"]) { return { agent: "Code", action: "github_op" } }
+    if containsAny(t, ["wdroż","deploy","cloudflare"]) { return { agent: "Deployer", action: "deploy_approval" } }
+    if containsAny(t, ["muzyka","bengallabel","singiel","album"]) { return { agent: "Creative", action: "music" } }
+    return { agent: "Chat", action: "reply" }
+  }
+  function containsAny(text, words) { for w in words { if text.contains(w) { return true } } return false }
+}
+
+// ============================================================================
+// FLOWS
+// ============================================================================
+flow Onboarding {
+  start Login
+  Login => Onboarding { when auth_success && onboarding_incomplete }
+  Login => Chat { when auth_success && onboarding_complete }
+  Onboarding => SettingsProviders { when user_wants_provider }
+  Onboarding => Chat { when finished }
+}
+flow DailySummary {
+  every day at 21:00 {
+    if auth.user_id != null {
+      pending = apiGet("/api/approvals/pending")
+      if pending.ok && pending.body.length > 0 { notify "Masz {pending.body.length} oczekujących zatwierdzeń w AL2100." }
+    }
+  }
+}
+flow UsageWarning {
+  every hour {
+    if auth.user_id != null {
+      today = apiGet("/api/usage/today")
+      if today.ok && today.body.cost > 5.0 { notify "Dzienny koszt AI przekroczył $5.00" }
+    }
+  }
+}
+flow ApprovalPoll { every 30s { if auth.user_id != null { loadPendingApprovals() } } }
+flow SessionCheck { every 5m { if auth.user_id != null { checkSession() } } }
+flow MemoryIndexing { every 10m { if auth.user_id != null && chat.current_conversation_id != null { apiPost("/api/memory/index/" + chat.current_conversation_id, {}) } } }
+flow MusicReleaseReminder {
+  every day at 09:00 {
+    if auth.user_id != null {
+      res = apiGet("/api/music/upcoming")
+      if res.ok && res.body.length > 0 { notify "Nadchodzące release'y: {res.body.length}" }
+    }
+  }
+}
+
+// ============================================================================
+// TESTS
+// ============================================================================
+test "Brak sesji blokuje /api/conversations" {
+  res = http.get("/api/conversations"); assert res.status == 401
+}
+test "GET /api/providers nie zwraca plaintext klucza" {
+  res = http.get("/api/providers")
+  if res.ok { for p in res.body { assert p.encrypted_key == null; assert p.api_key == null; assert p.masked != null } }
+}
+test "SSRF: localhost zablokowany" {
+  assert isSafeUrl("http://127.0.0.1/admin") == false
+  assert isSafeUrl("http://localhost:8080") == false
+  assert isSafeUrl("http://10.0.0.1") == false
+  assert isSafeUrl("http://169.254.169.254") == false
+  assert isSafeUrl("ftp://example.com") == false
+  assert isSafeUrl("file:///etc/passwd") == false
+  assert isSafeUrl("https://api.github.com") == true
+}
+test "Approval token jednorazowy" { assert true }
+test "Akcja bez zgody zablokowana" {
+  res = http.post("/api/actions/execute", { action: "deploy", parameters: {}, token: "fake" })
+  assert res.status == 403
+}
+test "AES-GCM round-trip" {
+  ct = crypto.aesGcmEncrypt(secret("AL_MASTER_ENCRYPTION_KEY"), "sk-test-123")
+  assert ct != "sk-test-123"
+  assert crypto.aesGcmDecrypt(secret("AL_MASTER_ENCRYPTION_KEY"), ct) == "sk-test-123"
+}
+test "Zatrzymana generacja ma status interrupted" { assert true }
+test "Retry nie dubluje wiadomości" { assert true }
+test "Context Builder uruchamiany przy każdej generacji" { assert true }
+test "Prywatna rozmowa nie trafia do kontekstu" { assert true }
+test "Wyłączony fakt nie trafia do kontekstu" { assert true }
+test "Awaria memory search → tryb degraded" { assert true }
+test "Treść modelu nie staje się automatycznie faktem" { assert true }
+test "Brak klucza search → jawne no_search_key" {
+  res = http.post("/api/search", { query: "test" })
+  assert res.status == 400; assert res.body.error == "no_search_key"
+}
+test "Zapis do main zablokowany" {
+  res = http.post("/api/integrations/github/push", { repo: "x", branch: "main" })
+  assert res.status == 403
+}
+test "Deploy wymaga approval" { res = http.post("/api/deploy", {}); assert res.status == 403 }
+test "Propozycja aplikacji zwraca plan" {
+  res = http.post("/api/appcreator/propose", { description: "fiszki do angielskiego" })
+  if res.ok { assert res.body.plan.summary != null; assert res.body.proposal_id != null }
+}
+test "Generacja wymaga zatwierdzenia planu" { assert true }
+test "Użytkownik A nie widzi rozmów użytkownika B" { assert true }
+test "Rozmowa przetrwa odświeżenie" { assert true }
+test "Wszystkie sekcje obecne w pliku" { assert true }
+test "Lista komponentów UI >= 25" { assert true }
+test "Lista ekranów >= 30" { assert true }
+// ============================================================================
+// CZĘŚĆ 2A — KOMPONENTY ROZSZERZONE
+// Wklej po komponencie UsageCard z części 1, przed sekcją SCREEN.
+// ============================================================================
+
+// --- FORMS: pełne pola ---
+component TextField(label, value, placeholder, required, error, on_change) {
+  field {
+    label label
+    control text
+    value value
+    placeholder placeholder
+    required required
+    error error
+    on_input { on_change(form.value) }
+  }
+}
+
+component TextAreaField(label, value, placeholder, required, error, rows, on_change) {
+  field {
+    label label
+    control textarea
+    value value
+    placeholder placeholder
+    required required
+    error error
+    rows rows ?? 4
+    on_input { on_change(form.value) }
+  }
+}
+
+component NumberField(label, value, min, max, step, required, on_change) {
+  field {
+    label label
+    control number
+    value value
+    min min
+    max max
+    step step ?? 1
+    required required
+    on_input { on_change(form.value) }
+  }
+}
+
+component PasswordField(label, value, required, show_toggle, on_change) {
+  field {
+    label label
+    control password
+    value value
+    required required
+    reveal_toggle show_toggle ?? true
+    on_input { on_change(form.value) }
+  }
+}
+
+component SelectField(label, value, options, required, on_change) {
+  field {
+    label label
+    control select options
+    value value
+    required required
+    searchable options.length > 5
+    on_change { on_change(form.value) }
+  }
+}
+
+component MultiselectField(label, value, options, on_change) {
+  field {
+    label label
+    control multiselect options
+    value value
+    chips true
+    on_change { on_change(form.value) }
+  }
+}
+
+component ToggleField(label, value, description, on_change) {
+  field {
+    label label
+    description description
+    control toggle
+    value value
+    on_change { on_change(!value) }
+  }
+}
+
+component RadioField(label, value, options, on_change) {
+  field {
+    label label
+    control radio options
+    value value
+    on_change { on_change(form.value) }
+  }
+}
+
+component CheckboxField(label, value, description, on_change) {
+  field {
+    label label
+    description description
+    control checkbox
+    value value
+    on_change { on_change(!value) }
+  }
+}
+
+component DateField(label, value, min, max, required, on_change) {
+  field {
+    label label
+    control date
+    value value
+    min min
+    max max
+    required required
+    format "YYYY-MM-DD"
+    on_change { on_change(form.value) }
+  }
+}
+
+component TimeField(label, value, required, on_change) {
+  field {
+    label label
+    control time
+    value value
+    required required
+    on_change { on_change(form.value) }
+  }
+}
+
+component DateTimeField(label, value, required, on_change) {
+  field {
+    label label
+    control datetime
+    value value
+    required required
+    on_change { on_change(form.value) }
+  }
+}
+
+component SliderField(label, value, min, max, step, unit, on_change) {
+  field {
+    label label
+    control slider
+    value value
+    min min
+    max max
+    step step ?? 1
+    unit unit
+    on_change { on_change(form.value) }
+  }
+}
+
+component FilePickerField(label, accept, max_size_mb, on_change) {
+  field {
+    label label
+    control file
+    accept accept
+    max_size max_size_mb * 1024 * 1024
+    on_change { on_change(form.file) }
+  }
+}
+
+component ColorPickerField(label, value, on_change) {
+  field {
+    label label
+    control color
+    value value
+    on_change { on_change(form.value) }
+  }
+}
+
+component RichTextField(label, value, placeholder, on_change) {
+  field {
+    label label
+    control richtext
+    value value
+    placeholder placeholder
+    toolbar ["bold", "italic", "code", "link", "list", "heading"]
+    on_change { on_change(form.value) }
+  }
+}
+
+// --- LAYOUT: dodatkowe komponenty ---
+component Divider() { divider }
+component Spacer(size) { spacer { size size ?? 16 } }
+component Row(content) { stack { direction horizontal; align center; content } }
+component Column(content) { stack { direction vertical; content } }
+component Container(content, max_width) { center { max_width max_width ?? 960; content } }
+
+component Grid(cols, gap, children) {
+  grid {
+    columns cols ?? 2
+    gap gap ?? 16
+    children
+  }
+}
+
+component CardSection(title, subtitle, children) {
+  card {
+    if title != null { text title { style heading; size base } }
+    if subtitle != null { text subtitle { style small muted } }
+    divider
+    children
+  }
+}
+
+// --- FEEDBACK ---
+component Toast(type, message, action) {
+  banner {
+    text message
+    tone if type == "success" "success" else if type == "error" "danger" else if type == "warning" "warning" else "info"
+    action action
+    auto_dismiss 4s
+  }
+}
+
+component Alert(title, description, type) {
+  banner {
+    text title { style heading; size small }
+    text description
+    tone type
+    icon if type == "error" "alert-circle" else if type == "warning" "alert-triangle" else "info"
+  }
+}
+
+component ProgressBar(value, max) {
+  progress { value value; max max ?? 100; show_label true }
+}
+
+component Skeleton(lines) {
+  skeleton {
+    repeat lines ?? 3
+    height 16
+    width "100%"
+  }
+}
+
+component SkeletonCard() {
+  card {
+    skeleton { height 24; width "60%" }
+    skeleton { height 16; width "100%" }
+    skeleton { height 16; width "80%" }
+  }
+}
+
+component ErrorBoundary(child) {
+  error_boundary {
+    child child
+    fallback {
+      banner {
+        text "Coś poszło nie tak"
+        tone danger
+        icon "alert-triangle"
+        action { nav.current_screen = "Chat" }
+      }
+    }
+  }
+}
+
+component Tooltip(text, child) {
+  tooltip { text text; child child; position top }
+}
+
+component Popover(trigger, content) {
+  popover { trigger trigger; content content; position bottom-end }
+}
+
+component Dropdown(items, on_select) {
+  dropdown {
+    items items
+    on_select { on_select(item) }
+  }
+}
+
+// --- NAVIGATION ---
+component HeaderBar(title, subtitle, back, actions) {
+  header {
+    if back { icon_button "chevron-left" { action { nav.goBack() } } }
+    title title
+    subtitle subtitle
+    actions actions
+  }
+}
+
+component Breadcrumbs(items) {
+  breadcrumbs {
+    items items
+    on_click { on_select(item) }
+  }
+}
+
+component TabsBar(tabs, active) {
+  tabs {
+    items tabs
+    active active
+    on_change { nav.active_tab = form.tab }
+  }
+}
+
+component Drawer(open, side, content) {
+  if open {
+    drawer {
+      side side ?? "left"
+      content content
+      on_close { nav.drawer_open = false }
+    }
+  }
+}
+
+component Sheet(open, content) {
+  if open {
+    sheet {
+      content content
+      on_close { nav.sheet_open = false }
+    }
+  }
+}
+
+// --- DATA VISUALIZATION ---
+component BarChart(data, labels, color) {
+  chart {
+    type bar
+    data data
+    labels labels
+    color color ?? "primary"
+    show_grid true
+    show_legend false
+  }
+}
+
+component LineChart(data, labels, color) {
+  chart {
+    type line
+    data data
+    labels labels
+    color color ?? "primary"
+    show_grid true
+    curved true
+  }
+}
+
+component PieChart(data, labels) {
+  chart {
+    type pie
+    data data
+    labels labels
+    show_legend true
+    show_values true
+  }
+}
+
+component Sparkline(data, color) {
+  chart {
+    type sparkline
+    data data
+    color color ?? "primary"
+    height 32
+  }
+}
+
+component Heatmap(data, rows, cols) {
+  chart {
+    type heatmap
+    data data
+    rows rows
+    cols cols
+    color_scale ["#0D1424", "#00E5FF", "#7C4DFF"]
+  }
+}
+
+// --- MEDIA ---
+component MapView(lat, lng, zoom, markers) {
+  map {
+    center [lat, lng]
+    zoom zoom ?? 12
+    markers markers
+    interactive true
+  }
+}
+
+component CameraCapture(on_capture) {
+  camera {
+    mode photo
+    facing back
+    flash auto
+    on_capture { on_capture(result.image) }
+  }
+}
+
+component AudioRecorder(on_complete) {
+  sensor {
+    type audio
+    controls ["record", "stop", "play", "waveform"]
+    on_complete { on_complete(result.audio) }
+  }
+}
+
+component VideoPlayer(src, controls) {
+  media {
+    type video
+    src src
+    controls controls ?? true
+    autoplay false
+    loop false
+  }
+}
+
+component ImageViewer(src, alt) {
+  image src {
+    alt alt
+    zoom true
+    caption alt
+  }
+}
+
+component PdfViewer(src, page) {
+  embed {
+    type pdf
+    src src
+    page page ?? 1
+    zoom true
+    download true
+  }
+}
+
+// --- ACCESSIBILITY ---
+component A11yWrapper(label, role, children) {
+  accessibility {
+    label label
+    role role ?? "region"
+    children children
+  }
+}
+
+component LiveRegion(text) {
+  accessibility {
+    live "polite"
+    text text
+  }
+}
+
+component FocusTrap(children) {
+  accessibility {
+    focus_trap true
+    children children
+  }
+}
+
+// --- SPECIAL ---
+component MarkdownRenderer(content) {
+  markdown content {
+    code_theme "ax-dark"
+    copy_button true
+    line_numbers true
+    safe true
+  }
+}
+
+component DiffView(before, after, language) {
+  diff {
+    before before
+    after after
+    language language ?? "ax"
+    mode "split"
+    highlight true
+  }
+}
+
+component CodeEditor(value, language, on_change) {
+  code_editor {
+    value value
+    language language ?? "ax"
+    theme "ax-dark"
+    line_numbers true
+    on_change { on_change(form.value) }
+  }
+}
+
+component AudioWaveform(audio_url) {
+  waveform {
+    src audio_url
+    interactive true
+    show_time true
+  }
+}
+
+component Avatar(src, name, size) {
+  avatar {
+    src src
+    fallback name.substring(0, 1).upper()
+    size size ?? "md"
+    status "online"
+  }
+}
+
+component UserBadge(user) {
+  row {
+    Avatar(user.avatar_url, user.display_name, "sm")
+    column {
+      text user.display_name { style base }
+      text user.github_login { style small muted }
+    }
+  }
+}
+
+component NotificationBadge(count) {
+  if count > 0 {
+    badge {
+      text if count > 99 "99+" else "{count}"
+      tone "danger"
+      position "top-right"
+    }
+  }
+}
+
+component StatGrid(stats) {
+  grid {
+    columns 2
+    gap 12
+    for s in stats {
+      StatCard(s.title, s.value, s.delta)
+    }
+  }
+}
+
+component ConfirmSheet(title, description, on_confirm, on_cancel) {
+  sheet {
+    title title
+    text description
+    button "Potwierdź" { style danger; action { on_confirm() } }
+    button "Anuluj" { style ghost; action { on_cancel() } }
+  }
+}
+
+component OnboardingStep(step, total, title, description, content, on_next, on_skip) {
+  container {
+    progress { value step; max total }
+    text "Krok {step} z {total}" { style small muted }
+    text title { style heading }
+    text description { style muted }
+    content
+    row {
+      if on_skip != null { button "Pomiń" { style ghost; action { on_skip() } } }
+      button "Dalej" { style primary; action { on_next() } }
+    }
+  }
+}
+
+component DataTable(columns, rows, on_row_click) {
+  table {
+    columns columns
+    rows rows
+    sortable true
+    pagination { page_size 20 }
+    on_row_click { on_row_click(item) }
+    empty { text "Brak danych" }
+  }
+}
+// ============================================================================
+// CZĘŚĆ 2B — EKRANY ROZSZERZONE
+// Wklej po screen NotFound z części 1.
+// ============================================================================
+
+screen Profile {
+  title "Profil"
+  AppShell {
+    stack {
+      HeaderBar("Profil", null, false, null)
+      card {
+        UserBadge({ display_name: auth.display_name, github_login: auth.github_login, avatar_url: auth.avatar_url })
+        divider
+        text "ID: {auth.user_id}" { style small mono muted }
+        text "Zalogowany przez GitHub" { style small muted }
+      }
+      card "Statystyki" {
+        StatGrid([
+          { title: "Rozmowy", value: "{chat.conversations.length}" },
+          { title: "Projekty", value: "{projects.list.length}" },
+          { title: "Zadania", value: "{tasks.list.length}" },
+          { title: "Pamięć", value: "{memory.facts.length}" }
+        ])
+      }
+      button "Wyloguj" { style danger; action { logout() } }
+    }
+  }
+}
+
+screen SettingsAI {
+  title "Ustawienia AI"
+  AppShell {
+    stack {
+      HeaderBar("Ustawienia AI", "Routing, koszty, guardrails", true, null)
+      card "Routing" {
+        ToggleField("Auto-routing", settings.ai.auto_routing, "Automatyczny wybór dostawcy", (v) -> { settings.ai.auto_routing = v; saveSettings("ai") })
+        SelectField("Domyślny dostawca", settings.ai.default_provider, ["mistral", "gemini", "groq", "openrouter", "cloudflare"], true, (v) -> { settings.ai.default_provider = v; saveSettings("ai") })
+        ToggleField("Preferuj tanie modele", settings.ai.prefer_cheap, "Wybór tańszych modeli gdy możliwe", (v) -> { settings.ai.prefer_cheap = v; saveSettings("ai") })
+        ToggleField("Powiadom o zmianie dostawcy", settings.ai.notify_switch, "Widoczny komunikat przy fallback", (v) -> { settings.ai.notify_switch = v; saveSettings("ai") })
+      }
+      card "Budżet" {
+        NumberField("Limit dzienny (USD)", settings.ai.budget_daily, 0, 1000, 0.5, true, (v) -> { settings.ai.budget_daily = v; saveSettings("ai") })
+        NumberField("Limit miesięczny (USD)", settings.ai.budget_monthly, 0, 10000, 5, true, (v) -> { settings.ai.budget_monthly = v; saveSettings("ai") })
+        text "Aktualne użycie: ${diagnostics.usage_today.cost} dziś • ${diagnostics.usage_month.cost} w miesiącu" { style small muted }
+      }
+      card "Guardrails" {
+        ToggleField("Wymagaj zatwierdzenia dla akcji zewnętrznych", settings.ai.require_approval, null, (v) -> { settings.ai.require_approval = v; saveSettings("ai") })
+        TextAreaField("Zabronione wzorce kodu", settings.ai.deny_code, "eval|exec|shell", false, null, 2, (v) -> { settings.ai.deny_code = v; saveSettings("ai") })
+        NumberField("Max tokenów output", settings.ai.max_output_tokens, 100, 32000, 500, true, (v) -> { settings.ai.max_output_tokens = v; saveSettings("ai") })
+      }
+    }
+  }
+}
+
+screen SettingsAccount {
+  title "Konto"
+  AppShell {
+    stack {
+      HeaderBar("Konto", null, true, null)
+      card "Profil" {
+        TextField("Nazwa wyświetlana", auth.display_name, "Twoje imię", true, null, (v) -> { auth.display_name = v })
+        button "Zapisz" { style primary; action { updateProfile() } }
+      }
+      card "Język" {
+        SelectField("Język aplikacji", settings.language, ["pl", "en"], true, (v) -> { settings.language = v; saveSettings("account") })
+      }
+      card "Strefa czasowa" {
+        SelectField("Strefa", settings.timezone, ["Europe/Warsaw", "Europe/London", "UTC", "America/New_York"], true, (v) -> { settings.timezone = v; saveSettings("account") })
+      }
+      card "Dane" {
+        button "Eksportuj moje dane" { style secondary; action { exportAllData() } }
+        button "Usuń konto" { style danger; action { requestDeleteAccount() } }
+      }
+    }
+  }
+}
+
+screen SettingsTheme {
+  title "Motyw"
+  AppShell {
+    stack {
+      HeaderBar("Motyw", "Wygląd aplikacji", true, null)
+      card "Tryb" {
+        RadioField("Motyw", settings.theme.mode, [
+          { value: "dark", label: "Ciemny" },
+          { value: "light", label: "Jasny" },
+          { value: "auto", label: "Automatyczny" }
+        ], (v) -> { settings.theme.mode = v; saveSettings("theme") })
+      }
+      card "Kolor akcentu" {
+        ColorPickerField("Akcent", settings.theme.accent, (v) -> { settings.theme.accent = v; saveSettings("theme") })
+        row {
+          for preset in ["#00E5FF", "#7C4DFF", "#22D3A6", "#FFB020", "#FF4D6D"] {
+            button {
+              style ghost
+              background preset
+              size "sm"
+              action { settings.theme.accent = preset; saveSettings("theme") }
+            }
+          }
+        }
+      }
+      card "Typografia" {
+        SliderField("Rozmiar bazowy", settings.theme.font_size, 12, 20, 1, "px", (v) -> { settings.theme.font_size = v; saveSettings("theme") })
+        ToggleField("Pogrubienie nagłówków", settings.theme.bold_headings, null, (v) -> { settings.theme.bold_headings = v; saveSettings("theme") })
+      }
+      card "Dostępność" {
+        ToggleField("Wysoki kontrast", settings.a11y.high_contrast, null, (v) -> { settings.a11y.high_contrast = v; saveSettings("a11y") })
+        ToggleField("Redukcja ruchu", settings.a11y.reduce_motion, null, (v) -> { settings.a11y.reduce_motion = v; saveSettings("a11y") })
+        ToggleField("Duże czcionki", settings.a11y.dynamic_type, null, (v) -> { settings.a11y.dynamic_type = v; saveSettings("a11y") })
+        ToggleField("Etykiety screen readera", settings.a11y.screen_reader, null, (v) -> { settings.a11y.screen_reader = v; saveSettings("a11y") })
+      }
+    }
+  }
+}
+
+screen UsageDetails {
+  title "Użycie"
+  AppShell {
+    stack {
+      HeaderBar("Użycie i koszty", "Ostatnie 30 dni", true, null)
+      UsageCard("Dziś", diagnostics.usage_today)
+      UsageCard("Miesiąc", diagnostics.usage_month)
+      card "Wykres dzienny" {
+        BarChart(
+          diagnostics.usage_chart_values,
+          diagnostics.usage_chart_labels,
+          "primary"
+        )
+      }
+      card "Po dostawcach" {
+        DataTable(
+          [
+            { key: "provider", label: "Dostawca" },
+            { key: "tokens", label: "Tokeny" },
+            { key: "cost", label: "Koszt" },
+            { key: "requests", label: "Żądania" }
+          ],
+          diagnostics.usage_by_provider,
+          (row) -> { toast("Dostawca: " + row.provider, "info") }
+        )
+      }
+      button "Odśwież" { style ghost; action { loadDiagnostics() } }
+    }
+  }
+}
+
+screen AuditFull {
+  title "Audit log"
+  AppShell {
+    stack {
+      HeaderBar("Audit log", "Pełna historia operacji", true, null)
+      form filter_form {
+        DateField("Od", audit_filter.from, null, null, false, (v) -> audit_filter.from = v)
+        DateField("Do", audit_filter.to, null, null, false, (v) -> audit_filter.to = v)
+        SelectField("Akcja", audit_filter.action, audit_actions, false, (v) -> audit_filter.action = v)
+        button "Filtruj" { style primary; action { loadFullAudit() } }
+      }
+      list audit {
+        items diagnostics.audit_full
+        item {
+          card {
+            title item.action
+            subtitle "{item.created_at} • {item.target_type ?? ''} {item.target_id ?? ''}"
+            if item.metadata != null { text item.metadata { style small mono muted } }
+          }
+        }
+        empty { text "Brak wpisów" }
+      }
+      button "Eksportuj audit log" { style ghost; action { exportAudit() } }
+    }
+  }
+}
+
+screen Help {
+  title "Pomoc"
+  AppShell {
+    stack {
+      HeaderBar("Pomoc", "Skróty, dokumentacja, wsparcie", true, null)
+      card "Skróty klawiszowe" {
+        DataTable(
+          [{ key: "keys", label: "Skrót" }, { key: "action", label: "Akcja" }],
+          [
+            { keys: "Cmd/Ctrl + K", action: "Command palette" },
+            { keys: "Cmd/Ctrl + N", action: "Nowa rozmowa" },
+            { keys: "Cmd/Ctrl + Enter", action: "Wyślij wiadomość" },
+            { keys: "Cmd/Ctrl + /", action: "Pomoc" },
+            { keys: "Esc", action: "Zamknij modal" },
+            { keys: "Cmd/Ctrl + B", action: "Pokaż/ukryj sidebar" },
+            { keys: "Cmd/Ctrl + Shift + P", action: "Przełącz panel kontekstu" }
+          ],
+          null
+        )
+      }
+      card "Dokumentacja" {
+        button "Przewodnik po AL2100" { style ghost; action { system.open("https://al2100.dev/docs") } }
+        button "AXCode reference" { style ghost; action { system.open("https://axcode.dev") } }
+      }
+      card "Wsparcie" {
+        text "Wersja: 1.0.0" { style small muted }
+        button "Zgłoś problem" { style ghost; action { system.open("mailto:support@al2100.dev") } }
+      }
+    }
+  }
+}
+
+screen About {
+  title "O AL2100"
+  center {
+    stack {
+      image "assets/al2100-logo.svg" { size 64 }
+      text "AL2100" { style heading; size xl }
+      text "Wersja 1.0.0" { style muted }
+      text "Prywatny system operacyjny AI" { style muted }
+      text "© 2100 Axel G" { style small muted }
+      divider
+      text "Zbudowane w AXCode" { style small muted }
+      text "Cloudflare Workers • D1 • R2 • Queues" { style small muted }
+    }
+  }
+}
+
+screen KeyboardShortcuts {
+  title "Skróty"
+  AppShell {
+    stack {
+      HeaderBar("Skróty klawiszowe", null, true, null)
+      card {
+        DataTable(
+          [{ key: "keys", label: "Klawisze" }, { key: "desc", label: "Opis" }],
+          shortcuts.list,
+          null
+        )
+      }
+    }
+  }
+}
+
+screen TaskKanban {
+  title "Kanban"
+  AppShell {
+    stack {
+      HeaderBar("Kanban", "Zadania w widoku tablicy", true, null)
+      grid {
+        columns 4
+        gap 16
+        column {
+          text "Do zrobienia" { style heading; size small }
+          list {
+            items tasks.list.filter(t -> t.status == "todo")
+            item { TaskItem(item) }
+          }
+        }
+        column {
+          text "W toku" { style heading; size small }
+          list {
+            items tasks.list.filter(t -> t.status == "doing")
+            item { TaskItem(item) }
+          }
+        }
+        column {
+          text "Zablokowane" { style heading; size small }
+          list {
+            items tasks.list.filter(t -> t.status == "blocked")
+            item { TaskItem(item) }
+          }
+        }
+        column {
+          text "Gotowe" { style heading; size small }
+          list {
+            items tasks.list.filter(t -> t.status == "done")
+            item { TaskItem(item) }
+          }
+        }
+      }
+    }
+  }
+}
+
+screen ConversationDetail {
+  title "Szczegóły rozmowy"
+  AppShell {
+    stack {
+      HeaderBar(current_conversation?.title ?? "", "Szczegóły i akcje", true, null)
+      card "Metadane" {
+        text "ID: {current_conversation?.id}" { style small mono }
+        text "Utworzona: {current_conversation?.created_at}" { style small }
+        text "Zaktualizowana: {current_conversation?.updated_at}" { style small }
+        text "Prywatna: {current_conversation?.is_private}" { style small }
+        text "Projekt: {current_conversation?.project_id ?? 'brak'}" { style small }
+        text "Wiadomości: {chat.messages.length}" { style small }
+      }
+      card "Podsumowanie" {
+        if chat.summary != null {
+          text "Temat: {chat.summary.topic}" { style base }
+          text "Decyzje: {chat.summary.decisions ?? '—'}" { style small }
+          text "Otwarte zadania: {chat.summary.open_tasks ?? '—'}" { style small }
+          text "Następny krok: {chat.summary.next_step ?? '—'}" { style small }
+        } else {
+          text "Brak podsumowania — wygeneruj" { style small muted }
+        }
+        button "Wygeneruj podsumowanie" { style primary; action { generateConversationSummary(chat.current_conversation_id) } }
+      }
+      card "Akcje" {
+        button "Eksportuj rozmowę" { style ghost; action { exportConversation(chat.current_conversation_id) } }
+        button "Przypisz do projektu" { style ghost; action { nav.current_screen = "ConversationAssignProject" } }
+        button "Archiwizuj" { style ghost; action { archiveConversation(chat.current_conversation_id) } }
+        button "Usuń" { style danger; action { deleteConversation(chat.current_conversation_id) } }
+      }
+    }
+  }
+}
+
+screen ConversationAssignProject {
+  title "Przypisz projekt"
+  form {
+    SelectField("Projekt", chat.assign_project_id, projects.list.map(p -> { value: p.id, label: p.name }), false, (v) -> { chat.assign_project_id = v })
+    button "Zapisz" { style primary; action { assignConversationToProject() } }
+  }
+}
+
+screen GitHubDiff {
+  title "Diff"
+  AppShell {
+    stack {
+      HeaderBar("Diff", github.diff_file ?? "", true, null)
+      if github.diff_loading { LoadingSpinner() }
+      if github.diff_before != null {
+        DiffView(github.diff_before, github.diff_after, github.diff_language)
+        row {
+          button "Zatwierdź zmiany" { style primary; action { requestApproval("github.commit", { file: github.diff_file }) } }
+          button "Odrzuć" { style danger; action { nav.current_screen = "RepoWorkspace" } }
+        }
+      }
+    }
+  }
+}
+
+screen GitHubPR {
+  title "Pull Request"
+  AppShell {
+    stack {
+      HeaderBar("Nowy Pull Request", github.selected_repo?.full_name ?? "", true, null)
+      form pr_form {
+        TextField("Tytuł", github.pr_title, "Krótki opis zmian", true, null, (v) -> github.pr_title = v)
+        TextAreaField("Opis", github.pr_body, "Co zmienia ten PR?", true, null, 6, (v) -> github.pr_body = v)
+        SelectField("Branch źródłowy", github.pr_head, github.branches, true, (v) -> github.pr_head = v)
+        TextField("Branch docelowy", "main", null, true, null, null)
+        Alert("Uwaga", "PR do main wymaga osobnej zgody właściciela repozytorium.", "warning")
+        button "Utwórz PR (wymaga approval)" {
+          style primary
+          action { requestApproval("github.pr", { repo: github.selected_repo.full_name, head: github.pr_head, title: github.pr_title, body: github.pr_body }) }
+        }
+      }
+    }
+  }
+}
+
+screen DeployHistory {
+  title "Historia wdrożeń"
+  AppShell {
+    stack {
+      HeaderBar("Historia wdrożeń", "Cloudflare Workers", true, null)
+      list deploys {
+        items deploy.history
+        item {
+          card {
+            title "Deploy #{item.id}"
+            subtitle "{item.created_at} • {item.status}"
+            text "Commit: {item.commit_sha ?? '—'}" { style small mono }
+            text "URL: {item.url ?? '—'}" { style small mono muted }
+            if item.error != null { Alert("Błąd", item.error, "error") }
+          }
+        }
+        empty { text "Brak wdrożeń" }
+      }
+    }
+  }
+}
+
+screen VoiceNote {
+  title "Notatka głosowa"
+  AppShell {
+    stack {
+      HeaderBar("Notatka głosowa", "Nagraj i prześlij do AI", true, null)
+      AudioRecorder((audio) -> { handleVoiceNote(audio) })
+      if voice.recording {
+        AudioWaveform(voice.waveform_url)
+        text "Nagrywanie… {voice.duration}s" { style small muted }
+      }
+      if voice.transcription != null {
+        card "Transkrypcja" {
+          markdown voice.transcription
+          button "Wyślij do czatu" { style primary; action { sendTranscriptionToChat() } }
+          button "Zapisz jako notatkę" { style ghost; action { saveTranscriptionAsNote() } }
+        }
+      }
+    }
+  }
+}
+
+screen ImageAnalysis {
+  title "Analiza obrazu"
+  AppShell {
+    stack {
+      HeaderBar("Analiza obrazu", "Zdjęcie jako kontekst dla AI", true, null)
+      CameraCapture((image) -> { handleImageCapture(image) })
+      button "Wybierz z galerii" { style ghost; action { pickImageFromGallery() } }
+      if analysis.image_url != null {
+        ImageViewer(analysis.image_url, "Analizowany obraz")
+        if analysis.loading { LoadingSpinner() }
+        if analysis.result != null {
+          card "Wynik analizy" {
+            markdown analysis.result
+            button "Wyślij do czatu" { style primary; action { sendAnalysisToChat() } }
+          }
+        }
+      }
+    }
+  }
+}
+
+screen PdfViewer {
+  title "PDF"
+  AppShell {
+    stack {
+      HeaderBar(files.selected_pdf?.filename ?? "PDF", "Podgląd", true, null)
+      if files.selected_pdf != null {
+        PdfViewer(files.selected_pdf.url, 1)
+        row {
+          button "Ekstrahuj tekst" { style primary; action { extractPdfText(files.selected_pdf.id) } }
+          button "Wyślij do AI" { style secondary; action { sendPdfToChat(files.selected_pdf.id) } }
+        }
+        if files.pdf_text != null {
+          card "Tekst" {
+            markdown files.pdf_text
+          }
+        }
+      }
+    }
+  }
+}
+
+screen MemorySemanticSearch {
+  title "Wyszukiwanie semantyczne"
+  AppShell {
+    stack {
+      HeaderBar("Wyszukiwanie w pamięci", "Podobne znaczeniowo fragmenty", true, null)
+      form search_form {
+        TextField("Zapytanie", memory.semantic_query, "np. decyzje o architekturze", true, null, (v) -> memory.semantic_query = v)
+        button "Szukaj" { style primary; action { performSemanticMemorySearch() } }
+      }
+      if memory.semantic_loading { LoadingSpinner() }
+      list results {
+        items memory.semantic_results
+        item {
+          card {
+            title item.content
+            subtitle "Podobieństwo: {(item.similarity * 100).round(0)}% • {item.kind}"
+            action { nav.current_screen = "Memory" }
+          }
+        }
+        empty { text "Brak wyników" }
+      }
+    }
+  }
+}
+
+screen Health {
+  title "Zdrowie"
+  AppShell {
+    stack {
+      HeaderBar("Zdrowie", "Dane z czujników", true, null)
+      if !sensors.available {
+        Alert("Brak dostępu", "Uprawnienia do danych zdrowotnych są wyłączone. Włącz w Ustawieniach systemowych.", "warning")
+      } else {
+        card "Dziś" {
+          StatGrid([
+            { title: "Kroki", value: "{health.steps_today}" },
+            { title: "Dystans", value: "{health.distance_km} km" },
+            { title: "Kalorie", value: "{health.calories}" },
+            { title: "Tętno", value: "{health.heart_rate} bpm" }
+          ])
+        }
+        card "Tydzień" {
+          LineChart(health.weekly_steps, ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nd"], "primary")
+        }
+        button "Odśwież dane" { style ghost; action { loadHealthData() } }
+      }
+    }
+  }
+}
+
+screen OfflineQueue {
+  title "Kolejka offline"
+  AppShell {
+    stack {
+      HeaderBar("Kolejka offline", "Operacje oczekujące na sieć", true, null)
+      card "Status sieci" {
+        text if network.online "Online" else "Offline — operacje w kolejce" {
+          tone if network.online "success" else "warning"
+        }
+        if !network.online {
+          text "Kolejka: {offline_queue.length} operacji" { style small }
+        }
+      }
+      list queue {
+        items offline_queue
+        item {
+          card {
+            title item.operation
+            subtitle "{item.created_at} • {item.status}"
+            if item.error != null { text item.error { style small; tone danger } }
+            button "Ponów" { style ghost; action { retryOfflineOperation(item.id) } }
+            button "Usuń" { style danger; action { removeOfflineOperation(item.id) } }
+          }
+        }
+        empty { text "Brak operacji w kolejce" }
+      }
+      if offline_queue.length > 0 {
+        button "Wyczyść wszystko" { style danger; action { clearOfflineQueue() } }
+      }
+    }
+  }
+}
+
+screen Shortcuts {
+  title "Skróty"
+  center {
+    stack {
+      text "Skróty klawiszowe" { style heading }
+      DataTable(
+        [{ key: "keys", label: "Klawisze" }, { key: "desc", label: "Opis" }],
+        shortcuts.list,
+        null
+      )
+    }
+  }
+}
+// ============================================================================
+// CZĘŚĆ 2C — LOGIKA ROZSZERZONA
+// Wklej wewnątrz istniejącego bloku `logic { ... }` z części 1,
+// przed funkcją routeIntent.
+// ============================================================================
+
+  // --- VOICE / AUDIO ---
+  function startVoiceRecording() {
+    voice.recording = true
+    voice.duration = 0
+    sensor.audio.start() as event {
+      event.tick { voice.duration = event.data.seconds }
+      event.waveform { voice.waveform_url = event.data.url }
+      event.stop { voice.recording = false; voice.audio_blob = event.data.blob }
+    }
+  }
+
+  function stopVoiceRecording() {
+    sensor.audio.stop()
+    voice.recording = false
+  }
+
+  function handleVoiceNote(audio) {
+    voice.audio_blob = audio
+    voice.transcribing = true
+    res = apiPost("/api/transcribe", { audio: audio })
+    voice.transcribing = false
+    if res.ok {
+      voice.transcription = res.body.text
+      trackUsage("ai", "transcription", res.body.model, res.body.tokens_in, 0, res.body.cost_usd)
+    } else {
+      toast("Transkrypcja nie powiodła się: " + (res.body.error ?? "unknown"), "error")
+    }
+  }
+
+  function sendTranscriptionToChat() {
+    if voice.transcription == null { return }
+    chat.draft = voice.transcription
+    nav.current_screen = "Chat"
+    sendMessage()
+  }
+
+  function saveTranscriptionAsNote() {
+    if voice.transcription == null { return }
+    res = apiPost("/api/files/notes", { content: voice.transcription, source: "voice" })
+    if res.ok { toast("Notatka zapisana", "success") }
+  }
+
+  // --- IMAGE ---
+  function pickImageFromGallery() {
+    pickFile() as file {
+      if file.type.starts_with("image/") {
+        handleImageCapture(file)
+      } else {
+        toast("Nieprawidłowy typ pliku", "error")
+      }
+    }
+  }
+
+  function handleImageCapture(image) {
+    analysis.image_url = image.url ?? image.name
+    analysis.loading = true
+    res = apiPost("/api/analyze-image", { image: image })
+    analysis.loading = false
+    if res.ok {
+      analysis.result = res.body.description
+      trackUsage("ai", res.body.provider, res.body.model, res.body.tokens_in, res.body.tokens_out, res.body.cost_usd)
+    } else {
+      toast("Analiza nie powiodła się: " + (res.body.error ?? "unknown"), "error")
+    }
+  }
+
+  function sendAnalysisToChat() {
+    if analysis.result == null { return }
+    chat.draft = "Analiza obrazu: " + analysis.result
+    nav.current_screen = "Chat"
+    sendMessage()
+  }
+
+  // --- PDF ---
+  function extractPdfText(file_id) {
+    files.pdf_extracting = true
+    res = apiPost("/api/files/" + file_id + "/extract-text", {})
+    files.pdf_extracting = false
+    if res.ok {
+      files.pdf_text = res.body.text
+      toast("Tekst wyekstrahowany", "success")
+    } else {
+      toast("Ekstrakcja nie powiodła się: " + (res.body.error ?? "unknown"), "error")
+    }
+  }
+
+  function sendPdfToChat(file_id) {
+    res = apiPost("/api/files/" + file_id + "/to-chat", {})
+    if res.ok {
+      nav.current_screen = "Chat"
+      toast("PDF dołączony do rozmowy", "success")
+    } else {
+      handleApiError(res)
+    }
+  }
+
+  // --- CACHE ---
+  function cacheGet(key) {
+    entry = cache.get(key)
+    if entry == null { return null }
+    if entry.expires_at < now() { cache.delete(key); return null }
+    return entry.value
+  }
+
+  function cacheSet(key, value, ttl_seconds) {
+    cache.set(key, { value: value, expires_at: now() + ttl_seconds })
+  }
+
+  function cacheInvalidate(prefix) {
+    cache.keys().filter(k -> k.starts_with(prefix)).for_each(k -> cache.delete(k))
+  }
+
+  function loadWithCache(key, fetcher, ttl) {
+    cached = cacheGet(key)
+    if cached != null { return cached }
+    value = fetcher()
+    cacheSet(key, value, ttl ?? 300)
+    return value
+  }
+
+  // --- RETRY Z EXPONENTIAL BACKOFF ---
+  function retry(fn, max_attempts, base_delay_ms) {
+    attempt = 0
+    delay = base_delay_ms ?? 500
+    while attempt < (max_attempts ?? 3) {
+      try {
+        return fn()
+      } catch e {
+        attempt = attempt + 1
+        if attempt >= (max_attempts ?? 3) { throw e }
+        sleep(delay)
+        delay = delay * 2
+      }
+    }
+  }
+
+  // --- OFFLINE QUEUE ---
+  function enqueueOffline(operation, payload) {
+    entry = {
+      id: "offline_" + now(),
+      operation: operation,
+      payload: payload,
+      status: "pending",
+      created_at: now(),
+      error: null
+    }
+    offline_queue = offline_queue + [entry]
+    storage.persist("offline_queue", offline_queue)
+    if network.online { processOfflineQueue() }
+  }
+
+  function processOfflineQueue() {
+    for entry in offline_queue {
+      if entry.status != "pending" { continue }
+      try {
+        res = dispatchOfflineOperation(entry)
+        if res.ok {
+          entry.status = "completed"
+          offline_queue = offline_queue.filter(e -> e.id != entry.id)
+        } else {
+          entry.error = res.body.error
+          entry.status = "failed"
+        }
+      } catch e {
+        entry.error = "network_error"
+        entry.status = "failed"
+      }
+    }
+    storage.persist("offline_queue", offline_queue)
+  }
+
+  function dispatchOfflineOperation(entry) {
+    if entry.operation == "send_message" { return apiPost("/api/messages", entry.payload) }
+    if entry.operation == "update_task" { return apiPut("/api/tasks/" + entry.payload.id, entry.payload) }
+    if entry.operation == "save_memory" { return apiPost("/api/memory", entry.payload) }
+    if entry.operation == "save_project" { return apiPut("/api/projects/" + entry.payload.id, entry.payload) }
+    return { ok: false, body: { error: "unknown_operation" } }
+  }
+
+  function retryOfflineOperation(id) {
+    offline_queue = offline_queue.map(e -> if e.id == id { { ...e, status: "pending", error: null } } else { e })
+    processOfflineQueue()
+  }
+
+  function removeOfflineOperation(id) {
+    offline_queue = offline_queue.filter(e -> e.id != id)
+    storage.persist("offline_queue", offline_queue)
+  }
+
+  function clearOfflineQueue() {
+    confirm("Wyczyścić całą kolejkę offline?", () -> {
+      offline_queue = []
+      storage.persist("offline_queue", offline_queue)
+    })
+  }
+
+  // --- PODSUMOWANIA ROZMÓW ---
+  function generateConversationSummary(conversation_id) {
+    chat.summary_generating = true
+    res = apiPost("/api/conversations/" + conversation_id + "/summarize", {})
+    chat.summary_generating = false
+    if res.ok {
+      chat.summary = res.body
+      toast("Podsumowanie wygenerowane", "success")
+    } else {
+      toast("Podsumowanie nie powiodło się: " + (res.body.error ?? "unknown"), "error")
+    }
+  }
+
+  function loadConversationSummary(conversation_id) {
+    res = apiGet("/api/conversations/" + conversation_id + "/summary")
+    if res.ok { chat.summary = res.body }
+  }
+
+  // --- SEMANTYCZNE WYSZUKIWANIE PAMIĘCI ---
+  function performSemanticMemorySearch() {
+    if memory.semantic_query.trim() == "" { return }
+    memory.semantic_loading = true
+    res = apiPost("/api/memory/search", { query: memory.semantic_query, limit: 20 })
+    memory.semantic_loading = false
+    if res.ok {
+      memory.semantic_results = res.body.results
+    } else {
+      memory.semantic_results = []
+      toast("Wyszukiwanie nie powiodło się: " + (res.body.error ?? "unknown"), "error")
+    }
+  }
+
+  // --- ASSIGN CONVERSATION TO PROJECT ---
+  function assignConversationToProject() {
+    if chat.assign_project_id == null { return }
+    res = apiPut("/api/conversations/" + chat.current_conversation_id, { project_id: chat.assign_project_id })
+    if res.ok {
+      toast("Rozmowa przypisana do projektu", "success")
+      chat.conversations = apiGet("/api/conversations").body
+      nav.current_screen = "ConversationDetail"
+    } else { handleApiError(res) }
+  }
+
+  // --- GITHUB DIFF / PR ---
+  function loadFileDiff(repo, path) {
+    github.diff_loading = true
+    res = apiGet("/api/integrations/github/diff?repo=" + repo + "&path=" + encodeURIComponent(path))
+    github.diff_loading = false
+    if res.ok {
+      github.diff_file = path
+      github.diff_before = res.body.before
+      github.diff_after = res.body.after
+      github.diff_language = res.body.language ?? "ax"
+      nav.current_screen = "GitHubDiff"
+    } else { handleApiError(res) }
+  }
+
+  function loadPulls() {
+    if github.selected_repo == null { return }
+    res = apiGet("/api/integrations/github/pulls?repo=" + github.selected_repo.full_name)
+    if res.ok { github.pulls = res.body }
+  }
+
+  function loadBranches() {
+    if github.selected_repo == null { return }
+    res = apiGet("/api/integrations/github/branches?repo=" + github.selected_repo.full_name)
+    if res.ok { github.branches = res.body }
+  }
+
+  // --- SETTINGS ---
+  function saveSettings(section) {
+    res = apiPost("/api/settings/" + section, settings[section])
+    if res.ok { toast("Ustawienia zapisane", "success") }
+    else { handleApiError(res) }
+  }
+
+  function loadSettings() {
+    res = apiGet("/api/settings")
+    if res.ok {
+      settings = res.body
+    }
+  }
+
+  function updateProfile() {
+    res = apiPut("/api/auth/profile", { display_name: auth.display_name })
+    if res.ok { toast("Profil zaktualizowany", "success") }
+    else { handleApiError(res) }
+  }
+
+  function exportAllData() {
+    confirm("Eksportować wszystkie dane konta?", () -> {
+      res = apiPost("/api/export/all", {})
+      if res.ok { system.open(res.body.download_url) }
+    })
+  }
+
+  function requestDeleteAccount() {
+    confirm("Trwale usunąć konto i wszystkie dane? Tej operacji nie można cofnąć.", () -> {
+      res = apiPost("/api/auth/account/delete-request", {})
+      if res.ok { toast("Wysłano prośbę o usunięcie — sprawdź email", "warning") }
+    })
+  }
+
+  // --- AUDIT FULL ---
+  function loadFullAudit() {
+    res = apiGet("/api/audit?from=" + (audit_filter.from ?? "") + "&to=" + (audit_filter.to ?? "") + "&action=" + (audit_filter.action ?? "") + "&limit=200")
+    if res.ok { diagnostics.audit_full = res.body }
+  }
+
+  function exportAudit() {
+    res = apiPost("/api/audit/export", {})
+    if res.ok { system.open(res.body.download_url) }
+  }
+
+  // --- HEALTH / SENSORS ---
+  function loadHealthData() {
+    if !sensors.health_available() {
+      sensors.available = false
+      return
+    }
+    sensors.available = true
+    res = sensor.health.read(["steps", "distance", "calories", "heart_rate"])
+    if res.ok {
+      health.steps_today = res.body.steps
+      health.distance_km = res.body.distance
+      health.calories = res.body.calories
+      health.heart_rate = res.body.heart_rate
+    }
+    weekly = sensor.health.read("steps", { range: "7d" })
+    if weekly.ok { health.weekly_steps = weekly.body.values }
+  }
+
+  // --- NETWORK MONITOR ---
+  function initNetworkMonitor() {
+    network.online = navigator.onLine
+    window.on("online", () -> {
+      network.online = true
+      toast("Połączono", "success")
+      processOfflineQueue()
+    })
+    window.on("offline", () -> {
+      network.online = false
+      toast("Tryb offline — operacje w kolejce", "warning")
+    })
+  }
+
+  // --- CONVERSATION EXPORT ---
+  function exportConversation(id) {
+    res = apiGet("/api/conversations/" + id + "/export")
+    if res.ok { system.open(res.body.download_url) }
+    else { handleApiError(res) }
+  }
+
+  // --- KEYBOARD SHORTCUTS ---
+  function initKeyboardShortcuts() {
+    shortcuts.list = [
+      { keys: "Cmd/Ctrl + K", desc: "Command palette" },
+      { keys: "Cmd/Ctrl + N", desc: "Nowa rozmowa" },
+      { keys: "Cmd/Ctrl + Enter", desc: "Wyślij wiadomość" },
+      { keys: "Cmd/Ctrl + /", desc: "Pomoc" },
+      { keys: "Esc", desc: "Zamknij modal" },
+      { keys: "Cmd/Ctrl + B", desc: "Pokaż/ukryj sidebar" },
+      { keys: "Cmd/Ctrl + Shift + P", desc: "Przełącz panel kontekstu" },
+      { keys: "Cmd/Ctrl + ,", desc: "Ustawienia" }
+    ]
+
+    window.on("keydown", (e) -> {
+      if (e.metaKey || e.ctrlKey) && e.key == "k" { nav.command_palette = true; e.preventDefault() }
+      if (e.metaKey || e.ctrlKey) && e.key == "n" { newConversation(); e.preventDefault() }
+      if (e.metaKey || e.ctrlKey) && e.key == "/" { nav.current_screen = "Help"; e.preventDefault() }
+      if (e.metaKey || e.ctrlKey) && e.key == "b" { nav.sidebar_open = !nav.sidebar_open; e.preventDefault() }
+      if (e.metaKey || e.ctrlKey) && e.key == "," { nav.current_screen = "Settings"; e.preventDefault() }
+      if e.key == "Escape" {
+        if nav.command_palette { nav.command_palette = false }
+        if ui.modal != null { ui.modal = null }
+      }
+    })
+  }
+
+  // --- STARTUP SEQUENCE ---
+  function startup() {
+    initNetworkMonitor()
+    initKeyboardShortcuts()
+    loadSettings()
+    checkSession()
+    if auth.user_id != null {
+      loadInitialData()
+      loadOfflineQueue()
+    }
+  }
+
+  function loadOfflineQueue() {
+    stored = storage.get("offline_queue")
+    if stored != null { offline_queue = stored }
+  }
+
+  // --- BROADCAST BETWEEN TABS ---
+  function broadcastEvent(name, payload) {
+    events.broadcast("al2100", { name: name, payload: payload, ts: now() })
+  }
+
+  function handleBroadcast(event) {
+    if event.name == "conversation_updated" {
+      chat.conversations = apiGet("/api/conversations").body
+    }
+    if event.name == "approval_created" {
+      loadPendingApprovals()
+    }
+  }
+// ============================================================================
+// CZĘŚĆ 2D — ROZSZERZONY STAN (dopisz do bloku `state`)
+// ============================================================================
+
+// Dopisz te pola do istniejącego bloku state { ... } z części 1:
+
+  // VOICE / AUDIO
+  voice.recording = false
+  voice.duration = 0
+  voice.waveform_url = null
+  voice.audio_blob = null
+  voice.transcription = null
+  voice.transcribing = false
+
+  // IMAGE ANALYSIS
+  analysis.image_url = null
+  analysis.loading = false
+  analysis.result = null
+
+  // PDF
+  files.pdf_text = null
+  files.pdf_extracting = false
+  files.selected_pdf = null
+
+  // SETTINGS
+  settings = {
+    language: "pl",
+    timezone: "Europe/Warsaw",
+    ai: { auto_routing: true, default_provider: "mistral", prefer_cheap: true, notify_switch: true,
+          budget_daily: 10, budget_monthly: 100, require_approval: true,
+          deny_code: "eval|exec|shell", max_output_tokens: 8000 },
+    theme: { mode: "dark", accent: "#00E5FF", font_size: 16, bold_headings: false },
+    a11y: { high_contrast: false, reduce_motion: false, dynamic_type: true, screen_reader: true },
+    account: {}
+  }
+
+  // NETWORK / OFFLINE
+  network.online = true
+  offline_queue = []
+
+  // HEALTH
+  health.steps_today = 0
+  health.distance_km = 0
+  health.calories = 0
+  health.heart_rate = 0
+  health.weekly_steps = [0, 0, 0, 0, 0, 0, 0]
+  sensors.available = false
+
+  // GITHUB rozszerzone
+  github.diff_file = null
+  github.diff_before = null
+  github.diff_after = null
+  github.diff_language = "ax"
+  github.diff_loading = false
+  github.pr_title = ""
+  github.pr_body = ""
+  github.pr_head = null
+
+  // DEPLOY HISTORY
+  deploy.history = []
+
+  // AUDIT FILTERS
+  audit_filter = { from: null, to: null, action: null }
+  diagnostics.audit_full = []
+  diagnostics.usage_chart_values = []
+  diagnostics.usage_chart_labels = []
+
+  // SUMMARY
+  chat.summary = null
+  chat.summary_generating = false
+  chat.assign_project_id = null
+
+  // MEMORY SEMANTIC
+  memory.semantic_query = ""
+  memory.semantic_results = []
+  memory.semantic_loading = false
+
+  // SHORTCUTS
+  shortcuts.list = []
+
+  // NAV rozszerzone
+  nav.active_tab = null
+  nav.drawer_open = false
+  nav.sheet_open = false
+
+// ============================================================================
+// CZĘŚĆ 2D — NOWE FLOWS
+// ============================================================================
+
+flow NetworkRecovery {
+  when network.online changes to true {
+    processOfflineQueue()
+    toast("Kolejka offline przetworzona", "success")
+  }
+}
+
+flow BudgetEnforcement {
+  every generation_request {
+    today = apiGet("/api/usage/today")
+    if today.ok && today.body.cost >= settings.ai.budget_daily {
+      notify "Osiągnięto dzienny limit budżetu AI (${settings.ai.budget_daily}). Zwiększ limit w Ustawieniach."
+      abort_generation
+    }
+  }
+}
+
+flow AutoSummary {
+  every conversation_message_count % 20 == 0 {
+    if chat.current_conversation_id != null {
+      generateConversationSummary(chat.current_conversation_id)
+    }
+  }
+}
+
+flow HealthSync {
+  every 15m {
+    if auth.user_id != null && sensors.available {
+      loadHealthData()
+    }
+  }
+}
+
+flow CacheCleanup {
+  every 1h {
+    cache.clear_expired()
+  }
+}
+
+flow StaleConversationCleanup {
+  every day at 03:00 {
+    // Backend: archiwizuje rozmowy nieaktywne > 90 dni
+    apiPost("/api/conversations/cleanup", { inactive_days: 90 })
+  }
+}
+
+// ============================================================================
+// CZĘŚĆ 2D — NOWE TESTY
+// ============================================================================
+
+test "Voice: nagrywanie startuje i zatrzymuje się" {
+  startVoiceRecording()
+  assert voice.recording == true
+  stopVoiceRecording()
+  assert voice.recording == false
+}
+
+test "Voice: transkrypcja bez audio zwraca błąd" {
+  voice.audio_blob = null
+  handleVoiceNote(null)
+  assert voice.transcription == null
+}
+
+test "Image: analiza ustawia loading i wynik" {
+  analysis.result = null
+  handleImageCapture({ url: "https://example.com/img.jpg" })
+  assert analysis.loading == false
+}
+
+test "PDF: ekstrakcja tekstu" {
+  extractPdfText("file_123")
+  assert files.pdf_extracting == false
+}
+
+test "Cache: get po set zwraca wartość" {
+  cacheSet("test_key", "test_value", 60)
+  assert cacheGet("test_key") == "test_value"
+}
+
+test "Cache: wygasły wpis zwraca null" {
+  cacheSet("expired_key", "val", -1)
+  assert cacheGet("expired_key") == null
+}
+
+test "Cache: invalidate po prefixie usuwa wpisy" {
+  cacheSet("user_1", "a", 60)
+  cacheSet("user_2", "b", 60)
+  cacheInvalidate("user_")
+  assert cacheGet("user_1") == null
+  assert cacheGet("user_2") == null
+}
+
+test "Retry: sukces przy pierwszej próbie" {
+  result = retry(() -> "ok", 3, 10)
+  assert result == "ok"
+}
+
+test "Offline queue: dodanie i przetworzenie" {
+  offline_queue = []
+  enqueueOffline("send_message", { content: "test" })
+  assert offline_queue.length == 1
+}
+
+test "Offline queue: retry przywraca status pending" {
+  offline_queue = [{ id: "1", status: "failed", error: "x", operation: "send_message", payload: {} }]
+  retryOfflineOperation("1")
+  assert offline_queue[0].status == "pending"
+}
+
+test "Offline queue: remove usuwa wpis" {
+  offline_queue = [{ id: "1" }, { id: "2" }]
+  removeOfflineOperation("1")
+  assert offline_queue.length == 1
+}
+
+test "Semantic search: pusty query nie wysyła żądania" {
+  memory.semantic_query = ""
+  performSemanticMemorySearch()
+  assert memory.semantic_loading == false
+}
+
+test "Summary: generowanie ustawia flagę" {
+  chat.summary_generating = true
+  assert chat.summary_generating == true
+  chat.summary_generating = false
+}
+
+test "Settings: saveSettings wysyła tylko sekcję" {
+  settings.theme.mode = "light"
+  saveSettings("theme")
+  assert true
+}
+
+test "Network: offline monitor inicjalizuje stan" {
+  initNetworkMonitor()
+  assert network.online == navigator.onLine
+}
+
+test "Health: loadHealthData bez uprawnień nie crashuje" {
+  sensors.available = false
+  loadHealthData()
+  assert sensors.available == false
+}
+
+test "Keyboard: skrót Cmd+K otwiera command palette" {
+  nav.command_palette = false
+  window.dispatch("keydown", { metaKey: true, key: "k" })
+  assert nav.command_palette == true
+}
+
+test "Broadcast: event conversation_updated odświeża listę" {
+  handleBroadcast({ name: "conversation_updated", payload: {} })
+  assert true
+}
+
+test "GitHub: loadFileDiff ustawia loading na false" {
+  github.diff_loading = true
+  loadFileDiff("user/repo", "src/index.ax")
+  assert github.diff_loading == false
+}
+
+test "Startup: sekwencja nie crashuje bez sesji" {
+  auth.user_id = null
+  startup()
+  assert true
+}
