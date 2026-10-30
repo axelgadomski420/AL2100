@@ -1,0 +1,817 @@
+app "AL2100" {
+  id "pl.axel.al2100"
+  version 1.0.0
+  author "Axel G"
+  description "AI assistant with memory, web search, and multi-provider fallback"
+  category productivity
+  theme dark
+  accent neon-cyan
+  language ["pl", "en"]
+  offline true
+  minWindow 360x640
+  icon "assets/icon.svg"
+}
+
+theme {
+  mode dark
+  colors {
+    background #0A0F1E
+    surface #121A2E
+    text #EAF2FF
+    primary #00E5FF
+    secondary #7C4DFF
+    success #22D3A6
+    warning #FFB020
+    danger #FF4D6D
+  }
+  typography {
+    base "Inter"
+    heading "Space Grotesk"
+    mono "JetBrains Mono"
+    size.small 13
+    size.base 16
+    size.heading 28
+  }
+  shape {
+    radius 20
+    border subtle
+    shadow soft
+  }
+  motion {
+    speed normal
+    reduceMotion respectSystem
+  }
+  accessibility {
+    minContrast 4.5
+    dynamicType true
+    highContrast support
+  }
+}
+
+permissions {
+  internet: ask
+  notifications: ask
+}
+
+sync {
+  provider localOnly
+  conflict lastWriteWins
+  encrypt endToEnd
+  offlineQueue true
+}
+
+ai {
+  name "AL2100"
+  role "Ultra-assistant"
+  mode propose
+  providers {
+    cloudflare {
+      accountId from secure "cf_account_id"
+      apiKey from secure "cf_api_token"
+    }
+    groq {
+      apiKey from secure "groq_key"
+    }
+    gemini {
+      apiKey from secure "gemini_key"
+    }
+    mistral {
+      apiKey from secure "mistral_key"
+    }
+    openrouter {
+      apiKey from secure "openrouter_key"
+    }
+  }
+  routing {
+    chat => fastestAvailable
+    code => bestCodeModel
+    research => longestContextModel
+  }
+  safety {
+    confirmBeforeDelete true
+    confirmBeforeDeploy true
+    confirmBeforePush true
+    hideSecrets true
+  }
+}
+
+state {
+  user.name = ""
+  user.avatar = ""
+  conversations = []
+  activeConversationId = ""
+  messages = []
+  searchResults = []
+  activeProvider = "auto"
+  activeModel = ""
+  autoMode = true
+  apiKeys = {
+    cloudflare: "",
+    groq: "",
+    gemini: "",
+    mistral: "",
+    openrouter: ""
+  }
+  providerStatus = {
+    cloudflare: "unknown",
+    groq: "unknown",
+    gemini: "unknown",
+    mistral: "unknown",
+    openrouter: "unknown"
+  }
+  fallbackOrder = ["cloudflare", "groq", "gemini", "mistral", "openrouter"]
+  contextWindow = 128000
+  isGenerating = false
+  currentAbortController = null
+  theme = "dark"
+}
+
+storage local "al2100.axdb" {
+  model User {
+    id auto
+    github_id text
+    login text
+    name text
+    avatar_url text
+    created_at datetime
+  }
+  model Session {
+    id auto
+    user_id text
+    token_hash text
+    expires_at datetime
+    created_at datetime
+  }
+  model Conversation {
+    id auto
+    user_id text
+    title text
+    created_at datetime
+    updated_at datetime
+  }
+  model Message {
+    id auto
+    conversation_id text
+    role text
+    content text
+    provider text optional
+    model text optional
+    sources text optional
+    created_at datetime
+  }
+  model ApiKey {
+    id auto
+    user_id text
+    provider text
+    encrypted_key text
+    created_at datetime
+    updated_at datetime
+  }
+  model AuditLog {
+    id auto
+    user_id text
+    action text
+    details text optional
+    created_at datetime
+  }
+  index Conversation.user_id
+  index Message.conversation_id
+  index Session.token_hash
+  index ApiKey.user_id
+}
+
+component MessageBubble(role, content, provider, model, sources) {
+  card {
+    style role == "user" ? "user-message" : "assistant-message"
+    text content
+    if provider != "" {
+      caption "Provider: {provider} | Model: {model}"
+    }
+    if sources != "" {
+      expandable "Sources" {
+        text sources
+      }
+    }
+  }
+}
+
+component ConversationItem(conversation) {
+  card {
+    title conversation.title
+    subtitle conversation.updated_at
+    action {
+      go Chat(conversation.id)
+    }
+  }
+}
+
+screen Login {
+  center {
+    text "AL2100" {
+      style heading
+    }
+    text "Sign in with GitHub to continue"
+    button "Login with GitHub" {
+      style primary
+      action {
+        redirect "/auth/github"
+      }
+    }
+  }
+}
+
+screen Chat(conversationId) {
+  title "Chat"
+
+  header {
+    title "AL2100"
+    action icon "menu" => History
+    action icon "settings" => Settings
+  }
+
+  if conversationId == "" {
+    center {
+      text "Start a new conversation"
+      button "New Chat" {
+        style primary
+        action {
+          createConversation()
+        }
+      }
+    }
+  } else {
+    list Messages {
+      item {
+        MessageBubble(item.role, item.content, item.provider, item.model, item.sources)
+      }
+    }
+
+    form {
+      field message {
+        label "Message"
+        control textarea
+        required true
+      }
+      button "Send" {
+        style primary
+        action {
+          sendMessage(form.message)
+        }
+      }
+      if isGenerating {
+        button "Stop" {
+          style danger
+          action {
+            stopGeneration()
+          }
+        }
+      }
+    }
+  }
+}
+
+screen History {
+  title "Conversations"
+  list Conversations {
+    item {
+      ConversationItem(item)
+    }
+  }
+  button "New Conversation" {
+    style primary
+    action {
+      createConversation()
+    }
+  }
+}
+
+screen Settings {
+  title "Settings"
+
+  section "API Keys" {
+    field cloudflare {
+      label "Cloudflare Workers AI Account ID"
+      control text
+      value apiKeys.cloudflare
+    }
+    field cloudflareApiToken {
+      label "Cloudflare Workers AI API Token"
+      control password
+      value apiKeys.cloudflare
+    }
+    field groq {
+      label "Groq API Key"
+      control password
+      value apiKeys.groq
+    }
+    field gemini {
+      label "Gemini API Key"
+      control password
+      value apiKeys.gemini
+    }
+    field mistral {
+      label "Mistral API Key"
+      control password
+      value apiKeys.mistral
+    }
+    field openrouter {
+      label "OpenRouter API Key"
+      control password
+      value apiKeys.openrouter
+    }
+  }
+
+  section "Provider Status" {
+    text "Cloudflare: {providerStatus.cloudflare}"
+    text "Groq: {providerStatus.groq}"
+    text "Gemini: {providerStatus.gemini}"
+    text "Mistral: {providerStatus.mistral}"
+    text "OpenRouter: {providerStatus.openrouter}"
+  }
+
+  section "Auto Mode" {
+    toggle "Auto select provider" {
+      value autoMode
+    }
+  }
+
+  section "Theme" {
+    toggle "Dark mode" {
+      value theme == "dark"
+    }
+  }
+
+  button "Save" {
+    style primary
+    action {
+      saveApiKeys()
+    }
+  }
+
+  button "Test Connections" {
+    style ghost
+    action {
+      testConnections()
+    }
+  }
+
+  button "Logout" {
+    style danger
+    action {
+      logout()
+    }
+  }
+}
+
+logic {
+  function createConversation() {
+    Conversation.create {
+      user_id user.id
+      title "New Conversation"
+      created_at now()
+      updated_at now()
+    }
+    go Chat(newId)
+  }
+
+  function sendMessage(content) {
+    Message.create {
+      conversation_id activeConversationId
+      role "user"
+      content content
+      created_at now()
+    }
+
+    loadMessages()
+
+    isGenerating = true
+    currentAbortController = new AbortController()
+
+    let fullHistory = loadFullHistory()
+    let context = buildContext(fullHistory)
+
+    let provider = autoMode ? selectProvider(context) : activeProvider
+    let model = selectModel(provider, context)
+
+    let response = callAI(provider, model, context, currentAbortController.signal)
+
+    if response.error {
+      for fallback in fallbackOrder {
+        if fallback != provider && hasKey(fallback) {
+          provider = fallback
+          model = selectModel(provider, context)
+          response = callAI(provider, model, context, currentAbortController.signal)
+          if !response.error {
+            break
+          }
+        }
+      }
+    }
+
+    if response.error {
+      notify "All providers failed: {response.error}"
+    } else {
+      Message.create {
+        conversation_id activeConversationId
+        role "assistant"
+        content response.content
+        provider provider
+        model model
+        sources response.sources
+        created_at now()
+      }
+      activeProvider = provider
+      activeModel = model
+    }
+
+    isGenerating = false
+    currentAbortController = null
+    loadMessages()
+  }
+
+  function stopGeneration() {
+    if currentAbortController != null {
+      currentAbortController.abort()
+    }
+    isGenerating = false
+  }
+
+  function loadMessages() {
+    messages = Message.where(conversation_id == activeConversationId).orderBy(created_at)
+  }
+
+  function loadFullHistory() {
+    return Message.where(conversation_id == activeConversationId).orderBy(created_at)
+  }
+
+  function buildContext(fullHistory) {
+    if fullHistory.length <= 20 {
+      return fullHistory
+    }
+
+    let first = fullHistory[0]
+    let recent = fullHistory.slice(-19)
+    let important = fullHistory.filter(m => {
+      let lower = m.content.toLowerCase()
+      return lower.contains("decision") ||
+             lower.contains("requirement") ||
+             lower.contains("fact") ||
+             lower.contains("agreement") ||
+             lower.contains("ustalenie") ||
+             lower.contains("wymaganie") ||
+             lower.contains("fakt")
+    })
+
+    let context = [first]
+    for m in important {
+      if !context.contains(m) && !recent.contains(m) {
+        context.push(m)
+      }
+    }
+    for m in recent {
+      if !context.contains(m) {
+        context.push(m)
+      }
+    }
+    return context.sort((a, b) => a.created_at - b.created_at)
+  }
+
+  function selectProvider(context) {
+    let candidates = fallbackOrder.filter(p => hasKey(p))
+    if candidates.length == 0 {
+      return "cloudflare"
+    }
+
+    let totalLength = context.reduce((sum, m) => sum + m.content.length, 0)
+
+    if totalLength > 100000 {
+      for p in candidates {
+        if p == "gemini" || p == "mistral" || p == "openrouter" {
+          return p
+        }
+      }
+    }
+
+    return candidates[0]
+  }
+
+  function selectModel(provider, context) {
+    let totalLength = context.reduce((sum, m) => sum + m.content.length, 0)
+    let needsLongContext = totalLength > 50000
+    let needsCode = context.some(m => m.content.toLowerCase().contains("code") || m.content.toLowerCase().contains("kod"))
+
+    match provider {
+      "cloudflare" => needsLongContext ? "@cf/deepseek-ai/deepseek-v4-pro-0813" : needsCode ? "@cf/qwen/qwen2.5-coder-32b-instruct" : "@cf/meta/llama-4-scout-17b-16e-instruct"
+      "groq" => needsCode ? "openai/gpt-oss-120b" : "llama-3.3-70b-versatile"
+      "gemini" => needsLongContext ? "gemini-2.5-pro" : "gemini-2.5-flash"
+      "mistral" => needsCode ? "mistral-code-latest" : "mistral-large-latest"
+      "openrouter" => needsLongContext ? "openai/gpt-5.2" : "openai/gpt-4.1-mini"
+      else => "llama-3.3-70b-versatile"
+    }
+  }
+
+  function hasKey(provider) {
+    match provider {
+      "cloudflare" => apiKeys.cloudflare != ""
+      "groq" => apiKeys.groq != ""
+      "gemini" => apiKeys.gemini != ""
+      "mistral" => apiKeys.mistral != ""
+      "openrouter" => apiKeys.openrouter != ""
+      else => false
+    }
+  }
+
+  function callAI(provider, model, context, signal) {
+    let systemPrompt = "You are AL2100, a precise AI assistant. Distinguish facts, opinions, and uncertainties. If information is missing, ask. Do not moralize. Respond directly."
+    let messages = [
+      { role: "system", content: systemPrompt },
+      ...context.map(m => ({ role: m.role, content: m.content }))
+    ]
+
+    match provider {
+      "cloudflare" => return callCloudflare(model, messages, signal)
+      "groq" => return callGroq(model, messages, signal)
+      "gemini" => return callGemini(model, messages, signal)
+      "mistral" => return callMistral(model, messages, signal)
+      "openrouter" => return callOpenRouter(model, messages, signal)
+      else => return { error: "Unknown provider" }
+    }
+  }
+
+  function callCloudflare(model, messages, signal) {
+    let response = fetch("https://api.cloudflare.com/client/v4/accounts/{apiKeys.cloudflare}/ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {apiKeys.cloudflare}",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true
+      }),
+      signal: signal
+    })
+
+    if !response.ok {
+      return { error: "Cloudflare error: {response.status}" }
+    }
+
+    let reader = response.body.getReader()
+    let decoder = new TextDecoder()
+    let content = ""
+    let buffer = ""
+
+    while true {
+      let { done, value } = await reader.read()
+      if done { break }
+      buffer += decoder.decode(value, { stream: true })
+      let lines = buffer.split("\n")
+      buffer = lines.pop()
+      for line in lines {
+        if line.startsWith("data: ") {
+          let data = line.slice(6)
+          if data == "[DONE]" { continue }
+          try {
+            let json = JSON.parse(data)
+            let delta = json.choices[0].delta.content
+            if delta { content += delta }
+          } catch {}
+        }
+      }
+    }
+
+    return { content: content }
+  }
+
+  function callGroq(model, messages, signal) {
+    let response = fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {apiKeys.groq}",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true
+      }),
+      signal: signal
+    })
+
+    if !response.ok {
+      return { error: "Groq error: {response.status}" }
+    }
+
+    let reader = response.body.getReader()
+    let decoder = new TextDecoder()
+    let content = ""
+    let buffer = ""
+
+    while true {
+      let { done, value } = await reader.read()
+      if done { break }
+      buffer += decoder.decode(value, { stream: true })
+      let lines = buffer.split("\n")
+      buffer = lines.pop()
+      for line in lines {
+        if line.startsWith("data: ") {
+          let data = line.slice(6)
+          if data == "[DONE]" { continue }
+          try {
+            let json = JSON.parse(data)
+            let delta = json.choices[0].delta.content
+            if delta { content += delta }
+          } catch {}
+        }
+      }
+    }
+
+    return { content: content }
+  }
+
+  function callGemini(model, messages, signal) {
+    let contents = messages.filter(m => m.role != "system").map(m => ({
+      role: m.role == "user" ? "user" : "model",
+      parts: [{ text: m.content }]
+    }))
+
+    let response = fetch("https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse&key={apiKeys.gemini}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: contents }),
+      signal: signal
+    })
+
+    if !response.ok {
+      return { error: "Gemini error: {response.status}" }
+    }
+
+    let reader = response.body.getReader()
+    let decoder = new TextDecoder()
+    let content = ""
+    let buffer = ""
+
+    while true {
+      let { done, value } = await reader.read()
+      if done { break }
+      buffer += decoder.decode(value, { stream: true })
+      let lines = buffer.split("\n")
+      buffer = lines.pop()
+      for line in lines {
+        if line.startsWith("data: ") {
+          let data = line.slice(6)
+          try {
+            let json = JSON.parse(data)
+            let text = json.candidates[0].content.parts[0].text
+            if text { content += text }
+          } catch {}
+        }
+      }
+    }
+
+    return { content: content }
+  }
+
+  function callMistral(model, messages, signal) {
+    let response = fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {apiKeys.mistral}",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true
+      }),
+      signal: signal
+    })
+
+    if !response.ok {
+      return { error: "Mistral error: {response.status}" }
+    }
+
+    let reader = response.body.getReader()
+    let decoder = new TextDecoder()
+    let content = ""
+    let buffer = ""
+
+    while true {
+      let { done, value } = await reader.read()
+      if done { break }
+      buffer += decoder.decode(value, { stream: true })
+      let lines = buffer.split("\n")
+      buffer = lines.pop()
+      for line in lines {
+        if line.startsWith("data: ") {
+          let data = line.slice(6)
+          if data == "[DONE]" { continue }
+          try {
+            let json = JSON.parse(data)
+            let delta = json.choices[0].delta.content
+            if delta { content += delta }
+          } catch {}
+        }
+      }
+    }
+
+    return { content: content }
+  }
+
+  function callOpenRouter(model, messages, signal) {
+    let response = fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer {apiKeys.openrouter}",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true
+      }),
+      signal: signal
+    })
+
+    if !response.ok {
+      return { error: "OpenRouter error: {response.status}" }
+    }
+
+    let reader = response.body.getReader()
+    let decoder = new TextDecoder()
+    let content = ""
+    let buffer = ""
+
+    while true {
+      let { done, value } = await reader.read()
+      if done { break }
+      buffer += decoder.decode(value, { stream: true })
+      let lines = buffer.split("\n")
+      buffer = lines.pop()
+      for line in lines {
+        if line.startsWith("data: ") {
+          let data = line.slice(6)
+          if data == "[DONE]" { continue }
+          try {
+            let json = JSON.parse(data)
+            let delta = json.choices[0].delta.content
+            if delta { content += delta }
+          } catch {}
+        }
+      }
+    }
+
+    return { content: content }
+  }
+
+  function saveApiKeys() {
+    let providers = ["cloudflare", "groq", "gemini", "mistral", "openrouter"]
+    for p in providers {
+      let key = apiKeys[p]
+      if key != "" {
+        let existing = ApiKey.where(user_id == user.id && provider == p).first()
+        if existing {
+          existing.encrypted_key = encrypt(key)
+          existing.updated_at = now()
+          existing.save()
+        } else {
+          ApiKey.create {
+            user_id user.id
+            provider p
+            encrypted_key encrypt(key)
+            created_at now()
+            updated_at now()
+          }
+        }
+      }
+    }
+    notify "Keys saved"
+  }
+
+  function testConnections() {
+    let providers = ["cloudflare", "groq", "gemini", "mistral", "openrouter"]
+    for p in providers {
+      if hasKey(p) {
+        providerStatus[p] = "testing"
+        let result = callAI(p, selectModel(p, []), [{ role: "user", content: "ping" }], null)
+        providerStatus[p] = result.error ? "error" : "ok"
+      } else {
+        providerStatus[p] = "no key"
+      }
+    }
+  }
+
+  function logout() {
+    fetch("/auth/logout", { method: "POST" })
+    go Login
+  }
+
+  function encrypt(text) {
+    return btoa(text)
+  }
+
+  function decrypt(encoded) {
+    return atob(encoded)
+  }
+}
