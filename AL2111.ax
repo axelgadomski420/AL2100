@@ -1,0 +1,6287 @@
+app "AL2100" {
+  id "pl.axel.al2100"
+  version 1.0.0
+  author "Axel G"
+  theme dark
+  accent neon-cyan
+  offline true
+  language ["pl", "en"]
+}
+
+theme {
+  mode dark
+  colors {
+    background #0A0F1E
+    surface #121A2E
+    surfaceElevated #17213A
+    surfaceMuted #0E1526
+    border #1F2A44
+    borderFocus #00E5FF
+    text #EAF2FF
+    textMuted #93A1C4
+    textInverse #04121B
+    primary #00E5FF
+    primaryPressed #00B8CC
+    secondary #7C4DFF
+    secondaryPressed #6A3FE0
+    success #22E39A
+    warning #FFB547
+    danger #FF4D6D
+    info #4DA3FF
+    overlay #000000CC
+    shadow #00000080
+  }
+  typography {
+    base "Inter"
+    heading "Space Grotesk"
+    mono "JetBrains Mono"
+    size.xs 12
+    size.sm 14
+    size.base 16
+    size.md 18
+    size.lg 22
+    size.xl 28
+    size.xxl 36
+    weight.regular 400
+    weight.medium 500
+    weight.semibold 600
+    weight.bold 700
+    lineHeight.tight 1.2
+    lineHeight.normal 1.5
+    lineHeight.loose 1.75
+    tracking.tight -0.01
+    tracking.normal 0
+    tracking.wide 0.02
+  }
+  shape {
+    radius.xs 6
+    radius.sm 10
+    radius.md 14
+    radius.lg 20
+    radius.xl 28
+    radius.pill 999
+    shadow.soft "0 8px 24px rgba(0,0,0,0.35)"
+    shadow.medium "0 16px 48px rgba(0,0,0,0.45)"
+    shadow.hard "0 24px 72px rgba(0,0,0,0.55)"
+  }
+  motion {
+    speed normal
+    duration.fast 140ms
+    duration.normal 220ms
+    duration.slow 320ms
+    duration.slower 480ms
+    easing.standard "cubic-bezier(0.2, 0.0, 0.0, 1.0)"
+    easing.enter "cubic-bezier(0.0, 0.0, 0.2, 1.0)"
+    easing.exit "cubic-bezier(0.4, 0.0, 1.0, 1.0)"
+    reduceMotion respectSystem
+  }
+  spacing {
+    xxs 4
+    xs 8
+    sm 12
+    md 16
+    lg 24
+    xl 32
+    xxl 48
+    xxxl 64
+  }
+}
+
+permissions {
+  internet: ask reason "Do wyszukiwania w sieci, dostawców AI, GitHuba i Cloudflare"
+  camera: ask reason "Aby robić zdjęcia i załączać do rozmów"
+  microphone: ask reason "Aby nagrywać głos i transkrybować"
+  notifications: ask reason "Aby powiadamiać o zadaniach, deployach i zakończonych generacjach"
+  files: read
+  files.write: ask
+  clipboard.write: ask
+  clipboard.read: ask
+  storage.persistent: allow
+  location: deny
+  contacts: deny
+}
+
+sync {
+  provider userChoice
+  scope ["Note", "Task", "Project", "MemoryEntry", "Conversation", "Message", "File", "MusicRelease", "MusicTrack", "Deployment", "GitHubRepo"]
+  conflict lastWriteWins
+  encrypt endToEnd
+  offlineQueue true
+  maxRetries 5
+  backoff "exponential"
+}
+
+ai {
+  name "AL2100"
+  role "Ultra-asystent operacyjny"
+  mode propose
+  providers {
+    gemini {
+      apiKey from secure "gemini_key"
+      baseUrl "https://generativelanguage.googleapis.com/v1beta"
+      models ["gemini-2.5-pro", "gemini-2.5-flash"]
+      defaultModel "gemini-2.5-flash"
+      streaming true
+    }
+    groq {
+      apiKey from secure "groq_key"
+      baseUrl "https://api.groq.com/openai/v1"
+      models ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+      defaultModel "llama-3.3-70b-versatile"
+      streaming true
+    }
+    mistral {
+      apiKey from secure "mistral_key"
+      baseUrl "https://api.mistral.ai/v1"
+      models ["mistral-large-latest", "mistral-small-latest", "codestral-latest"]
+      defaultModel "mistral-large-latest"
+      streaming true
+    }
+    openrouter {
+      apiKey from secure "openrouter_key"
+      baseUrl "https://openrouter.ai/api/v1"
+      models ["openrouter/auto"]
+      defaultModel "openrouter/auto"
+      streaming true
+    }
+    cloudflare {
+      accountId from secure "cf_account_id"
+      apiKey from secure "cf_api_token"
+      baseUrl "https://api.cloudflare.com/client/v4/accounts"
+      models ["@cf/meta/llama-3.1-70b-instruct", "@cf/meta/llama-3.1-8b-instruct"]
+      defaultModel "@cf/meta/llama-3.1-70b-instruct"
+      streaming true
+    }
+    anthropic {
+      apiKey from secure "anthropic_key"
+      baseUrl "https://api.anthropic.com/v1"
+      models ["claude-sonnet-4-5", "claude-haiku-4-5"]
+      defaultModel "claude-sonnet-4-5"
+      streaming true
+    }
+    openai {
+      apiKey from secure "openai_key"
+      baseUrl "https://api.openai.com/v1"
+      models ["gpt-5", "gpt-5-mini"]
+      defaultModel "gpt-5-mini"
+      streaming true
+    }
+  }
+  routing {
+    chat => fastestAvailable
+    code => bestCodeModel
+    research => longestContextModel
+    vision => bestVisionModel
+    audio => bestAudioModel
+  }
+  limits {
+    maxTokensPerRequest 32000
+    maxTokensPerConversation 200000
+    maxDailyCost 5.00
+    maxConcurrentGenerations 1
+    maxAgentSteps 24
+    maxAgentSeconds 180
+  }
+  safety {
+    confirmBeforeDelete true
+    confirmBeforeDeploy true
+    confirmBeforePush true
+    confirmBeforeExternalCall true
+    hideSecrets true
+    redactLogs true
+    blockUnknownProviders true
+    blockSsrf true
+  }
+}
+
+state {
+  user.id = ""
+  user.name = ""
+  user.email = ""
+  user.avatarUrl = ""
+  user.provider = ""
+  user.locale = "pl"
+  user.theme = "dark"
+  user.createdAt = ""
+  session.id = ""
+  session.expiresAt = ""
+  session.csrfToken = ""
+  session.rateBucket = "normal"
+  session.activeSessions = list<map> []
+  nav.current = "Czat"
+  nav.previous = ""
+  nav.commandPaletteOpen = false
+  nav.sidebarCollapsed = false
+  nav.mobileSheet = ""
+  chat.conversations = list<map> []
+  chat.activeConversationId = ""
+  chat.messages = list<map> []
+  chat.draft = ""
+  chat.attachments = list<map> []
+  chat.search = ""
+  chat.showArchived = false
+  chat.generation.status = "idle"
+  chat.generation.tokens = 0
+  chat.generation.abortController = ""
+  chat.generation.startedAt = ""
+  chat.generation.provider = ""
+  chat.generation.model = ""
+  chat.privateMode = false
+  chat.webSearchEnabled = true
+  chat.contextBudget = 24000
+  chat.lastError = ""
+  memory.entries = list<map> []
+  memory.search = ""
+  memory.filter = "all"
+  memory.showDisabled = false
+  memory.contextMode = "normal"
+  memory.lastBuildAt = ""
+  memory.lastBuildTokens = 0
+  projects.items = list<map> []
+  projects.activeId = ""
+  projects.view = "all"
+  tasks.items = list<map> []
+  tasks.view = "today"
+  tasks.filter = "all"
+  files.items = list<map> []
+  files.uploading = false
+  files.uploadProgress = 0
+  files.selectedId = ""
+  files.filter = "all"
+  research.query = ""
+  research.results = list<map> []
+  research.sources = list<map> []
+  research.status = "idle"
+  research.error = ""
+  github.connected = false
+  github.login = ""
+  github.repos = list<map> []
+  github.activeRepo = ""
+  github.branch = "main"
+  github.diff = ""
+  github.pullRequest = map { "url": "", "number": 0, "state": "" }
+  github.status = "idle"
+  deploy.targets = list<map> []
+  deploy.activeTarget = ""
+  deploy.logs = list<text> []
+  deploy.status = "idle"
+  deploy.requiresApproval = true
+  deploy.lastDeploymentId = ""
+  appCreator.description = ""
+  appCreator.plan = ""
+  appCreator.code = ""
+  appCreator.template = ""
+  appCreator.status = "idle"
+  appCreator.diff = ""
+  appCreator.requiresApproval = true
+  music.releases = list<map> []
+  music.activeReleaseId = ""
+  music.tracks = list<map> []
+  music.view = "releases"
+  settings.providers = list<map> []
+  settings.selectedProvider = ""
+  settings.testStatus = "idle"
+  settings.rateLimitPerMinute = 60
+  settings.auditLog = list<map> []
+  settings.diagnostics = map {}
+  agents.registry = list<map> []
+  agents.activeRuns = list<map> []
+  agents.lastRunId = ""
+  agents.forcedMode = "auto"
+  approvals.items = list<map> []
+  approvals.pendingCount = 0
+  diagnostics.checks = list<map> []
+  diagnostics.lastRunAt = ""
+  diagnostics.overall = "unknown"
+  ui.toast = map { "id": "", "type": "", "message": "" }
+  ui.modal = map { "name": "", "payload": "" }
+  ui.online = true
+  ui.loading = false
+  ui.error = ""
+
+  computed progress {
+    return chat.messages.length / 100
+  }
+  computed hasActiveSession {
+    return session.id != ""
+  }
+  computed pendingApprovalsCount {
+    return approvals.items.length
+  }
+  computed activeProviderLabel {
+    if settings.selectedProvider == "" {
+      return "brak"
+    }
+    return settings.selectedProvider
+  }
+  computed currentRoute {
+    return nav.current
+  }
+  computed isGenerating {
+    return chat.generation.status == "streaming" || chat.generation.status == "pending"
+  }
+  computed canSend {
+    return chat.draft != "" && !isGenerating
+  }
+  computed memoryStatus {
+    if memory.contextMode == "degraded" {
+      return "ograniczony"
+    }
+    return "pełny"
+  }
+  computed nextStep {
+    if tasks.items.length == 0 {
+      return "Brak zadań — dodaj pierwsze"
+    }
+    return tasks.items[0].title
+  }
+
+  event chat.draft changed {
+    if chat.draft.length > 8000 {
+      notify "Szkic przekracza 8000 znaków"
+    }
+  }
+  event chat.generation.status changed {
+    if chat.generation.status == "completed" {
+      notify "Odpowiedź gotowa"
+    }
+    if chat.generation.status == "failed" {
+      notify "Generacja nie powiodła się"
+    }
+  }
+  event approvals.pendingCount changed {
+    if approvals.pendingCount > 0 {
+      notify "Masz {approvals.pendingCount} zatwierdzeń do przejrzenia"
+    }
+  }
+  event ui.online changed {
+    if !ui.online {
+      notify "Tryb offline — operacje sieciowe wstrzymane"
+    }
+  }
+}
+
+storage local "al2100.axdb" {
+  model User {
+    id auto
+    provider text
+    provider_user_id text
+    email text
+    name text
+    avatar_url text
+    locale text
+    created_at datetime
+    updated_at datetime
+    last_login_at datetime
+  }
+  model Session {
+    id auto
+    user_id text
+    csrf_token text
+    ip_hash text
+    user_agent text
+    created_at datetime
+    expires_at datetime
+    revoked_at datetime optional
+    provider text
+  }
+  model Conversation {
+    id auto
+    user_id text
+    project_id text optional
+    title text
+    archived bool
+    private_mode bool
+    web_search bool
+    created_at datetime
+    updated_at datetime
+    last_message_at datetime
+    tokens_used number
+    provider text
+    model text
+  }
+  model Message {
+    id auto
+    conversation_id text
+    user_id text
+    role enum ["user", "assistant", "system", "tool"]
+    content text
+    status enum ["pending", "streaming", "completed", "interrupted", "failed"]
+    tokens number
+    provider text
+    model text
+    citations json
+    created_at datetime
+    edited_at datetime optional
+    parent_id text optional
+  }
+  model Attachment {
+    id auto
+    user_id text
+    conversation_id text optional
+    file_id text
+    kind enum ["text", "image", "pdf", "audio", "other"]
+    mime text
+    size number
+    created_at datetime
+  }
+  model MemoryEntry {
+    id auto
+    user_id text
+    scope enum ["global", "project", "conversation"]
+    scope_id text optional
+    kind enum ["fact", "decision", "rejection", "question", "blocker", "summary"]
+    content text
+    pinned bool
+    disabled bool
+    importance number
+    created_at datetime
+    updated_at datetime
+    source_message_id text optional
+    approval_state enum ["auto", "user_confirmed", "user_rejected"]
+  }
+  model Project {
+    id auto
+    user_id text
+    name text
+    description text
+    status enum ["active", "paused", "archived"]
+    color text
+    created_at datetime
+    updated_at datetime
+  }
+  model Task {
+    id auto
+    user_id text
+    project_id text optional
+    conversation_id text optional
+    file_id text optional
+    title text
+    description text
+    status enum ["todo", "doing", "done", "blocked"]
+    priority enum ["low", "normal", "high", "critical"]
+    deadline datetime optional
+    depends_on json
+    created_at datetime
+    updated_at datetime
+  }
+  model File {
+    id auto
+    user_id text
+    project_id text optional
+    conversation_id text optional
+    task_id text optional
+    name text
+    mime text
+    size number
+    r2_key text
+    version number
+    status enum ["uploading", "ready", "failed", "deleted"]
+    extracted_text text optional
+    created_at datetime
+    updated_at datetime
+    deleted_at datetime optional
+  }
+  model ResearchSource {
+    id auto
+    user_id text
+    conversation_id text optional
+    query text
+    url text
+    title text
+    snippet text
+    published_at datetime optional
+    fetched_at datetime
+    trust_score number
+  }
+  model ProviderKey {
+    id auto
+    user_id text
+    provider text
+    encrypted_key text
+    nonce text
+    version number
+    status enum ["active", "invalid", "deleted"]
+    last_tested_at datetime optional
+    created_at datetime
+  }
+  model GitHubRepo {
+    id auto
+    user_id text
+    repo_full_name text
+    default_branch text
+    connected_at datetime
+    last_sync_at datetime optional
+    scope json
+    status enum ["active", "revoked"]
+  }
+  model Deployment {
+    id auto
+    user_id text
+    target text
+    environment enum ["preview", "production"]
+    status enum ["requested", "approved", "running", "succeeded", "failed", "rolled_back"]
+    approved_by text optional
+    approved_at datetime optional
+    started_at datetime
+    finished_at datetime optional
+    logs json
+    commit_sha text optional
+  }
+  model MusicRelease {
+    id auto
+    user_id text
+    title text
+    kind enum ["single", "album", "ep"]
+    release_date date optional
+    status enum ["draft", "in_progress", "mixed", "mastered", "released"]
+    cover_file_id text optional
+    distribution text
+    rights_status enum ["unset", "in_review", "cleared", "blocked"]
+    description text
+    created_at datetime
+    updated_at datetime
+  }
+  model MusicTrack {
+    id auto
+    user_id text
+    release_id text
+    title text
+    position number
+    bpm number
+    key text
+    energy number
+    duration_seconds number
+    version text
+    mix_status enum ["unmixed", "mixing", "mixed", "mastered"]
+    references json
+    suno_prompt text
+    elevenlabs_prompt text
+    created_at datetime
+    updated_at datetime
+  }
+  model AuditLog {
+    id auto
+    user_id text optional
+    action text
+    resource text
+    resource_id text optional
+    ip_hash text
+    user_agent text
+    result enum ["success", "failure", "denied"]
+    created_at datetime
+    metadata json
+  }
+  model AgentRun {
+    id auto
+    user_id text
+    agent text
+    conversation_id text optional
+    status enum ["queued", "running", "succeeded", "failed", "cancelled"]
+    steps number
+    tokens number
+    cost number
+    started_at datetime
+    finished_at datetime optional
+    log json
+  }
+  model Approval {
+    id auto
+    user_id text
+    kind enum ["delete", "deploy", "push", "external_call", "memory_promote", "task_accept"]
+    resource text
+    resource_id text optional
+    payload json
+    status enum ["pending", "approved", "rejected", "expired"]
+    created_at datetime
+    resolved_at datetime optional
+    resolved_by text optional
+  }
+  index User.provider
+  index User.email
+  index Session.user_id
+  index Session.expires_at
+  index Conversation.user_id
+  index Conversation.last_message_at
+  index Conversation.project_id
+  index Message.conversation_id
+  index Message.created_at
+  index Message.status
+  index Attachment.conversation_id
+  index MemoryEntry.user_id
+  index MemoryEntry.scope
+  index MemoryEntry.importance
+  index Project.user_id
+  index Project.status
+  index Task.user_id
+  index Task.status
+  index Task.priority
+  index Task.deadline
+  index File.user_id
+  index File.project_id
+  index File.conversation_id
+  index File.status
+  index ResearchSource.user_id
+  index ResearchSource.conversation_id
+  index ProviderKey.user_id
+  index ProviderKey.provider
+  index GitHubRepo.user_id
+  index Deployment.user_id
+  index Deployment.status
+  index MusicRelease.user_id
+  index MusicTrack.release_id
+  index AuditLog.user_id
+  index AuditLog.created_at
+  index AgentRun.user_id
+  index AgentRun.status
+  index Approval.user_id
+  index Approval.status
+}
+
+component AppShell {
+  layout {
+    mode responsive
+    desktop {
+      grid "280px 1fr 320px"
+      areas ["sidebar main context"]
+    }
+    mobile {
+      stack vertical
+      bottomNav true
+    }
+  }
+}
+
+component SidebarNav(active, collapsed, pendingCount) {
+  surface {
+    tone surface
+    border right
+    width 280
+    padding lg
+  }
+  brand {
+    title "AL2100"
+    subtitle "System operacyjny AI"
+    accent primary
+  }
+  nav {
+    items [
+      map { "id": "Czat", "label": "Czat", "icon": "sparkles" },
+      map { "id": "Projekty", "label": "Projekty", "icon": "folder" },
+      map { "id": "Zadania", "label": "Zadania", "icon": "check" },
+      map { "id": "Pamięć", "label": "Pamięć", "icon": "brain" },
+      map { "id": "Pliki", "label": "Pliki", "icon": "file" },
+      map { "id": "Research", "label": "Research", "icon": "search" },
+      map { "id": "Timeline", "label": "Timeline", "icon": "timeline" },
+      map { "id": "App Creator", "label": "App Creator", "icon": "wrench" },
+      map { "id": "GitHub", "label": "GitHub", "icon": "git" },
+      map { "id": "Deploy", "label": "Deploy", "icon": "rocket" },
+      map { "id": "Muzyka", "label": "Muzyka", "icon": "music" },
+      map { "id": "Zatwierdzenia", "label": "Zatwierdzenia", "icon": "shield" },
+      map { "id": "Sesje", "label": "Sesje", "icon": "user" },
+      map { "id": "Ustawienia", "label": "Ustawienia", "icon": "gear" },
+      map { "id": "Diagnostyka", "label": "Diagnostyka", "icon": "pulse" }
+    ]
+    active active
+    collapsed collapsed
+    onSelect {
+      nav.current = item.id
+    }
+  }
+  footer {
+    badge pendingCount
+    shortcut "Cmd/Ctrl + K"
+  }
+}
+
+component TopBar(title, subtitle) {
+  surface {
+    tone surfaceElevated
+    border bottom
+    padding md
+    sticky true
+  }
+  row {
+    align center
+    justify space-between
+    title title
+    subtitle subtitle
+    actions {
+      button "Cmd+K" {
+        style ghost
+        action {
+          nav.commandPaletteOpen = true
+        }
+      }
+    }
+  }
+}
+
+component CommandPalette(open, onClose) {
+  if open {
+    overlay {
+      tone overlay
+      onDismiss onClose
+    }
+    dialog {
+      radius lg
+      shadow hard
+      width 640
+      input {
+        placeholder "Szukaj ekranów, rozmów, zadań, plików, wspomnień…"
+        autofocus true
+      }
+      list {
+        items [
+          map { "id": "chat", "label": "Przejdź do Czatu", "screen": "Czat" },
+          map { "id": "projects", "label": "Przejdź do Projektów", "screen": "Projekty" },
+          map { "id": "tasks", "label": "Przejdź do Zadań", "screen": "Zadania" },
+          map { "id": "memory", "label": "Przejdź do Pamięci", "screen": "Pamięć" },
+          map { "id": "files", "label": "Przejdź do Plików", "screen": "Pliki" },
+          map { "id": "research", "label": "Przejdź do Research", "screen": "Research" },
+          map { "id": "creator", "label": "Przejdź do App Creator", "screen": "App Creator" },
+          map { "id": "github", "label": "Przejdź do GitHub", "screen": "GitHub" },
+          map { "id": "deploy", "label": "Przejdź do Deploy", "screen": "Deploy" },
+          map { "id": "music", "label": "Przejdź do Muzyka", "screen": "Muzyka" },
+          map { "id": "approvals", "label": "Przejdź do Zatwierdzeń", "screen": "Zatwierdzenia" },
+          map { "id": "sessions", "label": "Przejdź do Sesji", "screen": "Sesje" },
+          map { "id": "settings", "label": "Przejdź do Ustawień", "screen": "Ustawienia" },
+          map { "id": "diagnostics", "label": "Przejdź do Diagnostyki", "screen": "Diagnostyka" }
+        ]
+        onSelect {
+          nav.current = item.screen
+          onClose
+        }
+      }
+    }
+  }
+}
+
+component StatCard(title, value, progress) {
+  card {
+    padding lg
+    radius md
+    tone surface
+    title {
+      text title
+      muted true
+    }
+    value {
+      text value
+      size xxl
+      weight bold
+    }
+    progress {
+      value progress
+      tone primary
+    }
+  }
+}
+
+component ProviderRow(provider, status, maskedKey, lastTested) {
+  row {
+    align center
+    justify space-between
+    left {
+      name {
+        text provider
+        weight semibold
+      }
+      key {
+        text maskedKey
+        mono true
+        muted true
+      }
+      meta {
+        text "Ostatni test: {lastTested}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge status
+      button "Test" {
+        style ghost
+        action {
+          logic.testProvider(provider)
+        }
+      }
+      button "Usuń" {
+        style danger
+        action {
+          logic.requestDeleteProvider(provider)
+        }
+      }
+    }
+  }
+}
+
+component MessageBubble(message) {
+  row {
+    align start
+    gap md
+    role message.role
+    bubble {
+      radius md
+      padding md
+      tone message.role
+      content {
+        markdown message.content
+        codeBlocksCopy true
+      }
+      meta {
+        text "{message.created_at} · {message.provider}/{message.model} · {message.tokens} tok"
+        size xs
+        muted true
+      }
+      actions {
+        button "Kopiuj" {
+          style ghost
+          action {
+            clipboard.write message.content
+          }
+        }
+        if message.role == "user" {
+          button "Edytuj" {
+            style ghost
+            action {
+              logic.openEditMessage(message.id)
+            }
+          }
+        }
+        if message.role == "assistant" && message.status == "completed" {
+          button "Ponów" {
+            style ghost
+            action {
+              logic.retryFromMessage(message.id)
+            }
+          }
+        }
+        button "Usuń" {
+          style danger
+          action {
+            logic.requestDeleteMessage(message.id)
+          }
+        }
+      }
+      if message.citations != "" {
+        citations {
+          items message.citations
+        }
+      }
+    }
+  }
+}
+
+component Composer(draft, canSend, isGenerating) {
+  surface {
+    tone surfaceElevated
+    border top
+    padding md
+    textarea {
+      value draft
+      placeholder "Napisz wiadomość… (Cmd/Ctrl + Enter)"
+      autosize true
+      maxRows 12
+      onChange {
+        chat.draft = value
+      }
+      onKey {
+        if key == "Enter" && meta {
+          logic.sendMessage()
+        }
+      }
+    }
+    row {
+      align center
+      justify space-between
+      left {
+        button "Załącz" {
+          style ghost
+          action {
+            logic.openAttachmentPicker()
+          }
+        }
+        button "Głos" {
+          style ghost
+          action {
+            logic.startVoiceCapture()
+          }
+        }
+        toggle "Web" {
+          value chat.webSearchEnabled
+          onChange {
+            chat.webSearchEnabled = value
+          }
+        }
+        toggle "Prywatny" {
+          value chat.privateMode
+          onChange {
+            chat.privateMode = value
+          }
+        }
+      }
+      right {
+        if isGenerating {
+          button "Stop" {
+            style danger
+            action {
+              logic.stopGeneration()
+            }
+          }
+        } else {
+          button "Wyślij" {
+            style primary
+            disabled !canSend
+            action {
+              logic.sendMessage()
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component ConversationList(items, activeId, search, showArchived) {
+  column {
+    gap sm
+    toolbar {
+      input {
+        value search
+        placeholder "Szukaj rozmów"
+        onChange {
+          chat.search = value
+        }
+      }
+      toggle "Archiwum" {
+        value showArchived
+        onChange {
+          chat.showArchived = value
+        }
+      }
+      button "Nowa" {
+        style primary
+        action {
+          logic.createConversation()
+        }
+      }
+    }
+    list {
+      items items
+      active activeId
+      onSelect {
+        logic.selectConversation(item.id)
+      }
+      onRename {
+        logic.renameConversation(item.id, item.title)
+      }
+      onArchive {
+        logic.archiveConversation(item.id)
+      }
+      onDelete {
+        logic.requestDeleteConversation(item.id)
+      }
+      onPinToProject {
+        logic.pinConversationToProject(item.id)
+      }
+    }
+  }
+}
+
+component ContextPanel(conversationId, memoryStatus, contextTokens, sourcesCount) {
+  surface {
+    tone surface
+    border left
+    padding md
+    tabs {
+      items ["Kontekst", "Pamięć", "Źródła", "Agenci"]
+      section Kontekst {
+        row {
+          label "Rozmowa"
+          value conversationId
+        }
+        row {
+          label "Pamięć"
+          value memoryStatus
+        }
+        row {
+          label "Tokeny kontekstu"
+          value contextTokens
+        }
+      }
+      section Pamięć {
+        list {
+          items memory.entries
+          onToggleDisabled {
+            logic.toggleMemoryEntry(item.id)
+          }
+          onPin {
+            logic.togglePinMemory(item.id)
+          }
+        }
+      }
+      section Źródła {
+        text "Źródła: {sourcesCount}"
+        list {
+          items research.sources
+          onOpen {
+            logic.openSource(item.id)
+          }
+        }
+      }
+      section Agenci {
+        list {
+          items agents.activeRuns
+        }
+      }
+    }
+  }
+}
+
+component TaskRow(task) {
+  row {
+    align center
+    justify space-between
+    left {
+      checkbox {
+        value task.status == "done"
+        onChange {
+          logic.toggleTask(task.id, value)
+        }
+      }
+      title {
+        text task.title
+        weight medium
+      }
+      meta {
+        text "{task.priority} · {task.deadline}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge task.status
+      button "Edytuj" {
+        style ghost
+        action {
+          logic.openEditTask(task.id)
+        }
+      }
+      button "Usuń" {
+        style danger
+        action {
+          logic.requestDeleteTask(task.id)
+        }
+      }
+    }
+  }
+}
+
+component FileRow(file) {
+  row {
+    align center
+    justify space-between
+    left {
+      icon file.kind
+      name {
+        text file.name
+        weight medium
+      }
+      meta {
+        text "{file.size} B · v{file.version} · {file.status}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      button "Pobierz" {
+        style ghost
+        action {
+          logic.downloadFile(file.id)
+        }
+      }
+      button "Usuń" {
+        style danger
+        action {
+          logic.requestDeleteFile(file.id)
+        }
+      }
+    }
+  }
+}
+
+component ApprovalRow(approval) {
+  row {
+    align center
+    justify space-between
+    left {
+      kind {
+        text approval.kind
+        weight semibold
+      }
+      resource {
+        text approval.resource
+        mono true
+        muted true
+      }
+    }
+    right {
+      button "Zatwierdź" {
+        style primary
+        action {
+          logic.approveRequest(approval.id)
+        }
+      }
+      button "Odrzuć" {
+        style danger
+        action {
+          logic.rejectRequest(approval.id)
+        }
+      }
+    }
+  }
+}
+
+component DiffViewer(diff) {
+  card {
+    padding md
+    tone surfaceElevated
+    code {
+      value diff
+      language "diff"
+      copyable true
+    }
+    row {
+      right {
+        button "Zapisz" {
+          style primary
+          action {
+            logic.applyDiff()
+          }
+        }
+        button "Odrzuć" {
+          style ghost
+          action {
+            logic.discardDiff()
+          }
+        }
+      }
+    }
+  }
+}
+
+component MusicReleaseCard(release) {
+  card {
+    padding lg
+    title release.title
+    badge release.status
+    meta {
+      text "{release.kind} · {release.release_date} · {release.rights_status}"
+      size xs
+      muted true
+    }
+    actions {
+      button "Otwórz" {
+        style ghost
+        action {
+          music.activeReleaseId = release.id
+          music.view = "tracks"
+        }
+      }
+    }
+  }
+}
+
+component MusicTrackRow(track) {
+  row {
+    left {
+      title track.title
+      meta {
+        text "{track.bpm} BPM · {track.key} · {track.mix_status}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      button "Edytuj" {
+        style ghost
+        action {
+          logic.openEditTrack(track.id)
+        }
+      }
+    }
+  }
+}
+
+screen Login {
+  title "AL2100 · Zaloguj"
+  layout {
+    centered true
+    maxWidth 480
+  }
+  card {
+    padding xxl
+    title "AL2100"
+    subtitle "Prywatny system operacyjny AI"
+    button "Zaloguj przez GitHub" {
+      style primary
+      action {
+        logic.loginWithGitHub()
+      }
+    }
+    button "Zaloguj przez Google" {
+      style secondary
+      action {
+        logic.loginWithGoogle()
+      }
+    }
+    note "Sesje są szyfrowane. Uprawnienia są jawne."
+  }
+}
+
+screen Czat {
+  title "AL2100"
+  shell {
+    areas ["sidebar main context"]
+    sidebar {
+      SidebarNav(nav.current, nav.sidebarCollapsed, approvals.pendingCount)
+      ConversationList(chat.conversations, chat.activeConversationId, chat.search, chat.showArchived)
+    }
+    main {
+      TopBar("Czat", chat.activeConversationId)
+      if chat.activeConversationId == "" {
+        empty {
+          title "Zacznij nową rozmowę"
+          subtitle "Naciśnij Nowa, aby zacząć"
+          button "Nowa rozmowa" {
+            style primary
+            action {
+              logic.createConversation()
+            }
+          }
+        }
+      } else {
+        scroll {
+          list {
+            items chat.messages
+            render MessageBubble(item)
+          }
+        }
+        Composer(chat.draft, canSend, isGenerating)
+      }
+    }
+    context {
+      ContextPanel(chat.activeConversationId, memoryStatus, chat.contextBudget, research.sources.length)
+    }
+  }
+  CommandPalette(nav.commandPaletteOpen, { nav.commandPaletteOpen = false })
+}
+
+screen Projekty {
+  title "Projekty"
+  TopBar("Projekty", "Zarządzaj projektami i powiązaniami")
+  toolbar {
+    button "Nowy projekt" {
+      style primary
+      action {
+        logic.createProject()
+      }
+    }
+    tabs {
+      items ["Wszystkie", "Aktywne", "Wstrzymane", "Archiwum"]
+      onChange {
+        projects.view = value
+      }
+    }
+  }
+  list {
+    items projects.items
+    render ProjectCard(item)
+  }
+}
+
+screen Zadania {
+  title "Zadania"
+  TopBar("Zadania", "Dziś, blokery, następny krok")
+  tabs {
+    items ["Dziś", "Blokery", "Następny krok", "Wszystkie"]
+    onChange {
+      tasks.view = value
+    }
+  }
+  list {
+    items tasks.items
+    render TaskRow(item)
+  }
+  button "Nowe zadanie" {
+    style primary
+    action {
+      logic.createTask()
+    }
+  }
+}
+
+screen Pamięć {
+  title "Pamięć"
+  TopBar("Pamięć", "Długoterminowa pamięć użytkownika i projektów")
+  toolbar {
+    input {
+      value memory.search
+      placeholder "Szukaj wspomnień"
+      onChange {
+        memory.search = value
+      }
+    }
+    tabs {
+      items ["Wszystko", "Fakty", "Decyzje", "Odrzucone", "Pytania", "Blokery", "Podsumowania"]
+      onChange {
+        memory.filter = value
+      }
+    }
+    toggle "Pokaż wyłączone" {
+      value memory.showDisabled
+      onChange {
+        memory.showDisabled = value
+      }
+    }
+  }
+  list {
+    items memory.entries
+    render MemoryCard(item)
+  }
+}
+
+screen Pliki {
+  title "Pliki"
+  TopBar("Pliki", "Multimodalność i wersjonowanie")
+  toolbar {
+    button "Wgraj" {
+      style primary
+      action {
+        logic.openUploadDialog()
+      }
+    }
+    input {
+      placeholder "Szukaj plików"
+      onChange {
+        files.filter = value
+      }
+    }
+  }
+  list {
+    items files.items
+    render FileRow(item)
+  }
+}
+
+screen Research {
+  title "Research"
+  TopBar("Research", "Wyszukiwanie i cytowania")
+  row {
+    input {
+      value research.query
+      placeholder "Zadaj pytanie badawcze"
+      onChange {
+        research.query = value
+      }
+    }
+    button "Szukaj" {
+      style primary
+      action {
+        logic.runResearch()
+      }
+    }
+  }
+  if research.status == "loading" {
+    spinner "Szukam…"
+  }
+  if research.error != "" {
+    alert {
+      tone danger
+      text research.error
+    }
+  }
+  list {
+    items research.results
+    render ResearchResult(item)
+  }
+  list {
+    items research.sources
+    render SourceRow(item)
+  }
+}
+
+screen Timeline {
+  title "Timeline"
+  TopBar("Timeline", "Oś czasu projektu")
+  timeline {
+    items tasks.items
+    render TimelineNode(item)
+  }
+}
+
+screen AppCreator {
+  title "App Creator"
+  TopBar("App Creator", "Zbuduj aplikację AXCode")
+  textarea {
+    value appCreator.description
+    placeholder "Opisz aplikację…"
+    autosize true
+    onChange {
+      appCreator.description = value
+    }
+  }
+  row {
+    button "Wygeneruj plan" {
+      style secondary
+      action {
+        logic.generateAppPlan()
+      }
+    }
+    button "Wygeneruj kod" {
+      style primary
+      disabled appCreator.plan == ""
+      action {
+        logic.generateAppCode()
+      }
+    }
+    select {
+      value appCreator.template
+      options ["fiszki", "zdrowie", "zadania", "notatnik", "muzyka", "panel", "katalog", "artysta", "marketing", "research"]
+      onChange {
+        appCreator.template = value
+      }
+    }
+  }
+  if appCreator.plan != "" {
+    card {
+      title "Plan"
+      markdown appCreator.plan
+    }
+  }
+  if appCreator.code != "" {
+    card {
+      title "Kod"
+      code {
+        value appCreator.code
+        language "axcode"
+        copyable true
+      }
+    }
+  }
+  if appCreator.diff != "" {
+    DiffViewer(appCreator.diff)
+  }
+}
+
+screen GitHub {
+  title "GitHub"
+  TopBar("GitHub", "Workspace i Pull Requesty")
+  if !github.connected {
+    button "Połącz GitHub" {
+      style primary
+      action {
+        logic.connectGitHub()
+      }
+    }
+  } else {
+    toolbar {
+      text "Zalogowany jako {github.login}"
+      button "Odśwież repo" {
+        style ghost
+        action {
+          logic.refreshRepos()
+        }
+      }
+    }
+    list {
+      items github.repos
+      render RepoRow(item)
+    }
+    if github.diff != "" {
+      DiffViewer(github.diff)
+    }
+  }
+}
+
+screen Deploy {
+  title "Deploy"
+  TopBar("Deploy", "Cloudflare — Workers, D1, R2, Queues")
+  list {
+    items deploy.targets
+    render DeployTarget(item)
+  }
+  if deploy.status == "running" {
+    logs {
+      items deploy.logs
+    }
+  }
+  if deploy.requiresApproval {
+    alert {
+      tone warning
+      text "Deploy produkcyjny wymaga zatwierdzenia"
+      button "Poproś o zatwierdzenie" {
+        style primary
+        action {
+          logic.requestDeployApproval()
+        }
+      }
+    }
+  }
+}
+
+screen Muzyka {
+  title "Muzyka"
+  TopBar("Muzyka", "BengalLabel")
+  tabs {
+    items ["Releases", "Tracki"]
+    onChange {
+      music.view = value
+    }
+  }
+  if music.view == "releases" {
+    button "Nowy release" {
+      style primary
+      action {
+        logic.createMusicRelease()
+      }
+    }
+    list {
+      items music.releases
+      render MusicReleaseCard(item)
+    }
+  } else {
+    button "Nowy track" {
+      style primary
+      action {
+        logic.createMusicTrack()
+      }
+    }
+    list {
+      items music.tracks
+      render MusicTrackRow(item)
+    }
+  }
+}
+
+screen Ustawienia {
+  title "Ustawienia"
+  TopBar("Ustawienia", "Dostawcy AI, klucze, limity")
+  tabs {
+    items ["Dostawcy", "Limity", "Audyt", "Język", "Motyw"]
+    section Dostawcy {
+      list {
+        items settings.providers
+        render ProviderRow(item.provider, item.status, item.maskedKey, item.lastTested)
+      }
+      button "Dodaj klucz" {
+        style primary
+        action {
+          logic.openAddProvider()
+        }
+      }
+    }
+    section Limity {
+      row {
+        label "Rate limit / min"
+        input {
+          value settings.rateLimitPerMinute
+          type number
+          onChange {
+            settings.rateLimitPerMinute = value
+          }
+        }
+      }
+    }
+    section Audyt {
+      list {
+        items settings.auditLog
+        render AuditRow(item)
+      }
+    }
+    section Język {
+      select {
+        value user.locale
+        options ["pl", "en"]
+        onChange {
+          user.locale = value
+        }
+      }
+    }
+    section Motyw {
+      select {
+        value user.theme
+        options ["dark", "darker", "system"]
+        onChange {
+          user.theme = value
+        }
+      }
+    }
+  }
+}
+
+screen Sesje {
+  title "Sesje"
+  TopBar("Sesje", "Aktywne sesje i odwoływanie")
+  list {
+    items session.activeSessions
+    render SessionRow(item)
+  }
+  button "Odwołaj wszystkie" {
+    style danger
+    action {
+      logic.revokeAllSessions()
+    }
+  }
+}
+
+screen Zatwierdzenia {
+  title "Zatwierdzenia"
+  TopBar("Zatwierdzenia", "Operacje wymagające zgody")
+  list {
+    items approvals.items
+    render ApprovalRow(item)
+  }
+}
+
+screen Diagnostyka {
+  title "Diagnostyka"
+  TopBar("Diagnostyka", "Stan systemu")
+  button "Uruchom testy" {
+    style primary
+    action {
+      logic.runDiagnostics()
+    }
+  }
+  list {
+    items diagnostics.checks
+    render DiagnosticRow(item)
+  }
+}
+
+logic {
+  function nowIso() {
+    return date.nowIso()
+  }
+
+  function newId(prefix) {
+    return prefix + "-" + uuid.v4()
+  }
+
+  function safeUrl(url) {
+    if !url.startsWith("https://") {
+      return false
+    }
+    if url.includes("localhost") || url.includes("127.0.0.1") || url.includes("::1") {
+      return false
+    }
+    if url.includes("169.254.") || url.includes("10.") || url.includes("192.168.") {
+      return false
+    }
+    return true
+  }
+
+  function hashIp(ip) {
+    return crypto.sha256(ip + "::" + env.AL_MASTER_ENCRYPTION_KEY)
+  }
+
+  function encryptSecret(plain) {
+    return crypto.aesGcm.encrypt(plain, env.AL_MASTER_ENCRYPTION_KEY)
+  }
+
+  function decryptSecret(cipher) {
+    return crypto.aesGcm.decrypt(cipher, env.AL_MASTER_ENCRYPTION_KEY)
+  }
+
+  function maskSecret(plain) {
+    if plain.length <= 6 {
+      return "••••••"
+    }
+    return plain.substring(0, 3) + "••••••" + plain.substring(plain.length - 3)
+  }
+
+  function rateCheck(userId, bucket) {
+    key = "rate:" + bucket + ":" + userId
+    count = cache.incr(key, 60)
+    if count > settings.rateLimitPerMinute {
+      throw "rate_limit_exceeded"
+    }
+    return true
+  }
+
+  function audit(userId, action, resource, resourceId, result, metadata) {
+    db.insert("AuditLog", map {
+      "user_id": userId,
+      "action": action,
+      "resource": resource,
+      "resource_id": resourceId,
+      "result": result,
+      "metadata": metadata,
+      "created_at": nowIso()
+    })
+  }
+
+  function requestApproval(kind, resource, resourceId, payload) {
+    id = newId("appr")
+    db.insert("Approval", map {
+      "id": id,
+      "user_id": user.id,
+      "kind": kind,
+      "resource": resource,
+      "resource_id": resourceId,
+      "payload": payload,
+      "status": "pending",
+      "created_at": nowIso()
+    })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    return id
+  }
+
+  function approveRequest(id) {
+    db.update("Approval", id, map { "status": "approved", "resolved_at": nowIso(), "resolved_by": user.id })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    audit(user.id, "approval.approve", "Approval", id, "success", map {})
+  }
+
+  function rejectRequest(id) {
+    db.update("Approval", id, map { "status": "rejected", "resolved_at": nowIso(), "resolved_by": user.id })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    audit(user.id, "approval.reject", "Approval", id, "success", map {})
+  }
+
+  function loginWithGitHub() {
+    url = oauth.github.startUrl(env.GITHUB_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/github/callback")
+    navigate url
+  }
+
+  function loginWithGoogle() {
+    url = oauth.google.startUrl(env.GOOGLE_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/google/callback")
+    navigate url
+  }
+
+  function logout() {
+    fetch("/api/logout", "POST", map {}, map { "X-CSRF-Token": session.csrfToken })
+    session.id = ""
+    session.csrfToken = ""
+    nav.current = "Login"
+  }
+
+  function loadSession() {
+    res = fetch("/api/session", "GET", null, null)
+    if res.ok {
+      session.id = res.body.sessionId
+      session.csrfToken = res.body.csrfToken
+      session.expiresAt = res.body.expiresAt
+      user.id = res.body.user.id
+      user.name = res.body.user.name
+      user.email = res.body.user.email
+      user.avatarUrl = res.body.user.avatarUrl
+      user.provider = res.body.user.provider
+      nav.current = "Czat"
+      logic.loadConversations()
+      logic.loadTasks()
+      logic.loadProjects()
+      logic.loadMemory()
+      logic.loadApprovals()
+      logic.loadProviders()
+    } else {
+      nav.current = "Login"
+    }
+  }
+
+  function loadConversations() {
+    res = fetch("/api/conversations", "GET", null, null)
+    if res.ok {
+      chat.conversations = res.body.items
+    }
+  }
+
+  function createConversation() {
+    rateCheck(user.id, "conversation:create")
+    res = fetch("/api/conversations", "POST", map { "title": "Nowa rozmowa", "private_mode": chat.privateMode, "web_search": chat.webSearchEnabled }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      chat.conversations = [res.body] + chat.conversations
+      chat.activeConversationId = res.body.id
+      chat.messages = []
+      audit(user.id, "conversation.create", "Conversation", res.body.id, "success", map {})
+    }
+  }
+
+  function selectConversation(id) {
+    chat.activeConversationId = id
+    res = fetch("/api/conversations/" + id + "/messages", "GET", null, null)
+    if res.ok {
+      chat.messages = res.body.items
+    }
+  }
+
+  function renameConversation(id, title) {
+    fetch("/api/conversations/" + id, "PATCH", map { "title": title }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadConversations()
+  }
+
+  function archiveConversation(id) {
+    fetch("/api/conversations/" + id, "PATCH", map { "archived": true }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadConversations()
+  }
+
+  function requestDeleteConversation(id) {
+    requestApproval("delete", "Conversation", id, map { "id": id })
+  }
+
+  function pinConversationToProject(id) {
+    projectId = prompt "ID projektu"
+    fetch("/api/conversations/" + id, "PATCH", map { "project_id": projectId }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadConversations()
+  }
+
+  function sendMessage() {
+    if !canSend {
+      return
+    }
+    rateCheck(user.id, "chat:send")
+    msgId = newId("msg")
+    optimistic = map {
+      "id": msgId,
+      "role": "user",
+      "content": chat.draft,
+      "status": "completed",
+      "created_at": nowIso()
+    }
+    chat.messages = chat.messages + [optimistic]
+    body = map {
+      "conversation_id": chat.activeConversationId,
+      "content": chat.draft,
+      "attachments": chat.attachments,
+      "web_search": chat.webSearchEnabled,
+      "private_mode": chat.privateMode
+    }
+    chat.draft = ""
+    chat.generation.status = "pending"
+    chat.generation.startedAt = nowIso()
+    stream = fetchStream("/api/chat/send", "POST", body, map { "X-CSRF-Token": session.csrfToken })
+    chat.generation.status = "streaming"
+    stream.onChunk {
+      if chat.messages.last.status != "streaming" {
+        chat.messages = chat.messages + [map {
+          "id": newId("msg"),
+          "role": "assistant",
+          "content": "",
+          "status": "streaming",
+          "provider": stream.provider,
+          "model": stream.model,
+          "created_at": nowIso()
+        }]
+        chat.generation.provider = stream.provider
+        chat.generation.model = stream.model
+      }
+      chat.messages.last.content = chat.messages.last.content + chunk
+      chat.generation.tokens = chat.generation.tokens + 1
+    }
+    stream.onDone {
+      chat.messages.last.status = "completed"
+      chat.generation.status = "completed"
+      logic.loadConversations()
+    }
+    stream.onError {
+      chat.generation.status = "failed"
+      chat.lastError = error
+      notify "Błąd generacji: {error}"
+    }
+  }
+
+  function stopGeneration() {
+    fetch("/api/chat/stop", "POST", map { "conversation_id": chat.activeConversationId }, map { "X-CSRF-Token": session.csrfToken })
+    chat.generation.status = "interrupted"
+  }
+
+  function retryFromMessage(messageId) {
+    fetch("/api/chat/retry", "POST", map { "message_id": messageId }, map { "X-CSRF-Token": session.csrfToken })
+  }
+
+  function openEditMessage(messageId) {
+    content = prompt "Nowa treść"
+    fetch("/api/messages/" + messageId, "PATCH", map { "content": content }, map { "X-CSRF-Token": session.csrfToken })
+    logic.selectConversation(chat.activeConversationId)
+  }
+
+  function requestDeleteMessage(messageId) {
+    requestApproval("delete", "Message", messageId, map { "id": messageId })
+  }
+
+  function openAttachmentPicker() {
+    picker = file.pick(map { "multiple": true, "maxSize": 26214400 })
+    for f in picker.files {
+      logic.uploadAttachment(f)
+    }
+  }
+
+  function uploadAttachment(file) {
+    chat.attachments = chat.attachments + [map { "name": file.name, "status": "uploading" }]
+    res = fetchMultipart("/api/files/upload", file, map { "conversation_id": chat.activeConversationId, "kind": file.kind }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      chat.attachments.last.status = "ready"
+      chat.attachments.last.file_id = res.body.file_id
+    } else {
+      chat.attachments.last.status = "failed"
+    }
+  }
+
+  function startVoiceCapture() {
+    audio = media.record(map { "maxSeconds": 120 })
+    file = audio.toFile("voice.webm")
+    logic.uploadAttachment(file)
+  }
+
+  function loadProjects() {
+    res = fetch("/api/projects", "GET", null, null)
+    if res.ok {
+      projects.items = res.body.items
+    }
+  }
+
+  function createProject() {
+    name = prompt "Nazwa projektu"
+    res = fetch("/api/projects", "POST", map { "name": name }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      logic.loadProjects()
+    }
+  }
+
+  function loadTasks() {
+    res = fetch("/api/tasks", "GET", null, null)
+    if res.ok {
+      tasks.items = res.body.items
+    }
+  }
+
+  function createTask() {
+    title = prompt "Tytuł zadania"
+    res = fetch("/api/tasks", "POST", map { "title": title, "status": "todo", "priority": "normal" }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      logic.loadTasks()
+    }
+  }
+
+  function toggleTask(id, done) {
+    fetch("/api/tasks/" + id, "PATCH", map { "status": done ? "done" : "todo" }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadTasks()
+  }
+
+  function openEditTask(id) {
+    title = prompt "Nowy tytuł"
+    fetch("/api/tasks/" + id, "PATCH", map { "title": title }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadTasks()
+  }
+
+  function requestDeleteTask(id) {
+    requestApproval("delete", "Task", id, map { "id": id })
+  }
+
+  function loadMemory() {
+    res = fetch("/api/memory", "GET", null, null)
+    if res.ok {
+      memory.entries = res.body.items
+    }
+  }
+
+  function toggleMemoryEntry(id) {
+    fetch("/api/memory/" + id, "PATCH", map { "disabled": true }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMemory()
+  }
+
+  function togglePinMemory(id) {
+    fetch("/api/memory/" + id, "PATCH", map { "pinned": true }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMemory()
+  }
+
+  function runResearch() {
+    research.status = "loading"
+    res = fetch("/api/research", "POST", map { "query": research.query }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      research.results = res.body.results
+      research.sources = res.body.sources
+      research.status = "idle"
+    } else {
+      research.error = res.body.error
+      research.status = "idle"
+    }
+  }
+
+  function openSource(id) {
+    src = research.sources.find(id)
+    if safeUrl(src.url) {
+      window.open(src.url)
+    }
+  }
+
+  function openUploadDialog() {
+    picker = file.pick(map { "multiple": true })
+    for f in picker.files {
+      logic.uploadFile(f)
+    }
+  }
+
+  function uploadFile(file) {
+    files.uploading = true
+    res = fetchMultipart("/api/files/upload", file, map { "kind": file.kind }, map { "X-CSRF-Token": session.csrfToken })
+    files.uploading = false
+    if res.ok {
+      logic.loadFiles()
+    }
+  }
+
+  function loadFiles() {
+    res = fetch("/api/files", "GET", null, null)
+    if res.ok {
+      files.items = res.body.items
+    }
+  }
+
+  function downloadFile(id) {
+    fetch("/api/files/" + id + "/download", "GET", null, null).then {
+      saveAs(blob, name)
+    }
+  }
+
+  function requestDeleteFile(id) {
+    requestApproval("delete", "File", id, map { "id": id })
+  }
+
+  function connectGitHub() {
+    url = oauth.github.startUrl(env.GITHUB_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/github/workspace/callback", "repo read:user")
+    navigate url
+  }
+
+  function refreshRepos() {
+    res = fetch("/api/github/repos", "GET", null, null)
+    if res.ok {
+      github.repos = res.body.items
+    }
+  }
+
+  function requestDeployApproval() {
+    requestApproval("deploy", "Deployment", deploy.activeTarget, map { "target": deploy.activeTarget })
+  }
+
+  function generateAppPlan() {
+    appCreator.status = "generating"
+    res = fetch("/api/appcreator/plan", "POST", map { "description": appCreator.description, "template": appCreator.template }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      appCreator.plan = res.body.plan
+      appCreator.status = "idle"
+    } else {
+      appCreator.status = "failed"
+    }
+  }
+
+  function generateAppCode() {
+    appCreator.status = "generating"
+    res = fetch("/api/appcreator/code", "POST", map { "plan": appCreator.plan, "template": appCreator.template }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      appCreator.code = res.body.code
+      appCreator.diff = res.body.diff
+      appCreator.status = "idle"
+    } else {
+      appCreator.status = "failed"
+    }
+  }
+
+  function applyDiff() {
+    fetch("/api/appcreator/apply", "POST", map { "diff": appCreator.diff }, map { "X-CSRF-Token": session.csrfToken })
+  }
+
+  function discardDiff() {
+    appCreator.diff = ""
+    appCreator.code = ""
+  }
+
+  function createMusicRelease() {
+    title = prompt "Tytuł release"
+    res = fetch("/api/music/releases", "POST", map { "title": title, "kind": "single", "status": "draft" }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      logic.loadMusicReleases()
+    }
+  }
+
+  function createMusicTrack() {
+    title = prompt "Tytuł tracku"
+    res = fetch("/api/music/tracks", "POST", map { "title": title, "release_id": music.activeReleaseId, "mix_status": "unmixed" }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      logic.loadMusicTracks()
+    }
+  }
+
+  function openEditTrack(id) {
+    bpm = prompt "BPM"
+    fetch("/api/music/tracks/" + id, "PATCH", map { "bpm": bpm }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMusicTracks()
+  }
+
+  function loadMusicReleases() {
+    res = fetch("/api/music/releases", "GET", null, null)
+    if res.ok {
+      music.releases = res.body.items
+    }
+  }
+
+  function loadMusicTracks() {
+    res = fetch("/api/music/tracks", "GET", null, null)
+    if res.ok {
+      music.tracks = res.body.items
+    }
+  }
+
+  function loadProviders() {
+    res = fetch("/api/providers", "GET", null, null)
+    if res.ok {
+      settings.providers = res.body.items
+    }
+  }
+
+  function testProvider(provider) {
+    settings.testStatus = "testing"
+    res = fetch("/api/providers/" + provider + "/test", "POST", map {}, map { "X-CSRF-Token": session.csrfToken })
+    settings.testStatus = res.ok ? "ok" : "failed"
+    logic.loadProviders()
+  }
+
+  function openAddProvider() {
+    provider = prompt "Dostawca (gemini|groq|mistral|openrouter|cloudflare|anthropic|openai)"
+    key = prompt "Klucz API"
+    res = fetch("/api/providers", "POST", map { "provider": provider, "key": key }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      logic.loadProviders()
+    }
+  }
+
+  function requestDeleteProvider(provider) {
+    requestApproval("delete", "ProviderKey", provider, map { "provider": provider })
+  }
+
+  function loadApprovals() {
+    res = fetch("/api/approvals", "GET", null, null)
+    if res.ok {
+      approvals.items = res.body.items
+      approvals.pendingCount = approvals.items.length
+    }
+  }
+
+  function loadSessions() {
+    res = fetch("/api/sessions", "GET", null, null)
+    if res.ok {
+      session.activeSessions = res.body.items
+    }
+  }
+
+  function revokeSession(id) {
+    fetch("/api/sessions/" + id, "DELETE", null, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadSessions()
+  }
+
+  function revokeAllSessions() {
+    requestApproval("delete", "Session", "all", map {})
+  }
+
+  function runDiagnostics() {
+    diagnostics.lastRunAt = nowIso()
+    res = fetch("/api/diagnostics", "POST", map {}, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      diagnostics.checks = res.body.checks
+      diagnostics.overall = res.body.overall
+    }
+  }
+
+  event nav.commandPaletteOpen changed {
+    if nav.commandPaletteOpen {
+      ui.modal = map { "name": "CommandPalette" }
+    }
+  }
+
+  event session.id changed {
+    if session.id != "" {
+      logic.loadSessions()
+    }
+  }
+
+  event chat.activeConversationId changed {
+    if chat.activeConversationId != "" {
+      logic.selectConversation(chat.activeConversationId)
+    }
+  }
+
+  event memory.filter changed {
+    logic.loadMemory()
+  }
+
+  event tasks.view changed {
+    logic.loadTasks()
+  }
+
+  event projects.view changed {
+    logic.loadProjects()
+  }
+
+  event music.view changed {
+    if music.view == "releases" {
+      logic.loadMusicReleases()
+    } else {
+      logic.loadMusicTracks()
+    }
+  }
+
+  onStart {
+    logic.loadSession()
+    logic.loadApprovals()
+  }
+}
+
+flow Auth {
+  start Login
+  Login => Czat {
+    when hasActiveSession
+  }
+  Czat => Login {
+    when !hasActiveSession
+  }
+}
+
+flow Onboarding {
+  start Czat
+  Czat => Ustawienia {
+    when settings.selectedProvider == ""
+  }
+  Ustawienia => Czat {
+    when settings.selectedProvider != ""
+  }
+}
+
+flow Approval {
+  start Zatwierdzenia
+  Zatwierdzenia => Deploy {
+    when deploy.status == "approved"
+  }
+  Deploy => Zatwierdzenia {
+    when deploy.requiresApproval && deploy.status == "requested"
+  }
+}
+component Toast(type, message) {
+  surface {
+    tone type
+    radius md
+    shadow soft
+    padding md
+    row {
+      align center
+      gap sm
+      text message
+      dismiss {
+        timeout 4000
+        onTimeout {
+          ui.toast = map { "id": "", "type": "", "message": "" }
+        }
+      }
+    }
+  }
+}
+
+component Modal(name, payload) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      padding xl
+      renderByName name payload
+      close {
+        onDismiss {
+          ui.modal = map { "name": "", "payload": "" }
+        }
+      }
+    }
+  }
+}
+
+component Alert(tone, message) {
+  surface {
+    tone tone
+    radius sm
+    padding md
+    row {
+      align center
+      gap sm
+      text message
+      slot actions
+    }
+  }
+}
+
+component Badge(value) {
+  pill {
+    tone neutral
+    size xs
+    text value
+  }
+}
+
+component Empty(title, subtitle) {
+  center {
+    padding xxl
+    title title
+    subtitle subtitle
+    slot action
+  }
+}
+
+component Spinner(text) {
+  center {
+    loader true
+    text text
+  }
+}
+
+component Logs(items) {
+  card {
+    tone surfaceMuted
+    padding md
+    code {
+      lines items
+      mono true
+      scrollable true
+    }
+  }
+}
+
+component ProjectCard(project) {
+  card {
+    padding lg
+    radius md
+    tone surface
+    title {
+      text project.name
+      weight semibold
+      size lg
+    }
+    badge project.status
+    description {
+      text project.description
+      size sm
+      muted true
+    }
+    meta {
+      text "{project.created_at} · {project.color}"
+      size xs
+      muted true
+    }
+    actions {
+      button "Otwórz" {
+        style ghost
+        action {
+          projects.activeId = project.id
+        }
+      }
+      button "Zadania" {
+        style ghost
+        action {
+          tasks.view = "all"
+          nav.current = "Zadania"
+        }
+      }
+      button "Archiwum" {
+        style ghost
+        action {
+          logic.archiveProject(project.id)
+        }
+      }
+      button "Usuń" {
+        style danger
+        action {
+          logic.requestDeleteProject(project.id)
+        }
+      }
+    }
+  }
+}
+
+component MemoryCard(entry) {
+  card {
+    padding md
+    radius sm
+    tone surface
+    row {
+      align center
+      justify space-between
+      badge entry.kind
+      controls {
+        toggle "Pin" {
+          value entry.pinned
+          onChange {
+            logic.setMemoryPinned(entry.id, value)
+          }
+        }
+        toggle "Aktywne" {
+          value !entry.disabled
+          onChange {
+            logic.setMemoryDisabled(entry.id, !value)
+          }
+        }
+      }
+    }
+    content {
+      text entry.content
+      size sm
+    }
+    meta {
+      text "{entry.scope} · importance {entry.importance} · {entry.approval_state}"
+      size xs
+      muted true
+    }
+  }
+}
+
+component ResearchResult(result) {
+  card {
+    padding md
+    radius sm
+    title {
+      text result.title
+      weight semibold
+    }
+    url {
+      text result.url
+      mono true
+      size xs
+      muted true
+    }
+    snippet {
+      text result.snippet
+      size sm
+    }
+    meta {
+      text "{result.published_at} · trust {result.trust_score}"
+      size xs
+      muted true
+    }
+    actions {
+      button "Otwórz" {
+        style ghost
+        action {
+          if logic.safeUrl(result.url) {
+            window.open(result.url)
+          }
+        }
+      }
+      button "Cytuj" {
+        style ghost
+        action {
+          logic.addCitation(result)
+        }
+      }
+    }
+  }
+}
+
+component SourceRow(source) {
+  row {
+    align center
+    justify space-between
+    left {
+      title {
+        text source.title
+        weight medium
+      }
+      url {
+        text source.url
+        mono true
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge source.trust_score
+      button "Otwórz" {
+        style ghost
+        action {
+          logic.openSource(source.id)
+        }
+      }
+    }
+  }
+}
+
+component TimelineNode(task) {
+  node {
+    date {
+      text task.deadline
+      size xs
+      muted true
+    }
+    title {
+      text task.title
+      weight medium
+    }
+    row {
+      badge task.status
+      badge task.priority
+    }
+  }
+}
+
+component RepoRow(repo) {
+  row {
+    align center
+    justify space-between
+    left {
+      name {
+        text repo.repo_full_name
+        mono true
+        weight medium
+      }
+      meta {
+        text "branch {repo.default_branch} · {repo.status}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      button "Wybierz" {
+        style ghost
+        action {
+          github.activeRepo = repo.repo_full_name
+          logic.indexRepo(repo.repo_full_name)
+        }
+      }
+      button "Odśwież" {
+        style ghost
+        action {
+          logic.syncRepo(repo.repo_full_name)
+        }
+      }
+    }
+  }
+}
+
+component DeployTarget(target) {
+  row {
+    align center
+    justify space-between
+    left {
+      name {
+        text target.name
+        weight semibold
+      }
+      meta {
+        text "{target.environment} · {target.status}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge target.status
+      button "Deploy" {
+        style primary
+        action {
+          deploy.activeTarget = target.id
+          logic.requestDeployApproval()
+        }
+      }
+      button "Rollback" {
+        style danger
+        action {
+          logic.requestRollback(target.id)
+        }
+      }
+    }
+  }
+}
+
+component AuditRow(entry) {
+  row {
+    align center
+    justify space-between
+    left {
+      action {
+        text entry.action
+        mono true
+      }
+      resource {
+        text "{entry.resource}/{entry.resource_id}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge entry.result
+      text entry.created_at
+      size xs
+      muted true
+    }
+  }
+}
+
+component SessionRow(s) {
+  row {
+    align center
+    justify space-between
+    left {
+      provider {
+        text s.provider
+        weight medium
+      }
+      meta {
+        text "IP {s.ip_hash} · {s.user_agent}"
+        size xs
+        muted true
+      }
+      dates {
+        text "{s.created_at} → {s.expires_at}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      button "Odwołaj" {
+        style danger
+        action {
+          logic.revokeSession(s.id)
+        }
+      }
+    }
+  }
+}
+
+component DiagnosticRow(check) {
+  row {
+    align center
+    justify space-between
+    left {
+      name {
+        text check.name
+        weight medium
+      }
+      message {
+        text check.message
+        size xs
+        muted true
+      }
+    }
+    right {
+      badge check.status
+    }
+  }
+}
+
+component ProviderForm {
+  column {
+    gap md
+    field "provider" {
+      select {
+        value settings.selectedProvider
+        options ["gemini", "groq", "mistral", "openrouter", "cloudflare", "anthropic", "openai"]
+        onChange {
+          settings.selectedProvider = value
+        }
+      }
+    }
+    field "apiKey" {
+      input {
+        type password
+        placeholder "Wklej klucz API"
+        onCommit {
+          logic.saveProvider(settings.selectedProvider, value)
+        }
+      }
+    }
+    field "model" {
+      input {
+        placeholder "Nazwa modelu (opcjonalne)"
+      }
+    }
+    actions {
+      button "Test" {
+        style secondary
+        action {
+          logic.testProvider(settings.selectedProvider)
+        }
+      }
+      button "Zapisz" {
+        style primary
+        action {
+          logic.saveProvider(settings.selectedProvider, "")
+        }
+      }
+    }
+  }
+}
+
+component AgentRunRow(run) {
+  row {
+    align center
+    justify space-between
+    left {
+      agent {
+        text run.agent
+        weight semibold
+      }
+      meta {
+        text "steps {run.steps} · tokens {run.tokens} · {run.status}"
+        size xs
+        muted true
+      }
+    }
+    right {
+      if run.status == "running" {
+        button "Anuluj" {
+          style danger
+          action {
+            logic.cancelAgentRun(run.id)
+          }
+        }
+      }
+      if run.status == "succeeded" || run.status == "failed" {
+        button "Log" {
+          style ghost
+          action {
+            logic.openAgentLog(run.id)
+          }
+        }
+      }
+    }
+  }
+}
+
+component GitHubDiffCard(diff, summary) {
+  card {
+    padding md
+    title {
+      text "Proponowana zmiana"
+      weight semibold
+    }
+    summary {
+      text summary
+      size sm
+      muted true
+    }
+    code {
+      value diff
+      language "diff"
+      copyable true
+    }
+    actions {
+      button "Utwórz branch" {
+        style secondary
+        action {
+          logic.createBranchFromDiff()
+        }
+      }
+      button "Commit i PR" {
+        style primary
+        action {
+          logic.commitAndOpenPR()
+        }
+      }
+      button "Odrzuć" {
+        style ghost
+        action {
+          github.diff = ""
+        }
+      }
+    }
+  }
+}
+
+component MusicTrackEditor(track) {
+  column {
+    gap sm
+    field "title" {
+      input {
+        value track.title
+        onChange {
+          track.title = value
+        }
+      }
+    }
+    field "bpm" {
+      input {
+        value track.bpm
+        type number
+        onChange {
+          track.bpm = value
+        }
+      }
+    }
+    field "key" {
+      input {
+        value track.key
+        onChange {
+          track.key = value
+        }
+      }
+    }
+    field "mix_status" {
+      select {
+        value track.mix_status
+        options ["unmixed", "mixing", "mixed", "mastered"]
+        onChange {
+          track.mix_status = value
+        }
+      }
+    }
+    field "suno_prompt" {
+      textarea {
+        value track.suno_prompt
+        autosize true
+        onChange {
+          track.suno_prompt = value
+        }
+      }
+    }
+    field "elevenlabs_prompt" {
+      textarea {
+        value track.elevenlabs_prompt
+        autosize true
+        onChange {
+          track.elevenlabs_prompt = value
+        }
+      }
+    }
+    actions {
+      button "Zapisz" {
+        style primary
+        action {
+          logic.saveMusicTrack(track)
+        }
+      }
+    }
+  }
+}
+
+worker AL2100Worker {
+  entry "worker.js"
+  routes [
+    "/api/*",
+    "/auth/*"
+  ]
+  bindings {
+    D1 "AL_DB"
+    R2 "AL_BUCKET"
+    QUEUE "AL_QUEUE"
+    KV "AL_KV"
+  }
+  secrets [
+    "AL_MASTER_ENCRYPTION_KEY",
+    "GITHUB_OAUTH_CLIENT_ID",
+    "GITHUB_OAUTH_CLIENT_SECRET",
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "PUBLIC_URL"
+  ]
+}
+
+api {
+  route GET /api/session {
+    auth false
+    handler {
+      c = request.cookies["al_session"]
+      if c == "" {
+        return { "ok": false, "status": 401 }
+      }
+      s = db.queryOne("SELECT * FROM Session WHERE id = ? AND revoked_at IS NULL AND expires_at > ?", [c, nowIso()])
+      if s == null {
+        return { "ok": false, "status": 401 }
+      }
+      u = db.queryOne("SELECT * FROM User WHERE id = ?", [s.user_id])
+      if u == null {
+        return { "ok": false, "status": 401 }
+      }
+      return {
+        "ok": true,
+        "body": {
+          "sessionId": s.id,
+          "csrfToken": s.csrf_token,
+          "expiresAt": s.expires_at,
+          "user": {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "avatarUrl": u.avatar_url,
+            "provider": u.provider
+          }
+        }
+      }
+    }
+  }
+
+  route POST /api/logout {
+    auth true
+    csrf true
+    handler {
+      db.update("Session", session.id, map { "revoked_at": nowIso() })
+      audit(user.id, "session.logout", "Session", session.id, "success", map {})
+      return { "ok": true, "body": map { "loggedOut": true } }
+    }
+  }
+
+  route GET /auth/github/callback {
+    auth false
+    handler {
+      code = request.query["code"]
+      state = request.query["state"]
+      if code == "" {
+        return redirect("/")
+      }
+      token = oauth.github.exchange(env.GITHUB_OAUTH_CLIENT_ID, env.GITHUB_OAUTH_CLIENT_SECRET, code, env.PUBLIC_URL + "/auth/github/callback")
+      profile = oauth.github.profile(token.access_token)
+      u = db.queryOne("SELECT * FROM User WHERE provider = 'github' AND provider_user_id = ?", [profile.id])
+      if u == null {
+        uid = newId("usr")
+        db.insert("User", map {
+          "id": uid,
+          "provider": "github",
+          "provider_user_id": profile.id,
+          "email": profile.email,
+          "name": profile.name,
+          "avatar_url": profile.avatar_url,
+          "locale": "pl",
+          "created_at": nowIso(),
+          "updated_at": nowIso(),
+          "last_login_at": nowIso()
+        })
+        u = db.queryOne("SELECT * FROM User WHERE id = ?", [uid])
+      } else {
+        db.update("User", u.id, map { "last_login_at": nowIso() })
+      }
+      sid = newId("ses")
+      csrf = crypto.randomHex(32)
+      db.insert("Session", map {
+        "id": sid,
+        "user_id": u.id,
+        "csrf_token": csrf,
+        "ip_hash": hashIp(request.ip),
+        "user_agent": request.headers["user-agent"],
+        "created_at": nowIso(),
+        "expires_at": date.addDays(nowIso(), 30),
+        "provider": "github"
+      })
+      audit(u.id, "session.create", "Session", sid, "success", map { "provider": "github" })
+      return redirect("/", map { "Set-Cookie": "al_session=" + sid + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000" })
+    }
+  }
+
+  route GET /auth/google/callback {
+    auth false
+    handler {
+      code = request.query["code"]
+      if code == "" {
+        return redirect("/")
+      }
+      token = oauth.google.exchange(env.GOOGLE_OAUTH_CLIENT_ID, env.GOOGLE_OAUTH_CLIENT_SECRET, code, env.PUBLIC_URL + "/auth/google/callback")
+      profile = oauth.google.profile(token.access_token)
+      u = db.queryOne("SELECT * FROM User WHERE provider = 'google' AND provider_user_id = ?", [profile.id])
+      if u == null {
+        uid = newId("usr")
+        db.insert("User", map {
+          "id": uid,
+          "provider": "google",
+          "provider_user_id": profile.id,
+          "email": profile.email,
+          "name": profile.name,
+          "avatar_url": profile.avatar_url,
+          "locale": "pl",
+          "created_at": nowIso(),
+          "updated_at": nowIso(),
+          "last_login_at": nowIso()
+        })
+        u = db.queryOne("SELECT * FROM User WHERE id = ?", [uid])
+      } else {
+        db.update("User", u.id, map { "last_login_at": nowIso() })
+      }
+      sid = newId("ses")
+      csrf = crypto.randomHex(32)
+      db.insert("Session", map {
+        "id": sid,
+        "user_id": u.id,
+        "csrf_token": csrf,
+        "ip_hash": hashIp(request.ip),
+        "user_agent": request.headers["user-agent"],
+        "created_at": nowIso(),
+        "expires_at": date.addDays(nowIso(), 30),
+        "provider": "google"
+      })
+      audit(u.id, "session.create", "Session", sid, "success", map { "provider": "google" })
+      return redirect("/", map { "Set-Cookie": "al_session=" + sid + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000" })
+    }
+  }
+
+  route GET /api/conversations {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Conversation WHERE user_id = ? AND archived = ? ORDER BY last_message_at DESC LIMIT 100", [user.id, false])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/conversations {
+    auth true
+    csrf true
+    rateLimit "conversation:create"
+    handler {
+      title = body.title
+      if title == "" {
+        title = "Nowa rozmowa"
+      }
+      id = newId("cnv")
+      db.insert("Conversation", map {
+        "id": id,
+        "user_id": user.id,
+        "title": title,
+        "archived": false,
+        "private_mode": body.private_mode,
+        "web_search": body.web_search,
+        "created_at": nowIso(),
+        "updated_at": nowIso(),
+        "last_message_at": nowIso(),
+        "tokens_used": 0,
+        "provider": "",
+        "model": ""
+      })
+      audit(user.id, "conversation.create", "Conversation", id, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Conversation WHERE id = ?", [id]) }
+    }
+  }
+
+  route GET /api/conversations/:id/messages {
+    auth true
+    handler {
+      cid = params.id
+      cn = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [cid, user.id])
+      if cn == null {
+        return { "ok": false, "status": 404 }
+      }
+      items = db.query("SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at ASC", [cid])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route PATCH /api/conversations/:id {
+    auth true
+    csrf true
+    handler {
+      cid = params.id
+      cn = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [cid, user.id])
+      if cn == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map {}
+      if body.title != null {
+        patch.title = body.title
+      }
+      if body.archived != null {
+        patch.archived = body.archived
+      }
+      if body.project_id != null {
+        patch.project_id = body.project_id
+      }
+      patch.updated_at = nowIso()
+      db.update("Conversation", cid, patch)
+      audit(user.id, "conversation.update", "Conversation", cid, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Conversation WHERE id = ?", [cid]) }
+    }
+  }
+
+  route POST /api/chat/send {
+    auth true
+    csrf true
+    rateLimit "chat:send"
+    stream true
+    handler {
+      cid = body.conversation_id
+      content = body.content
+      if cid == "" || content == "" {
+        return { "ok": false, "status": 400 }
+      }
+      cn = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [cid, user.id])
+      if cn == null {
+        return { "ok": false, "status": 404 }
+      }
+      uid = newId("msg")
+      db.insert("Message", map {
+        "id": uid,
+        "conversation_id": cid,
+        "user_id": user.id,
+        "role": "user",
+        "content": content,
+        "status": "completed",
+        "tokens": 0,
+        "provider": "",
+        "model": "",
+        "citations": [],
+        "created_at": nowIso()
+      })
+      context = logic.buildContext(cid, content)
+      router = logic.pickProvider(body.web_search, content)
+      if router == null {
+        return { "ok": false, "status": 503, "body": map { "error": "no_provider" } }
+      }
+      aid = newId("msg")
+      db.insert("Message", map {
+        "id": aid,
+        "conversation_id": cid,
+        "user_id": user.id,
+        "role": "assistant",
+        "content": "",
+        "status": "streaming",
+        "tokens": 0,
+        "provider": router.provider,
+        "model": router.model,
+        "citations": [],
+        "created_at": nowIso()
+      })
+      stream = ai.stream(router.provider, router.model, context, body.attachments)
+      full = ""
+      stream.onChunk {
+        full = full + chunk
+        db.update("Message", aid, map { "content": full })
+        sse.emit(map { "delta": chunk, "provider": router.provider, "model": router.model })
+      }
+      stream.onDone {
+        db.update("Message", aid, map { "content": full, "status": "completed", "tokens": stream.tokens })
+        db.update("Conversation", cid, map { "last_message_at": nowIso(), "updated_at": nowIso(), "provider": router.provider, "model": router.model })
+        logic.rememberFacts(cid, content, full)
+        audit(user.id, "chat.send", "Conversation", cid, "success", map { "tokens": stream.tokens })
+      }
+      stream.onError {
+        db.update("Message", aid, map { "status": "failed" })
+        sse.emit(map { "error": "generation_failed" })
+      }
+      return stream
+    }
+  }
+
+  route POST /api/chat/stop {
+    auth true
+    csrf true
+    handler {
+      cid = body.conversation_id
+      ai.stop(cid)
+      db.query("UPDATE Message SET status = 'interrupted' WHERE conversation_id = ? AND status = 'streaming'", [cid])
+      return { "ok": true, "body": map { "stopped": true } }
+    }
+  }
+
+  route POST /api/chat/retry {
+    auth true
+    csrf true
+    handler {
+      mid = body.message_id
+      m = db.queryOne("SELECT * FROM Message WHERE id = ? AND user_id = ?", [mid, user.id])
+      if m == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.query("UPDATE Message SET status = 'interrupted' WHERE conversation_id = ? AND created_at >= ? AND role = 'assistant'", [m.conversation_id, m.created_at])
+      return { "ok": true, "body": map { "retried": true } }
+    }
+  }
+
+  route PATCH /api/messages/:id {
+    auth true
+    csrf true
+    handler {
+      mid = params.id
+      m = db.queryOne("SELECT * FROM Message WHERE id = ? AND user_id = ?", [mid, user.id])
+      if m == null {
+        return { "ok": false, "status": 404 }
+      }
+      if m.role != "user" {
+        return { "ok": false, "status": 403 }
+      }
+      db.update("Message", mid, map { "content": body.content, "edited_at": nowIso() })
+      audit(user.id, "message.update", "Message", mid, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Message WHERE id = ?", [mid]) }
+    }
+  }
+
+  route POST /api/files/upload {
+    auth true
+    csrf true
+    rateLimit "files:upload"
+    handler {
+      f = request.file
+      if f == null {
+        return { "ok": false, "status": 400 }
+      }
+      if f.size > 26214400 {
+        return { "ok": false, "status": 413 }
+      }
+      fid = newId("fil")
+      key = user.id + "/" + fid + "/" + f.name
+      r2.put(env.AL_BUCKET, key, f.data, map { "httpMetadata": map { "contentType": f.mime } })
+      text = ""
+      if f.mime.startsWith("text/") {
+        text = f.text()
+      }
+      if f.mime == "application/pdf" {
+        text = pdf.extractText(f.data)
+      }
+      db.insert("File", map {
+        "id": fid,
+        "user_id": user.id,
+        "conversation_id": body.conversation_id,
+        "name": f.name,
+        "mime": f.mime,
+        "size": f.size,
+        "r2_key": key,
+        "version": 1,
+        "status": "ready",
+        "extracted_text": text,
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      audit(user.id, "file.upload", "File", fid, "success", map { "size": f.size })
+      return { "ok": true, "body": map { "file_id": fid } }
+    }
+  }
+
+  route GET /api/files {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM File WHERE user_id = ? AND status != 'deleted' ORDER BY created_at DESC LIMIT 200", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/files/:id/download {
+    auth true
+    handler {
+      fid = params.id
+      f = db.queryOne("SELECT * FROM File WHERE id = ? AND user_id = ? AND status != 'deleted'", [fid, user.id])
+      if f == null {
+        return { "ok": false, "status": 404 }
+      }
+      obj = r2.get(env.AL_BUCKET, f.r2_key)
+      return {
+        "ok": true,
+        "raw": obj.body,
+        "headers": map {
+          "Content-Type": f.mime,
+          "Content-Disposition": "attachment; filename=\"" + f.name + "\""
+        }
+      }
+    }
+  }
+
+  route GET /api/projects {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Project WHERE user_id = ? ORDER BY updated_at DESC LIMIT 200", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/projects {
+    auth true
+    csrf true
+    handler {
+      id = newId("prj")
+      db.insert("Project", map {
+        "id": id,
+        "user_id": user.id,
+        "name": body.name,
+        "description": "",
+        "status": "active",
+        "color": "#00E5FF",
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      audit(user.id, "project.create", "Project", id, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Project WHERE id = ?", [id]) }
+    }
+  }
+
+  route GET /api/tasks {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Task WHERE user_id = ? ORDER BY deadline ASC NULLS LAST, priority DESC LIMIT 200", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/tasks {
+    auth true
+    csrf true
+    handler {
+      id = newId("tsk")
+      db.insert("Task", map {
+        "id": id,
+        "user_id": user.id,
+        "project_id": body.project_id,
+        "conversation_id": body.conversation_id,
+        "title": body.title,
+        "description": "",
+        "status": "todo",
+        "priority": body.priority,
+        "deadline": body.deadline,
+        "depends_on": [],
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      audit(user.id, "task.create", "Task", id, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Task WHERE id = ?", [id]) }
+    }
+  }
+
+  route PATCH /api/tasks/:id {
+    auth true
+    csrf true
+    handler {
+      tid = params.id
+      t = db.queryOne("SELECT * FROM Task WHERE id = ? AND user_id = ?", [tid, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.title != null {
+        patch.title = body.title
+      }
+      if body.status != null {
+        patch.status = body.status
+      }
+      if body.priority != null {
+        patch.priority = body.priority
+      }
+      if body.deadline != null {
+        patch.deadline = body.deadline
+      }
+      db.update("Task", tid, patch)
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Task WHERE id = ?", [tid]) }
+    }
+  }
+
+  route GET /api/memory {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM MemoryEntry WHERE user_id = ? AND disabled = ? ORDER BY importance DESC, updated_at DESC LIMIT 500", [user.id, false])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route PATCH /api/memory/:id {
+    auth true
+    csrf true
+    handler {
+      mid = params.id
+      m = db.queryOne("SELECT * FROM MemoryEntry WHERE id = ? AND user_id = ?", [mid, user.id])
+      if m == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.pinned != null {
+        patch.pinned = body.pinned
+      }
+      if body.disabled != null {
+        patch.disabled = body.disabled
+      }
+      if body.content != null {
+        patch.content = body.content
+        patch.approval_state = "user_confirmed"
+      }
+      db.update("MemoryEntry", mid, patch)
+      audit(user.id, "memory.update", "MemoryEntry", mid, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MemoryEntry WHERE id = ?", [mid]) }
+    }
+  }
+
+  route POST /api/research {
+    auth true
+    csrf true
+    rateLimit "research:run"
+    handler {
+      q = body.query
+      queries = logic.expandQueries(q)
+      results = []
+      for sub in queries {
+        r = search.run(sub, map { "maxResults": 8, "maxDomains": 10, "timeoutMs": 4000 })
+        for hit in r.results {
+          if safeUrl(hit.url) {
+            results = results + [hit]
+            db.insert("ResearchSource", map {
+              "id": newId("src"),
+              "user_id": user.id,
+              "conversation_id": body.conversation_id,
+              "query": sub,
+              "url": hit.url,
+              "title": hit.title,
+              "snippet": hit.snippet,
+              "published_at": hit.published_at,
+              "fetched_at": nowIso(),
+              "trust_score": hit.trust_score
+            })
+          }
+        }
+      }
+      sources = db.query("SELECT * FROM ResearchSource WHERE user_id = ? ORDER BY fetched_at DESC LIMIT 50", [user.id])
+      return { "ok": true, "body": map { "results": results, "sources": sources } }
+    }
+  }
+
+  route GET /api/github/repos {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM GitHubRepo WHERE user_id = ? AND status = 'active' ORDER BY connected_at DESC", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/providers {
+    auth true
+    handler {
+      rows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND status != 'deleted'", [user.id])
+      out = []
+      for r in rows {
+        plain = decryptSecret(r.encrypted_key)
+        out = out + [map {
+          "provider": r.provider,
+          "status": r.status,
+          "maskedKey": maskSecret(plain),
+          "lastTested": r.last_tested_at
+        }]
+      }
+      return { "ok": true, "body": map { "items": out } }
+    }
+  }
+
+  route POST /api/providers {
+    auth true
+    csrf true
+    handler {
+      provider = body.provider
+      key = body.key
+      if provider == "" || key == "" {
+        return { "ok": false, "status": 400 }
+      }
+      if !ai.isKnownProvider(provider) {
+        return { "ok": false, "status": 400, "body": map { "error": "unknown_provider" } }
+      }
+      enc = encryptSecret(key)
+      existing = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ?", [user.id, provider])
+      if existing != null {
+        db.update("ProviderKey", existing.id, map {
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null
+        })
+      } else {
+        db.insert("ProviderKey", map {
+          "id": newId("pky"),
+          "user_id": user.id,
+          "provider": provider,
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null,
+          "created_at": nowIso()
+        })
+      }
+      audit(user.id, "provider.save", "ProviderKey", provider, "success", map { "provider": provider })
+      return { "ok": true, "body": map { "provider": provider } }
+    }
+  }
+
+  route POST /api/providers/:provider/test {
+    auth true
+    csrf true
+    handler {
+      provider = params.provider
+      row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND status != 'deleted'", [user.id, provider])
+      if row == null {
+        return { "ok": false, "status": 404 }
+      }
+      key = decryptSecret(row.encrypted_key)
+      ok = ai.testKey(provider, key)
+      db.update("ProviderKey", row.id, map {
+        "status": ok ? "active" : "invalid",
+        "last_tested_at": nowIso()
+      })
+      audit(user.id, "provider.test", "ProviderKey", provider, ok ? "success" : "failure", map {})
+      return { "ok": ok, "body": map { "provider": provider, "status": ok ? "ok" : "failed" } }
+    }
+  }
+
+  route GET /api/approvals {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 100", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/sessions {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Session WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC", [user.id, nowIso()])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route DELETE /api/sessions/:id {
+    auth true
+    csrf true
+    handler {
+      sid = params.id
+      s = db.queryOne("SELECT * FROM Session WHERE id = ? AND user_id = ?", [sid, user.id])
+      if s == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.update("Session", sid, map { "revoked_at": nowIso() })
+      audit(user.id, "session.revoke", "Session", sid, "success", map {})
+      return { "ok": true, "body": map { "revoked": true } }
+    }
+  }
+
+  route POST /api/appcreator/plan {
+    auth true
+    csrf true
+    handler {
+      provider = logic.pickProvider(false, body.description).provider
+      plan = ai.generate(provider, logic.appCreatorPlanPrompt(body.description, body.template))
+      return { "ok": true, "body": map { "plan": plan } }
+    }
+  }
+
+  route POST /api/appcreator/code {
+    auth true
+    csrf true
+    handler {
+      provider = logic.pickProvider(false, body.plan).provider
+      code = ai.generate(provider, logic.appCreatorCodePrompt(body.plan, body.template))
+      diff = diff.unified("", code)
+      return { "ok": true, "body": map { "code": code, "diff": diff } }
+    }
+  }
+
+  route POST /api/appcreator/apply {
+    auth true
+    csrf true
+    requiresApproval "push"
+    handler {
+      id = requestApproval("push", "AppCreator", appCreator.template, map { "diff": body.diff })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/music/releases {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM MusicRelease WHERE user_id = ? ORDER BY created_at DESC LIMIT 100", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/music/releases {
+    auth true
+    csrf true
+    handler {
+      id = newId("mrl")
+      db.insert("MusicRelease", map {
+        "id": id,
+        "user_id": user.id,
+        "title": body.title,
+        "kind": body.kind,
+        "release_date": null,
+        "status": "draft",
+        "distribution": "",
+        "rights_status": "unset",
+        "description": "",
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MusicRelease WHERE id = ?", [id]) }
+    }
+  }
+
+  route GET /api/music/tracks {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM MusicTrack WHERE user_id = ? ORDER BY created_at DESC LIMIT 200", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/music/tracks {
+    auth true
+    csrf true
+    handler {
+      id = newId("mtr")
+      db.insert("MusicTrack", map {
+        "id": id,
+        "user_id": user.id,
+        "release_id": body.release_id,
+        "title": body.title,
+        "position": 1,
+        "bpm": 0,
+        "key": "",
+        "energy": 0,
+        "duration_seconds": 0,
+        "version": "v1",
+        "mix_status": body.mix_status,
+        "references": [],
+        "suno_prompt": "",
+        "elevenlabs_prompt": "",
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MusicTrack WHERE id = ?", [id]) }
+    }
+  }
+
+  route POST /api/diagnostics {
+    auth true
+    csrf true
+    handler {
+      checks = logic.runDiagnosticsServer()
+      overall = "ok"
+      for c in checks {
+        if c.status == "failed" {
+          overall = "failed"
+        }
+      }
+      return { "ok": true, "body": map { "checks": checks, "overall": overall } }
+    }
+  }
+}
+
+queue ALQueue {
+  binding "AL_QUEUE"
+  consumer {
+    on message {
+      kind = message.kind
+      if kind == "chat.generate" {
+        logic.runChatGeneration(message.payload)
+      } else if kind == "research.fetch" {
+        logic.runResearchJob(message.payload)
+      } else if kind == "file.index" {
+        logic.runFileIndex(message.payload)
+      } else if kind == "agent.run" {
+        logic.runAgent(message.payload)
+      } else if kind == "deploy.run" {
+        logic.runDeploy(message.payload)
+      } else if kind == "memory.compact" {
+        logic.runMemoryCompaction(message.payload)
+      } else if kind == "audit.flush" {
+        logic.flushAudit(message.payload)
+      }
+    }
+  }
+}
+
+cron ALScheduler {
+  schedule "*/5 * * * *" {
+    on tick {
+      db.query("UPDATE Session SET revoked_at = ? WHERE expires_at < ? AND revoked_at IS NULL", [nowIso(), nowIso()])
+      db.query("DELETE FROM Approval WHERE status = 'pending' AND created_at < ?", [date.subDays(nowIso(), 14)])
+      expired = db.query("SELECT * FROM File WHERE status = 'uploading' AND created_at < ?", [date.subHours(nowIso(), 2)])
+      for f in expired {
+        db.update("File", f.id, map { "status": "failed" })
+      }
+    }
+  }
+  schedule "0 3 * * *" {
+    on tick {
+      db.query("DELETE FROM AuditLog WHERE created_at < ?", [date.subDays(nowIso(), 180)])
+      db.query("DELETE FROM AgentRun WHERE finished_at < ?", [date.subDays(nowIso(), 30)])
+      db.query("DELETE FROM ResearchSource WHERE fetched_at < ?", [date.subDays(nowIso(), 90)])
+    }
+  }
+  schedule "0 * * * *" {
+    on tick {
+      logic.compactMemoryAllUsers()
+      logic.rotateUsageCounters()
+    }
+  }
+}
+
+agents {
+  registry [
+    map { "name": "Coordinator", "role": "routing", "maxSteps": 4, "maxSeconds": 30, "maxTokens": 4000 },
+    map { "name": "Research", "role": "web", "maxSteps": 12, "maxSeconds": 120, "maxTokens": 16000 },
+    map { "name": "Code", "role": "code", "maxSteps": 10, "maxSeconds": 120, "maxTokens": 20000 },
+    map { "name": "Memory", "role": "memory", "maxSteps": 6, "maxSeconds": 30, "maxTokens": 4000 },
+    map { "name": "Files", "role": "files", "maxSteps": 8, "maxSeconds": 60, "maxTokens": 4000 },
+    map { "name": "Creative", "role": "creative", "maxSteps": 6, "maxSeconds": 60, "maxTokens": 8000 },
+    map { "name": "Ops", "role": "ops", "maxSteps": 8, "maxSeconds": 90, "maxTokens": 6000 },
+    map { "name": "AppCreator", "role": "app", "maxSteps": 10, "maxSeconds": 180, "maxTokens": 20000 },
+    map { "name": "Deployer", "role": "deploy", "maxSteps": 6, "maxSeconds": 120, "maxTokens": 4000 }
+  ]
+  router {
+    on classify {
+      if user.forcedMode != "auto" {
+        return map { "agent": user.forcedMode, "reason": "forced" }
+      }
+      intent = ai.classifyIntent(message)
+      if intent == "chat" || intent == "question" {
+        return map { "agent": "Coordinator", "reason": "simple" }
+      }
+      if intent == "research" {
+        return map { "agent": "Research", "reason": "web" }
+      }
+      if intent == "code" {
+        return map { "agent": "Code", "reason": "code" }
+      }
+      if intent == "memory" {
+        return map { "agent": "Memory", "reason": "memory" }
+      }
+      if intent == "app" {
+        return map { "agent": "AppCreator", "reason": "app" }
+      }
+      if intent == "deploy" {
+        return map { "agent": "Deployer", "reason": "deploy" }
+      }
+      return map { "agent": "Coordinator", "reason": "default" }
+    }
+  }
+  limits {
+    maxSteps 24
+    maxSeconds 180
+    maxTokens 32000
+    maxConcurrency 1
+    abortOnApprovalRequired true
+    blockInfiniteLoop true
+  }
+  audit {
+    logEveryStep true
+    logCost true
+    redactSecrets true
+  }
+}
+
+logic {
+  function buildContext(conversationId, query) {
+    if memory.contextMode == "degraded" {
+      return ai.contextFromConversation(conversationId, query)
+    }
+    budget = chat.contextBudget
+    recent = db.query("SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 30", [conversationId])
+    mems = db.query("SELECT * FROM MemoryEntry WHERE user_id = ? AND disabled = ? ORDER BY importance DESC LIMIT 100", [user.id, false])
+    ranked = rankMemory(mems, query)
+    parts = []
+    tokens = 0
+    for m in ranked {
+      if tokens + m.content.length > budget * 0.4 {
+        break
+      }
+      parts = parts + [m]
+      tokens = tokens + m.content.length
+    }
+    sources = db.query("SELECT * FROM ResearchSource WHERE conversation_id = ? ORDER BY fetched_at DESC LIMIT 20", [conversationId])
+    return ai.composeContext(recent, parts, sources, query, budget)
+  }
+
+  function rankMemory(entries, query) {
+    scored = []
+    for e in entries {
+      score = 0
+      if e.pinned {
+        score = score + 100
+      }
+      score = score + e.importance
+      if e.scope == "project" {
+        score = score + 5
+      }
+      if e.scope == "global" {
+        score = score + 3
+      }
+      if query != "" && e.content.toLowerCase().includes(query.toLowerCase()) {
+        score = score + 20
+      }
+      age = date.diffHours(nowIso(), e.updated_at)
+      if age < 24 {
+        score = score + 10
+      } else if age < 168 {
+        score = score + 5
+      }
+      scored = scored + [map { "entry": e, "score": score }]
+    }
+    return sortByDesc(scored, "score")
+  }
+
+  function rememberFacts(conversationId, userText, aiText) {
+    cn = db.queryOne("SELECT * FROM Conversation WHERE id = ?", [conversationId])
+    if cn == null {
+      return
+    }
+    if cn.private_mode {
+      return
+    }
+    extracted = ai.extractMemory(userText + "\n" + aiText)
+    for item in extracted.items {
+      id = newId("mem")
+      db.insert("MemoryEntry", map {
+        "id": id,
+        "user_id": user.id,
+        "scope": item.scope,
+        "scope_id": item.scope_id,
+        "kind": item.kind,
+        "content": item.content,
+        "pinned": false,
+        "disabled": false,
+        "importance": item.importance,
+        "created_at": nowIso(),
+        "updated_at": nowIso(),
+        "source_message_id": null,
+        "approval_state": "auto"
+      })
+    }
+  }
+
+  function pickProvider(webSearch, query) {
+    rows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND status = 'active'", [user.id])
+    if rows.length == 0 {
+      return null
+    }
+    intent = ai.classifyIntent(query)
+    if intent == "code" {
+      for r in rows {
+        if r.provider == "mistral" || r.provider == "anthropic" || r.provider == "openai" {
+          return map { "provider": r.provider, "model": ai.defaultModel(r.provider) }
+        }
+      }
+    }
+    if intent == "research" && webSearch {
+      for r in rows {
+        if r.provider == "gemini" {
+          return map { "provider": "gemini", "model": "gemini-2.5-pro" }
+        }
+      }
+    }
+    for r in rows {
+      return map { "provider": r.provider, "model": ai.defaultModel(r.provider) }
+    }
+    return null
+  }
+
+  function expandQueries(query) {
+    if query.length < 40 {
+      return [query]
+    }
+    parts = ai.splitQuery(query)
+    if parts.length == 0 {
+      return [query]
+    }
+    return parts
+  }
+
+  function addCitation(result) {
+    research.sources = research.sources + [result]
+    audit(user.id, "research.cite", "ResearchSource", result.id, "success", map {})
+  }
+
+  function setMemoryPinned(id, pinned) {
+    fetch("/api/memory/" + id, "PATCH", map { "pinned": pinned }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMemory()
+  }
+
+  function setMemoryDisabled(id, disabled) {
+    fetch("/api/memory/" + id, "PATCH", map { "disabled": disabled }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMemory()
+  }
+
+  function archiveProject(id) {
+    fetch("/api/projects/" + id, "PATCH", map { "status": "archived" }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadProjects()
+  }
+
+  function requestDeleteProject(id) {
+    requestApproval("delete", "Project", id, map { "id": id })
+  }
+
+  function requestDeleteSession(id) {
+    requestApproval("delete", "Session", id, map { "id": id })
+  }
+
+  function requestRollback(targetId) {
+    requestApproval("deploy", "Deployment", targetId, map { "target": targetId, "action": "rollback" })
+  }
+
+  function saveProvider(provider, key) {
+    if provider == "" {
+      notify "Wybierz dostawcę"
+      return
+    }
+    fetch("/api/providers", "POST", map { "provider": provider, "key": key }, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadProviders()
+  }
+
+  function openAgentLog(runId) {
+    res = fetch("/api/agents/runs/" + runId, "GET", null, null)
+    if res.ok {
+      ui.modal = map { "name": "AgentLog", "payload": res.body }
+    }
+  }
+
+  function cancelAgentRun(runId) {
+    fetch("/api/agents/runs/" + runId + "/cancel", "POST", map {}, map { "X-CSRF-Token": session.csrfToken })
+    agents.activeRuns = agents.activeRuns.filter(map { "id": runId })
+  }
+
+  function indexRepo(repoFullName) {
+    github.status = "indexing"
+    fetch("/api/github/index", "POST", map { "repo": repoFullName }, map { "X-CSRF-Token": session.csrfToken })
+  }
+
+  function syncRepo(repoFullName) {
+    github.status = "syncing"
+    fetch("/api/github/sync", "POST", map { "repo": repoFullName }, map { "X-CSRF-Token": session.csrfToken })
+  }
+
+  function createBranchFromDiff() {
+    fetch("/api/github/branch", "POST", map { "diff": github.diff, "repo": github.activeRepo, "branch": "al2100/proposal-" + date.unix() }, map { "X-CSRF-Token": session.csrfToken })
+  }
+
+  function commitAndOpenPR() {
+    requestApproval("push", "GitHubRepo", github.activeRepo, map { "diff": github.diff, "branch": "al2100/proposal-" + date.unix() })
+  }
+
+  function saveMusicTrack(track) {
+    fetch("/api/music/tracks/" + track.id, "PATCH", track, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMusicTracks()
+  }
+
+  function runAgent(payload) {
+    agentName = payload.agent
+    runId = newId("run")
+    db.insert("AgentRun", map {
+      "id": runId,
+      "user_id": payload.user_id,
+      "agent": agentName,
+      "conversation_id": payload.conversation_id,
+      "status": "running",
+      "steps": 0,
+      "tokens": 0,
+      "cost": 0,
+      "started_at": nowIso(),
+      "log": []
+    })
+    steps = 0
+    tokens = 0
+    log = []
+    while steps < 24 && tokens < 32000 {
+      if ai.abortRequested(runId) {
+        db.update("AgentRun", runId, map { "status": "cancelled", "finished_at": nowIso() })
+        return
+      }
+      action = ai.agentStep(agentName, payload, log)
+      steps = steps + 1
+      tokens = tokens + action.tokens
+      log = log + [map { "step": steps, "action": action.kind, "tokens": action.tokens }]
+      if action.kind == "final" {
+        db.update("AgentRun", runId, map {
+          "status": "succeeded",
+          "steps": steps,
+          "tokens": tokens,
+          "finished_at": nowIso(),
+          "log": log
+        })
+        return
+      }
+      if action.kind == "approval_required" {
+        requestApproval(action.approval_kind, action.resource, action.resource_id, action.payload)
+        db.update("AgentRun", runId, map {
+          "status": "succeeded",
+          "steps": steps,
+          "tokens": tokens,
+          "finished_at": nowIso(),
+          "log": log
+        })
+        return
+      }
+    }
+    db.update("AgentRun", runId, map {
+      "status": "failed",
+      "steps": steps,
+      "tokens": tokens,
+      "finished_at": nowIso(),
+      "log": log
+    })
+  }
+
+  function runDeploy(payload) {
+    deploymentId = payload.deployment_id
+    db.update("Deployment", deploymentId, map {
+      "status": "running",
+      "started_at": nowIso()
+    })
+    logs = []
+    try {
+      logs = logs + ["build"]
+      buildResult = cloudflare.build()
+      logs = logs + ["build ok"]
+      logs = logs + ["migrate"]
+      migrations = cloudflare.migrate(env.AL_DB)
+      logs = logs + ["migrate ok: " + migrations.length]
+      logs = logs + ["publish"]
+      publish = cloudflare.publish(payload.target, payload.environment)
+      logs = logs + ["publish ok: " + publish.url]
+      db.update("Deployment", deploymentId, map {
+        "status": "succeeded",
+        "finished_at": nowIso(),
+        "logs": logs
+      })
+    } catch err {
+      db.update("Deployment", deploymentId, map {
+        "status": "failed",
+        "finished_at": nowIso(),
+        "logs": logs + ["error: " + err]
+      })
+    }
+  }
+
+  function runChatGeneration(payload) {
+    provider = payload.provider
+    keyRow = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ?", [payload.user_id, provider])
+    if keyRow == null {
+      return
+    }
+    key = decryptSecret(keyRow.encrypted_key)
+    ctx = buildContext(payload.conversation_id, payload.content)
+    result = ai.generateWithKey(provider, payload.model, key, ctx)
+    db.update("Message", payload.message_id, map {
+      "content": result.content,
+      "status": "completed",
+      "tokens": result.tokens
+    })
+  }
+
+  function runResearchJob(payload) {
+    for q in payload.queries {
+      search.run(q, map { "maxResults": 8 })
+    }
+  }
+
+  function runFileIndex(payload) {
+    f = db.queryOne("SELECT * FROM File WHERE id = ?", [payload.file_id])
+    if f == null {
+      return
+    }
+    text = ""
+    if f.mime.startsWith("text/") {
+      obj = r2.get(env.AL_BUCKET, f.r2_key)
+      text = obj.body.text()
+    } else if f.mime == "application/pdf" {
+      obj = r2.get(env.AL_BUCKET, f.r2_key)
+      text = pdf.extractText(obj.body)
+    } else if f.mime.startsWith("audio/") {
+      obj = r2.get(env.AL_BUCKET, f.r2_key)
+      text = whisper.transcribe(obj.body)
+      analysis = audio.analyze(obj.body)
+      db.update("File", f.id, map {
+        "extracted_text": text + "\nBPM:" + analysis.bpm + " Key:" + analysis.key + " Energy:" + analysis.energy
+      })
+      return
+    }
+    db.update("File", f.id, map { "extracted_text": text })
+  }
+
+  function runMemoryCompaction(payload) {
+    cn = db.queryOne("SELECT * FROM Conversation WHERE id = ?", [payload.conversation_id])
+    if cn == null || cn.private_mode {
+      return
+    }
+    msgs = db.query("SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at ASC", [payload.conversation_id])
+    if msgs.length < 20 {
+      return
+    }
+    summary = ai.summarize(msgs)
+    db.insert("MemoryEntry", map {
+      "id": newId("mem"),
+      "user_id": cn.user_id,
+      "scope": "conversation",
+      "scope_id": cn.id,
+      "kind": "summary",
+      "content": summary,
+      "pinned": false,
+      "disabled": false,
+      "importance": 7,
+      "created_at": nowIso(),
+      "updated_at": nowIso(),
+      "approval_state": "auto"
+    })
+  }
+
+  function compactMemoryAllUsers() {
+    users = db.query("SELECT id FROM User LIMIT 1000")
+    for u in users {
+      queue.push(env.AL_QUEUE, map { "kind": "memory.compact", "payload": map { "user_id": u.id } })
+    }
+  }
+
+  function rotateUsageCounters() {
+    cache.set("usage:" + date.today(), 0)
+  }
+
+  function flushAudit(payload) {
+    return
+  }
+
+  function runDiagnosticsServer() {
+    checks = []
+    dbOk = true
+    try {
+      db.query("SELECT 1")
+    } catch e {
+      dbOk = false
+    }
+    checks = checks + [map { "name": "d1", "status": dbOk ? "ok" : "failed", "message": dbOk ? "D1 reachable" : "D1 failed" }]
+    r2Ok = true
+    try {
+      r2.list(env.AL_BUCKET, map { "limit": 1 })
+    } catch e {
+      r2Ok = false
+    }
+    checks = checks + [map { "name": "r2", "status": r2Ok ? "ok" : "failed", "message": r2Ok ? "R2 reachable" : "R2 failed" }]
+    provRows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND status = 'active'", [user.id])
+    checks = checks + [map { "name": "providers", "status": provRows.length > 0 ? "ok" : "warning", "message": provRows.length + " active" }]
+    memMode = memory.contextMode
+    checks = checks + [map { "name": "memory", "status": memMode == "full" ? "ok" : "warning", "message": memMode }]
+    return checks
+  }
+
+  function appCreatorPlanPrompt(description, template) {
+    return "Jesteś architektem aplikacji AXCode. Zwróć plan w punktach dla aplikacji: " + description + ". Szablon: " + template + ". Uwzględnij ekrany, modele danych, logikę, integracje."
+  }
+
+  function appCreatorCodePrompt(plan, template) {
+    return "Wygeneruj pełny, produkcyjny plik AXCode dla tej aplikacji. Plan: " + plan + ". Szablon: " + template + ". Zwróć tylko kod AXCode bez komentarzy."
+  }
+
+  function safeUrl(url) {
+    if !url.startsWith("https://") {
+      return false
+    }
+    blocked = ["localhost", "127.0.0.1", "::1", "0.0.0.0", "10.", "192.168.", "169.254.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "metadata.google", "169.254.169.254"]
+    for b in blocked {
+      if url.includes(b) {
+        return false
+      }
+    }
+    return true
+  }
+
+  function nowIso() {
+    return date.nowIso()
+  }
+
+  function newId(prefix) {
+    return prefix + "-" + uuid.v4()
+  }
+
+  function hashIp(ip) {
+    return crypto.sha256(ip + "::" + env.AL_MASTER_ENCRYPTION_KEY)
+  }
+
+  function encryptSecret(plain) {
+    nonce = crypto.randomBytes(12)
+    cipher = crypto.aesGcm.encrypt(plain, env.AL_MASTER_ENCRYPTION_KEY, nonce)
+    return map { "cipher": cipher, "nonce": crypto.hex(nonce), "version": 1 }
+  }
+
+  function decryptSecret(payload) {
+    nonce = crypto.unhex(payload.nonce)
+    return crypto.aesGcm.decrypt(payload.cipher, env.AL_MASTER_ENCRYPTION_KEY, nonce)
+  }
+
+  function maskSecret(plain) {
+    if plain == null || plain.length <= 6 {
+      return "••••••"
+    }
+    return plain.substring(0, 3) + "••••••" + plain.substring(plain.length - 3)
+  }
+
+  function rateCheck(userId, bucket) {
+    key = "rate:" + bucket + ":" + userId
+    count = cache.incr(key, 60)
+    if count > settings.rateLimitPerMinute {
+      throw "rate_limit_exceeded"
+    }
+    return true
+  }
+
+  function audit(userId, action, resource, resourceId, result, metadata) {
+    db.insert("AuditLog", map {
+      "id": newId("aud"),
+      "user_id": userId,
+      "action": action,
+      "resource": resource,
+      "resource_id": resourceId,
+      "ip_hash": hashIp(request.ip),
+      "user_agent": request.headers["user-agent"],
+      "result": result,
+      "metadata": metadata,
+      "created_at": nowIso()
+    })
+  }
+
+  function requestApproval(kind, resource, resourceId, payload) {
+    id = newId("apr")
+    db.insert("Approval", map {
+      "id": id,
+      "user_id": user.id,
+      "kind": kind,
+      "resource": resource,
+      "resource_id": resourceId,
+      "payload": payload,
+      "status": "pending",
+      "created_at": nowIso()
+    })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    audit(user.id, "approval.request", "Approval", id, "success", map { "kind": kind })
+    return id
+  }
+
+  function applyApproval(id) {
+    a = db.queryOne("SELECT * FROM Approval WHERE id = ? AND user_id = ?", [id, user.id])
+    if a == null {
+      return
+    }
+    if a.kind == "delete" {
+      if a.resource == "Conversation" {
+        db.query("DELETE FROM Message WHERE conversation_id = ?", [a.resource_id])
+        db.update("Conversation", a.resource_id, map { "archived": true })
+      } else if a.resource == "Message" {
+        db.query("DELETE FROM Message WHERE id = ?", [a.resource_id])
+      } else if a.resource == "Task" {
+        db.query("DELETE FROM Task WHERE id = ?", [a.resource_id])
+      } else if a.resource == "Project" {
+        db.query("DELETE FROM Project WHERE id = ?", [a.resource_id])
+      } else if a.resource == "File" {
+        db.update("File", a.resource_id, map { "status": "deleted", "deleted_at": nowIso() })
+      } else if a.resource == "Session" {
+        if a.resource_id == "all" {
+          db.query("UPDATE Session SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", [nowIso(), user.id])
+        } else {
+          db.update("Session", a.resource_id, map { "revoked_at": nowIso() })
+        }
+      } else if a.resource == "ProviderKey" {
+        db.query("UPDATE ProviderKey SET status = 'deleted' WHERE user_id = ? AND provider = ?", [user.id, a.resource_id])
+      }
+    } else if a.kind == "deploy" {
+      did = newId("dpl")
+      db.insert("Deployment", map {
+        "id": did,
+        "user_id": user.id,
+        "target": a.payload.target,
+        "environment": "production",
+        "status": "approved",
+        "approved_by": user.id,
+        "approved_at": nowIso(),
+        "started_at": nowIso(),
+        "logs": []
+      })
+      queue.push(env.AL_QUEUE, map { "kind": "deploy.run", "payload": map { "deployment_id": did, "user_id": user.id, "target": a.payload.target, "environment": "production" } })
+    } else if a.kind == "push" {
+      if a.resource == "GitHubRepo" {
+        gh.createBranchAndPR(env, user.id, a.payload.repo, a.payload.branch, a.payload.diff, "AL2100 proposal")
+      } else if a.resource == "AppCreator" {
+        gh.applyAppCreatorDiff(env, user.id, a.payload.diff)
+      }
+    }
+    db.update("Approval", id, map {
+      "status": "approved",
+      "resolved_at": nowIso(),
+      "resolved_by": user.id
+    })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    audit(user.id, "approval.approve", "Approval", id, "success", map {})
+  }
+
+  function rejectApproval(id) {
+    db.update("Approval", id, map {
+      "status": "rejected",
+      "resolved_at": nowIso(),
+      "resolved_by": user.id
+    })
+    approvals.items = db.query("SELECT * FROM Approval WHERE user_id = ? AND status = 'pending'", [user.id])
+    approvals.pendingCount = approvals.items.length
+    audit(user.id, "approval.reject", "Approval", id, "success", map {})
+  }
+
+  function sortByDesc(items, key) {
+    return items.sort((a, b) => b[key] - a[key])
+  }
+
+  event approval.created {
+    approvals.pendingCount = approvals.pendingCount + 1
+  }
+
+  event session.expired {
+    session.id = ""
+    session.csrfToken = ""
+    nav.current = "Login"
+  }
+
+  event ui.online changed {
+    if !ui.online && isGenerating {
+      chat.generation.status = "interrupted"
+      notify "Połączenie utracone — generacja przerwana"
+    }
+  }
+
+  onStart {
+    logic.loadSession()
+    logic.loadApprovals()
+    logic.loadProviders()
+    logic.loadConversations()
+    logic.loadProjects()
+    logic.loadTasks()
+    logic.loadMemory()
+    logic.loadFiles()
+    logic.loadMusicReleases()
+    logic.loadSessions()
+  }
+}
+
+flow Auth {
+  start Login
+  Login => Czat when hasActiveSession
+  Czat => Login when !hasActiveSession
+}
+
+flow Approvals {
+  start Zatwierdzenia
+  Zatwierdzenia => Deploy when pendingApprovalsCount == 0 && deploy.status == "approved"
+  Deploy => Zatwierdzenia when deploy.requiresApproval
+}
+
+flow Providers {
+  start Ustawienia
+  Ustawienia => Czat when settings.providers.length > 0
+  Czat => Ustawienia when settings.providers.length == 0
+}
+
+flow AppCreator {
+  start AppCreator
+  AppCreator => GitHub when appCreator.code != ""
+  GitHub => Deploy when github.pullRequest.state == "open"
+  Deploy => Zatwierdzenia when deploy.requiresApproval
+}
+component Avatar(user) {
+  image {
+    src user.avatarUrl
+    alt user.name
+    radius pill
+    size 32
+    fallback user.name.substring(0, 1)
+  }
+}
+
+component Icon(name, size) {
+  svg {
+    name name
+    size size
+    tone text
+  }
+}
+
+component Tabs(items, value, onChange) {
+  row {
+    gap xs
+    for item in items {
+      button item {
+        style value == item ? "primary" : "ghost"
+        action {
+          onChange(item)
+        }
+      }
+    }
+  }
+}
+
+component Toggle(label, value, onChange) {
+  row {
+    align center
+    gap sm
+    label {
+      text label
+      size sm
+    }
+    switch {
+      value value
+      onChange {
+        onChange(value)
+      }
+    }
+  }
+}
+
+component Select(options, value, onChange) {
+  dropdown {
+    value value
+    options options
+    onChange {
+      onChange(value)
+    }
+  }
+}
+
+component Input(value, placeholder, type, onChange) {
+  field {
+    input {
+      value value
+      placeholder placeholder
+      type type
+      onChange {
+        onChange(value)
+      }
+    }
+  }
+}
+
+component TextArea(value, placeholder, onChange) {
+  field {
+    textarea {
+      value value
+      placeholder placeholder
+      autosize true
+      maxRows 16
+      onChange {
+        onChange(value)
+      }
+    }
+  }
+}
+
+component ProgressBar(value, tone) {
+  progress {
+    value value
+    tone tone
+    radius pill
+    height 8
+  }
+}
+
+component Kbd(keys) {
+  pill {
+    mono true
+    size xs
+    text keys
+    tone surfaceMuted
+  }
+}
+
+component Breadcrumb(items) {
+  row {
+    gap xs
+    for i in items {
+      text i.label
+      size sm
+      muted !i.active
+      if !i.last {
+        text "/"
+        muted true
+      }
+    }
+  }
+}
+
+component SectionHeader(title, subtitle, actions) {
+  row {
+    align center
+    justify space-between
+    left {
+      column {
+        title {
+          text title
+          size lg
+          weight semibold
+        }
+        subtitle {
+          text subtitle
+          size sm
+          muted true
+        }
+      }
+    }
+    right {
+      slot actions
+    }
+  }
+}
+
+component Divider {
+  hr {
+    tone border
+  }
+}
+
+component ListRow(label, value, mono) {
+  row {
+    align center
+    justify space-between
+    label {
+      text label
+      size sm
+      muted true
+    }
+    value {
+      text value
+      size sm
+      mono mono
+    }
+  }
+}
+
+component CodeBlock(code, language) {
+  card {
+    tone surfaceMuted
+    padding md
+    radius sm
+    header {
+      row {
+        justify space-between
+        text language
+        size xs
+        muted true
+        button "Kopiuj" {
+          style ghost
+          action {
+            clipboard.write code
+          }
+        }
+      }
+    }
+    code {
+      value code
+      language language
+      scrollable true
+      mono true
+    }
+  }
+}
+
+component Markdown(content) {
+  md {
+    value content
+    codeBlocks Copyable
+    links SafeExternal true
+    images Lazy true
+  }
+}
+
+component ChatMessage(message) {
+  row {
+    align start
+    gap md
+    avatar {
+      if message.role == "user" {
+        Avatar(user)
+      } else {
+        image {
+          src "/assets/al2100-avatar.svg"
+          size 32
+          radius pill
+        }
+      }
+    }
+    body {
+      column {
+        gap xs
+        header {
+          row {
+            align center
+            gap sm
+            name {
+              text message.role == "user" ? user.name : "AL2100"
+              weight semibold
+              size sm
+            }
+            text message.created_at
+            size xs
+            muted true
+            if message.status != "completed" {
+              Badge(message.status)
+            }
+          }
+        }
+        Markdown(message.content)
+        if message.citations != "" && message.citations.length > 0 {
+          citations {
+            items message.citations
+            render CitationChip(item)
+          }
+        }
+        actions {
+          button "Kopiuj" {
+            style ghost
+            action {
+              clipboard.write message.content
+            }
+          }
+          if message.role == "user" {
+            button "Edytuj" {
+              style ghost
+              action {
+                logic.openEditMessage(message.id)
+              }
+            }
+          }
+          if message.role == "assistant" && message.status == "completed" {
+            button "Ponów" {
+              style ghost
+              action {
+                logic.retryFromMessage(message.id)
+              }
+            }
+          }
+          button "Usuń" {
+            style ghost
+            action {
+              logic.requestDeleteMessage(message.id)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component CitationChip(citation) {
+  pill {
+    tone surfaceMuted
+    action {
+      if logic.safeUrl(citation.url) {
+        window.open(citation.url)
+      }
+    }
+    text citation.title
+    size xs
+    mono true
+  }
+}
+
+component StreamingCursor {
+  cursor {
+    blink true
+    tone primary
+  }
+}
+
+component ChatComposerFull {
+  surface {
+    tone surfaceElevated
+    border top
+    padding md
+    column {
+      gap sm
+      if chat.attachments.length > 0 {
+        attachments {
+          items chat.attachments
+          render AttachmentChip(item)
+        }
+      }
+      textarea {
+        value chat.draft
+        placeholder "Napisz wiadomość… (Cmd/Ctrl + Enter wyśle)"
+        autosize true
+        maxRows 12
+        onChange {
+          chat.draft = value
+        }
+        onKey {
+          if key == "Enter" && meta {
+            logic.sendMessage()
+          }
+        }
+      }
+      row {
+        align center
+        justify space-between
+        left {
+          button "Załącz" {
+            style ghost
+            action {
+              logic.openAttachmentPicker()
+            }
+          }
+          button "Głos" {
+            style ghost
+            action {
+              logic.startVoiceCapture()
+            }
+          }
+          Toggle("Web", chat.webSearchEnabled, { chat.webSearchEnabled = value })
+          Toggle("Prywatny", chat.privateMode, { chat.privateMode = value })
+          if isGenerating {
+            text chat.generation.provider + "/" + chat.generation.model
+            size xs
+            muted true
+          }
+        }
+        right {
+          if isGenerating {
+            button "Stop" {
+              style danger
+              action {
+                logic.stopGeneration()
+              }
+            }
+          } else {
+            button "Wyślij" {
+              style primary
+              disabled !canSend
+              action {
+                logic.sendMessage()
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component AttachmentChip(attachment) {
+  pill {
+    tone surface
+    if attachment.status == "uploading" {
+      Spinner("Wysyłanie…")
+    }
+    text attachment.name
+    size xs
+    action {
+      chat.attachments = chat.attachments.filter(map { "id": attachment.id })
+    }
+  }
+}
+
+component ConversationListItem(conversation, active) {
+  row {
+    align center
+    justify space-between
+    padding sm
+    tone active ? "surfaceElevated" : "surface"
+    radius sm
+    action {
+      logic.selectConversation(conversation.id)
+    }
+    body {
+      column {
+        title {
+          text conversation.title
+          weight medium
+          size sm
+        }
+        meta {
+          text conversation.last_message_at
+          size xs
+          muted true
+        }
+      }
+    }
+    actions {
+      if conversation.private_mode {
+        Icon("lock", 14)
+      }
+      menu {
+        items [
+          map { "id": "rename", "label": "Zmień nazwę" },
+          map { "id": "archive", "label": "Archiwizuj" },
+          map { "id": "delete", "label": "Usuń" },
+          map { "id": "pin", "label": "Przypnij do projektu" },
+          map { "id": "export", "label": "Eksportuj" }
+        ]
+        onSelect {
+          if item.id == "rename" {
+            logic.renameConversation(conversation.id, prompt "Nowa nazwa")
+          } else if item.id == "archive" {
+            logic.archiveConversation(conversation.id)
+          } else if item.id == "delete" {
+            logic.requestDeleteConversation(conversation.id)
+          } else if item.id == "pin" {
+            logic.pinConversationToProject(conversation.id)
+          } else if item.id == "export" {
+            logic.exportConversation(conversation.id)
+          }
+        }
+      }
+    }
+  }
+}
+
+component ProjectDetail(project) {
+  column {
+    gap md
+    SectionHeader(project.name, project.description, {
+      row {
+        button "Edytuj" {
+          style ghost
+          action {
+            logic.openEditProject(project.id)
+          }
+        }
+        button "Archiwizuj" {
+          style ghost
+          action {
+            logic.archiveProject(project.id)
+          }
+        }
+      }
+    })
+    grid {
+      columns 3
+      StatCard("Zadania", "{count}", 0.0)
+      StatCard("Aktywne", "{activeCount}", 0.0)
+      StatCard("Deadline", "{nextDeadline}", 0.0)
+    }
+    tabs {
+      items ["Zadania", "Rozmowy", "Pliki", "Pamięć", "Timeline"]
+      section Zadania {
+        list {
+          items tasks.items.filter(map { "project_id": project.id })
+          render TaskRow(item)
+        }
+      }
+      section Rozmowy {
+        list {
+          items chat.conversations.filter(map { "project_id": project.id })
+          render ConversationListItem(item, false)
+        }
+      }
+      section Pliki {
+        list {
+          items files.items.filter(map { "project_id": project.id })
+          render FileRow(item)
+        }
+      }
+      section Pamięć {
+        list {
+          items memory.entries.filter(map { "scope_id": project.id })
+          render MemoryCard(item)
+        }
+      }
+      section Timeline {
+        timeline {
+          items tasks.items.filter(map { "project_id": project.id })
+          render TimelineNode(item)
+        }
+      }
+    }
+  }
+}
+
+component TaskDetail(task) {
+  column {
+    gap md
+    SectionHeader(task.title, task.description, {
+      button "Zapisz" {
+        style primary
+        action {
+          logic.saveTask(task)
+        }
+      }
+    })
+    field "status" {
+      Select(["todo", "doing", "done", "blocked"], task.status, { task.status = value })
+    }
+    field "priority" {
+      Select(["low", "normal", "high", "critical"], task.priority, { task.priority = value })
+    }
+    field "deadline" {
+      Input(task.deadline, "YYYY-MM-DD", "date", { task.deadline = value })
+    }
+    field "project" {
+      Select(projects.items, task.project_id, { task.project_id = value })
+    }
+    field "depends_on" {
+      multiSelect {
+        options tasks.items.filter(map { "id": task.id })
+        value task.depends_on
+        onChange {
+          task.depends_on = value
+        }
+      }
+    }
+  }
+}
+
+component FilePreview(file) {
+  column {
+    gap md
+    SectionHeader(file.name, "{file.mime} · {file.size} B", {
+      row {
+        button "Pobierz" {
+          style primary
+          action {
+            logic.downloadFile(file.id)
+          }
+        }
+        button "Usuń" {
+          style danger
+          action {
+            logic.requestDeleteFile(file.id)
+          }
+        }
+      }
+    })
+    if file.mime.startsWith("image/") {
+      image {
+        src "/api/files/{file.id}/download"
+        alt file.name
+        radius md
+        fit contain
+      }
+    } else if file.mime.startsWith("audio/") {
+      audio {
+        src "/api/files/{file.id}/download"
+        controls true
+      }
+    } else if file.mime.startsWith("video/") {
+      video {
+        src "/api/files/{file.id}/download"
+        controls true
+      }
+    } else if file.extracted_text != "" {
+      CodeBlock(file.extracted_text, "text")
+    } else {
+      Empty("Brak podglądu", "Ten typ pliku nie ma wbudowanego podglądu")
+    }
+    list {
+      ListRow("Wersja", "{file.version}", false)
+      ListRow("Status", file.status, false)
+      ListRow("Utworzono", file.created_at, false)
+    }
+  }
+}
+
+component SearchResultsList(items, onSelect) {
+  list {
+    items items
+    onSelect {
+      onSelect(item)
+    }
+    render {
+      column {
+        gap xs
+        title {
+          text item.title
+          weight medium
+        }
+        snippet {
+          text item.snippet
+          size sm
+          muted true
+        }
+        meta {
+          text item.url
+          size xs
+          mono true
+        }
+      }
+    }
+  }
+}
+
+component MusicReleaseDetail(release) {
+  column {
+    gap md
+    SectionHeader(release.title, "{release.kind} · {release.status}", {
+      row {
+        button "Zapisz" {
+          style primary
+          action {
+            logic.saveMusicRelease(release)
+          }
+        }
+        button "Usuń" {
+          style danger
+          action {
+            logic.requestDeleteMusicRelease(release.id)
+          }
+        }
+      }
+    })
+    grid {
+      columns 2
+      field "Tytuł" {
+        Input(release.title, "Tytuł", "text", { release.title = value })
+      }
+      field "Rodzaj" {
+        Select(["single", "album", "ep"], release.kind, { release.kind = value })
+      }
+      field "Status" {
+        Select(["draft", "in_progress", "mixed", "mastered", "released"], release.status, { release.status = value })
+      }
+      field "Data" {
+        Input(release.release_date, "YYYY-MM-DD", "date", { release.release_date = value })
+      }
+      field "Dystrybucja" {
+        Input(release.distribution, "Dystrybutor", "text", { release.distribution = value })
+      }
+      field "Prawa" {
+        Select(["unset", "in_review", "cleared", "blocked"], release.rights_status, { release.rights_status = value })
+      }
+    }
+    field "Opis" {
+      TextArea(release.description, "Opis release…", { release.description = value })
+    }
+    SectionHeader("Tracklista", "", {
+      button "Nowy track" {
+        style primary
+        action {
+          logic.createMusicTrack()
+        }
+      }
+    })
+    list {
+      items music.tracks.filter(map { "release_id": release.id })
+      render MusicTrackRow(item)
+    }
+  }
+}
+
+component DeploymentLogs(items) {
+  card {
+    tone surfaceMuted
+    padding md
+    code {
+      lines items
+      mono true
+      scrollable true
+    }
+  }
+}
+
+component DeployApprovalCard(deployment) {
+  card {
+    tone surface
+    padding lg
+    title {
+      text "Deploy do " + deployment.environment
+      weight semibold
+    }
+    meta {
+      text "target " + deployment.target
+      size sm
+      muted true
+    }
+    meta {
+      text "status " + deployment.status
+      size sm
+      muted true
+    }
+    actions {
+      if deployment.status == "requested" {
+        button "Zatwierdź" {
+          style primary
+          action {
+            logic.approveRequest(deployment.id)
+          }
+        }
+        button "Odrzuć" {
+          style danger
+          action {
+            logic.rejectRequest(deployment.id)
+          }
+        }
+      }
+      if deployment.status == "succeeded" {
+        button "Rollback" {
+          style danger
+          action {
+            logic.requestRollback(deployment.id)
+          }
+        }
+      }
+    }
+  }
+}
+
+component GitHubDiffSummary(diff, stats) {
+  card {
+    tone surface
+    padding md
+    row {
+      align center
+      justify space-between
+      stats {
+        row {
+          gap sm
+          Badge("+" + stats.added)
+          Badge("-" + stats.removed)
+          Badge(stats.files + " plików")
+        }
+      }
+    }
+    DiffViewer(diff)
+  }
+}
+
+component AgentLivePanel(run) {
+  card {
+    tone surface
+    padding md
+    row {
+      align center
+      justify space-between
+      left {
+        column {
+          name {
+            text run.agent
+            weight semibold
+          }
+          meta {
+            text "steps {run.steps} · tokens {run.tokens}"
+            size xs
+            muted true
+          }
+        }
+      }
+      right {
+        button "Anuluj" {
+          style danger
+          action {
+            logic.cancelAgentRun(run.id)
+          }
+        }
+      }
+    }
+    ProgressBar(run.steps / 24.0, "primary")
+  }
+}
+
+component MemorySearchBox {
+  row {
+    input {
+      value memory.search
+      placeholder "Szukaj wspomnień…"
+      onChange {
+        memory.search = value
+      }
+    }
+    button "Filtruj" {
+      style ghost
+      action {
+        ui.modal = map { "name": "MemoryFilters" }
+      }
+    }
+  }
+}
+
+component MemorySummaryCard(summary) {
+  card {
+    tone surfaceMuted
+    padding md
+    title {
+      text "Podsumowanie"
+      size sm
+      muted true
+    }
+    content {
+      text summary.content
+      size sm
+    }
+    meta {
+      text summary.updated_at
+      size xs
+      muted true
+    }
+  }
+}
+
+component ProvidersGrid(items) {
+  grid {
+    columns 2
+    for p in items {
+      card {
+        tone surface
+        padding lg
+        row {
+          align center
+          justify space-between
+          name {
+            text p.provider
+            weight semibold
+          }
+          Badge(p.status)
+        }
+        masked {
+          text p.maskedKey
+          mono true
+          size sm
+          muted true
+        }
+        meta {
+          text "Test: " + (p.lastTested != "" ? p.lastTested : "—")
+          size xs
+          muted true
+        }
+        actions {
+          button "Test" {
+            style ghost
+            action {
+              logic.testProvider(p.provider)
+            }
+          }
+          button "Usuń" {
+            style danger
+            action {
+              logic.requestDeleteProvider(p.provider)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component RateLimitCard {
+  card {
+    tone surface
+    padding lg
+    title {
+      text "Limity"
+      weight semibold
+    }
+    field "Rate limit / min" {
+      Input(settings.rateLimitPerMinute, "60", "number", { settings.rateLimitPerMinute = value })
+    }
+    field "Max tokens / request" {
+      Input("32000", "32000", "number", {})
+    }
+    field "Max koszt dzienny (USD)" {
+      Input("5.00", "5.00", "number", {})
+    }
+  }
+}
+
+component AuditTable(items) {
+  table {
+    columns ["action", "resource", "result", "created_at"]
+    rows items
+    render row {
+      tr {
+        td row.action
+        td row.resource
+        td Badge(row.result)
+        td row.created_at
+      }
+    }
+  }
+}
+
+component SessionTable(items) {
+  table {
+    columns ["provider", "ip_hash", "user_agent", "expires_at", "actions"]
+    rows items
+    render row {
+      tr {
+        td row.provider
+        td row.ip_hash
+        td row.user_agent
+        td row.expires_at
+        td {
+          button "Odwołaj" {
+            style danger
+            action {
+              logic.revokeSession(row.id)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component DiagnosticTable(items) {
+  table {
+    columns ["name", "status", "message"]
+    rows items
+    render row {
+      tr {
+        td row.name
+        td Badge(row.status)
+        td row.message
+      }
+    }
+  }
+}
+
+component ToastStack {
+  if ui.toast.id != "" {
+    Toast(ui.toast.type, ui.toast.message)
+  }
+}
+
+screen ChatMobile {
+  title "Czat"
+  column {
+    TopBar("Czat", "")
+    if chat.activeConversationId == "" {
+      Empty("Zacznij nową rozmowę", "Naciśnij Nowa, aby zacząć", {
+        button "Nowa rozmowa" {
+          style primary
+          action {
+            logic.createConversation()
+          }
+        }
+      })
+    } else {
+      scroll {
+        list {
+          items chat.messages
+          render ChatMessage(item)
+        }
+      }
+      ChatComposerFull()
+    }
+  }
+}
+
+screen ProjectsMobile {
+  title "Projekty"
+  TopBar("Projekty", "")
+  button "Nowy projekt" {
+    style primary
+    action {
+      logic.createProject()
+    }
+  }
+  list {
+    items projects.items
+    render ProjectCard(item)
+  }
+}
+
+screen TasksMobile {
+  title "Zadania"
+  TopBar("Zadania", "")
+  Tabs(["Dziś", "Blokery", "Następny krok", "Wszystkie"], tasks.view, { tasks.view = value })
+  list {
+    items tasks.items
+    render TaskRow(item)
+  }
+  button "Nowe zadanie" {
+    style primary
+    action {
+      logic.createTask()
+    }
+  }
+}
+
+screen MemoryMobile {
+  title "Pamięć"
+  TopBar("Pamięć", "")
+  MemorySearchBox()
+  list {
+    items memory.entries
+    render MemoryCard(item)
+  }
+}
+
+screen FilesMobile {
+  title "Pliki"
+  TopBar("Pliki", "")
+  button "Wgraj" {
+    style primary
+    action {
+      logic.openUploadDialog()
+    }
+  }
+  list {
+    items files.items
+    render FileRow(item)
+  }
+}
+
+screen ResearchMobile {
+  title "Research"
+  TopBar("Research", "")
+  row {
+    input {
+      value research.query
+      placeholder "Pytanie badawcze"
+      onChange {
+        research.query = value
+      }
+    }
+    button "Szukaj" {
+      style primary
+      action {
+        logic.runResearch()
+      }
+    }
+  }
+  if research.status == "loading" {
+    Spinner("Szukam…")
+  }
+  list {
+    items research.results
+    render ResearchResult(item)
+  }
+}
+
+screen SettingsMobile {
+  title "Ustawienia"
+  TopBar("Ustawienia", "")
+  tabs {
+    items ["Dostawcy", "Limity", "Audyt", "Język", "Motyw"]
+    section Dostawcy {
+      ProvidersGrid(settings.providers)
+      button "Dodaj klucz" {
+        style primary
+        action {
+          ui.modal = map { "name": "AddProvider" }
+        }
+      }
+    }
+    section Limity {
+      RateLimitCard()
+    }
+    section Audyt {
+      AuditTable(settings.auditLog)
+    }
+    section Język {
+      Select(["pl", "en"], user.locale, { user.locale = value })
+    }
+    section Motyw {
+      Select(["dark", "darker", "system"], user.theme, { user.theme = value })
+    }
+  }
+}
+
+screen SessionsMobile {
+  title "Sesje"
+  TopBar("Sesje", "")
+  SessionTable(session.activeSessions)
+  button "Odwołaj wszystkie" {
+    style danger
+    action {
+      logic.revokeAllSessions()
+    }
+  }
+}
+
+screen ApprovalsMobile {
+  title "Zatwierdzenia"
+  TopBar("Zatwierdzenia", "")
+  list {
+    items approvals.items
+    render ApprovalRow(item)
+  }
+}
+
+screen DiagnosticsMobile {
+  title "Diagnostyka"
+  TopBar("Diagnostyka", "")
+  button "Uruchom testy" {
+    style primary
+    action {
+      logic.runDiagnostics()
+    }
+  }
+  DiagnosticTable(diagnostics.checks)
+}
+
+screen GitHubMobile {
+  title "GitHub"
+  TopBar("GitHub", "")
+  if !github.connected {
+    button "Połącz GitHub" {
+      style primary
+      action {
+        logic.connectGitHub()
+      }
+    }
+  } else {
+    list {
+      items github.repos
+      render RepoRow(item)
+    }
+  }
+}
+
+screen DeployMobile {
+  title "Deploy"
+  TopBar("Deploy", "")
+  list {
+    items deploy.targets
+    render DeployTarget(item)
+  }
+}
+
+screen MusicMobile {
+  title "Muzyka"
+  TopBar("Muzyka", "")
+  list {
+    items music.releases
+    render MusicReleaseCard(item)
+  }
+  button "Nowy release" {
+    style primary
+    action {
+      logic.createMusicRelease()
+    }
+  }
+}
+
+logic {
+  function openEditProject(id) {
+    p = projects.items.find(map { "id": id })
+    ui.modal = map { "name": "EditProject", "payload": p }
+  }
+
+  function saveTask(task) {
+    fetch("/api/tasks/" + task.id, "PATCH", task, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadTasks()
+  }
+
+  function saveMusicRelease(release) {
+    fetch("/api/music/releases/" + release.id, "PATCH", release, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadMusicReleases()
+  }
+
+  function requestDeleteMusicRelease(id) {
+    requestApproval("delete", "MusicRelease", id, map { "id": id })
+  }
+
+  function exportConversation(id) {
+    res = fetch("/api/conversations/" + id + "/export", "GET", null, null)
+    if res.ok {
+      download.blob(res.body.markdown, "conversation-" + id + ".md")
+    }
+  }
+
+  function openConversationSearch() {
+    ui.modal = map { "name": "ConversationSearch" }
+  }
+
+  function runAgentForIntent(intent) {
+    agents.forcedMode = intent
+    logic.sendMessage()
+  }
+
+  function setWebSearch(value) {
+    chat.webSearchEnabled = value
+  }
+
+  function setPrivateMode(value) {
+    chat.privateMode = value
+  }
+
+  function openMemoryFilters() {
+    ui.modal = map { "name": "MemoryFilters" }
+  }
+
+  function toggleSidebar() {
+    nav.sidebarCollapsed = !nav.sidebarCollapsed
+  }
+
+  function openCommandPalette() {
+    nav.commandPaletteOpen = true
+  }
+
+  function closeCommandPalette() {
+    nav.commandPaletteOpen = false
+  }
+
+  function navigateTo(screen) {
+    nav.previous = nav.current
+    nav.current = screen
+    ui.modal = map { "name": "", "payload": "" }
+  }
+
+  function goBack() {
+    nav.current = nav.previous
+    nav.previous = ""
+  }
+
+  function confirm(message, onConfirm) {
+    ui.modal = map { "name": "Confirm", "payload": map { "message": message, "onConfirm": onConfirm } }
+  }
+
+  function toast(type, message) {
+    ui.toast = map { "id": uuid.v4(), "type": type, "message": message }
+  }
+
+  function scheduleAgentRun(agentName, payload) {
+    queue.push(env.AL_QUEUE, map { "kind": "agent.run", "payload": map { "agent": agentName, "user_id": user.id, "conversation_id": chat.activeConversationId, "input": payload } })
+    agents.lastRunId = ""
+  }
+
+  function cancelAllAgents() {
+    for r in agents.activeRuns {
+      logic.cancelAgentRun(r.id)
+    }
+  }
+
+  function retryLastGeneration() {
+    if chat.messages.length > 0 {
+      last = chat.messages.last
+      if last.role == "assistant" {
+        logic.retryFromMessage(last.id)
+      }
+    }
+  }
+
+  function copyLastMessage() {
+    if chat.messages.length > 0 {
+      clipboard.write(chat.messages.last.content)
+    }
+  }
+
+  function clearChatError() {
+    chat.lastError = ""
+  }
+
+  function refreshAll() {
+    logic.loadConversations()
+    logic.loadProjects()
+    logic.loadTasks()
+    logic.loadMemory()
+    logic.loadFiles()
+    logic.loadApprovals()
+    logic.loadProviders()
+    logic.loadSessions()
+  }
+
+  event nav.current changed {
+    if nav.current == "Czat" {
+      logic.loadConversations()
+    }
+    if nav.current == "Zadania" {
+      logic.loadTasks()
+    }
+    if nav.current == "Projekty" {
+      logic.loadProjects()
+    }
+    if nav.current == "Pamięć" {
+      logic.loadMemory()
+    }
+    if nav.current == "Pliki" {
+      logic.loadFiles()
+    }
+    if nav.current == "Zatwierdzenia" {
+      logic.loadApprovals()
+    }
+    if nav.current == "Sesje" {
+      logic.loadSessions()
+    }
+    if nav.current == "Ustawienia" {
+      logic.loadProviders()
+    }
+    if nav.current == "Muzyka" {
+      logic.loadMusicReleases()
+      logic.loadMusicTracks()
+    }
+  }
+
+  event chat.lastError changed {
+    if chat.lastError != "" {
+      toast("danger", chat.lastError)
+    }
+  }
+
+  event github.connected changed {
+    if github.connected {
+      logic.refreshRepos()
+    }
+  }
+
+  event deploy.status changed {
+    if deploy.status == "succeeded" {
+      toast("success", "Deploy zakończony")
+    }
+    if deploy.status == "failed" {
+      toast("danger", "Deploy nie powiódł się")
+    }
+  }
+
+  event appCreator.status changed {
+    if appCreator.status == "failed" {
+      toast("danger", "App Creator nie powiódł się")
+    }
+  }
+
+  event research.status changed {
+    if research.status == "idle" && research.error != "" {
+      toast("danger", research.error)
+    }
+  }
+
+  onStart {
+    if !ui.online {
+      memory.contextMode = "degraded"
+    }
+    logic.loadSession()
+    logic.loadApprovals()
+    logic.loadProviders()
+    logic.loadConversations()
+    logic.loadProjects()
+    logic.loadTasks()
+    logic.loadMemory()
+    logic.loadFiles()
+    logic.loadMusicReleases()
+    logic.loadMusicTracks()
+    logic.loadSessions()
+  }
+
+  onStop {
+    if isGenerating {
+      logic.stopGeneration()
+    }
+  }
+}
+
+ai {
+  context {
+    maxRecentMessages 30
+    maxMemoryEntries 40
+    maxSources 20
+    maxAttachments 5
+    truncateStrategy tail
+    includeSystemPrompt true
+  }
+  systemPrompt {
+    pl "Jesteś AL2100 — ultra-asystentem operacyjnym w prywatnym systemie użytkownika. Odpowiadasz zwięźle, konkretnie, po polsku. Nie wymyślasz faktów. Gdy używasz źródeł, cytujesz je. Gdy proponujesz trwałe zmiany, czekasz na zatwierdzenie."
+    en "You are AL2100 — an ultra-operational assistant in the user's private system. Answer concisely, concretely, in English. Never fabricate facts. Cite sources when used. Propose, never execute irreversible actions without approval."
+  }
+  classifier {
+    model "fastestAvailable"
+    intents ["chat", "question", "research", "code", "memory", "files", "app", "deploy", "music", "agent", "ops"]
+    fallback "chat"
+  }
+  memoryExtraction {
+    model "bestCodeModel"
+    kinds ["fact", "decision", "rejection", "question", "blocker", "summary"]
+    scopes ["global", "project", "conversation"]
+    maxPerCall 12
+    minConfidence 0.6
+    requireUserConfirmFor ["decision", "rejection"]
+  }
+  agentSteps {
+    defaultModel "bestCodeModel"
+    maxStepTokens 4000
+    allowedTools ["search", "fetch", "memory", "files", "github", "cloudflare", "music", "appcreator"]
+    blockUnsafeUrls true
+    requireApprovalFor ["delete", "deploy", "push", "external_call", "memory_promote"]
+  }
+  streaming {
+    chunkSize 32
+    flushMs 40
+    heartbeatMs 15000
+    maxDurationSeconds 180
+  }
+  retries {
+    maxAttempts 3
+    backoff "exponential"
+    jitter true
+    retryOn ["rate_limit", "timeout", "server_error"]
+  }
+}
+
+search {
+  providers {
+    brave {
+      apiKey from secure "brave_api_key"
+      baseUrl "https://api.search.brave.com/res/v1"
+    }
+    serper {
+      apiKey from secure "serper_api_key"
+      baseUrl "https://google.serper.dev"
+    }
+    tavily {
+      apiKey from secure "tavily_api_key"
+      baseUrl "https://api.tavily.com"
+    }
+    cloudflare {
+      apiKey from secure "cf_api_token"
+      accountId from secure "cf_account_id"
+    }
+  }
+  routing {
+    default => userChoice
+    fallback => fastestAvailable
+  }
+  limits {
+    maxResults 12
+    maxDomains 20
+    maxBytesPerPage 2000000
+    timeoutMs 8000
+    blockPrivateIps true
+    blockMetadataEndpoints true
+    blockLocalhost true
+    requireHttps true
+  }
+  citations {
+    requireUrl true
+    requireTitle true
+    dedupeByUrl true
+    storeSources true
+  }
+}
+
+github {
+  oauth {
+    scopes ["repo", "read:user", "workflow"]
+    callbackPath "/auth/github/workspace/callback"
+  }
+  safety {
+    protectedBranches ["main", "master", "production"]
+    requireApprovalForPush true
+    requireApprovalForPRToProtected true
+    neverForcePush true
+    neverDeleteBranchWithoutApproval true
+  }
+  diff {
+    contextLines 3
+    maxFilesPerPR 40
+    maxBytes 500000
+  }
+  pr {
+    titleTemplate "AL2100: {summary}"
+    bodyTemplate "Zmiany wygenerowane przez AL2100.\n\n{details}\n\nZatwierdzone przez {user}."
+    draft true
+  }
+}
+
+cloudflare {
+  worker {
+    name "al2100"
+    compatibilityDate "2026-10-30"
+    compatibilityFlags ["nodejs_compat"]
+  }
+  d1 {
+    binding "AL_DB"
+    migrationsDir "migrations"
+  }
+  r2 {
+    binding "AL_BUCKET"
+  }
+  queues {
+    binding "AL_QUEUE"
+    producer "al2100-jobs"
+    consumer "al2100-jobs"
+  }
+  kv {
+    binding "AL_KV"
+  }
+  safety {
+    requireApprovalForDeploy true
+    requireApprovalForRollback true
+    neverDeleteProductionWithoutApproval true
+    redactLogs true
+  }
+}
+
+audio {
+  transcription {
+    model "whisper-large-v3"
+    language "auto"
+    maxDurationSeconds 600
+  }
+  analysis {
+    detectBpm true
+    detectKey true
+    detectEnergy true
+    detectDuration true
+  }
+}
+
+pdf {
+  extraction {
+    maxPages 200
+    maxBytes 20000000
+    ocrFallback true
+  }
+}
+
+ui {
+  layout {
+    desktopGrid "280px 1fr 320px"
+    mobileBottomNav true
+    mobileSafeArea true
+    focusRingVisible true
+    minTouchTarget 44
+  }
+  navigation {
+    items [
+      map { "id": "Czat", "label": "Czat", "icon": "sparkles", "screen": "Czat" },
+      map { "id": "Projekty", "label": "Projekty", "icon": "folder", "screen": "Projekty" },
+      map { "id": "Zadania", "label": "Zadania", "icon": "check", "screen": "Zadania" },
+      map { "id": "Pamięć", "label": "Pamięć", "icon": "brain", "screen": "Pamięć" },
+      map { "id": "Pliki", "label": "Pliki", "icon": "file", "screen": "Pliki" },
+      map { "id": "Research", "label": "Research", "icon": "search", "screen": "Research" },
+      map { "id": "Timeline", "label": "Timeline", "icon": "timeline", "screen": "Timeline" },
+      map { "id": "App Creator", "label": "App Creator", "icon": "wrench", "screen": "App Creator" },
+      map { "id": "GitHub", "label": "GitHub", "icon": "git", "screen": "GitHub" },
+      map { "id": "Deploy", "label": "Deploy", "icon": "rocket", "screen": "Deploy" },
+      map { "id": "Muzyka", "label": "Muzyka", "icon": "music", "screen": "Muzyka" },
+      map { "id": "Zatwierdzenia", "label": "Zatwierdzenia", "icon": "shield", "screen": "Zatwierdzenia" },
+      map { "id": "Sesje", "label": "Sesje", "icon": "user", "screen": "Sesje" },
+      map { "id": "Ustawienia", "label": "Ustawienia", "icon": "gear", "screen": "Ustawienia" },
+      map { "id": "Diagnostyka", "label": "Diagnostyka", "icon": "pulse", "screen": "Diagnostyka" }
+    ]
+  }
+  shortcuts {
+    commandPalette "CmdOrCtrl+K"
+    sendMessage "CmdOrCtrl+Enter"
+    newConversation "CmdOrCtrl+N"
+    toggleSidebar "CmdOrCtrl+B"
+    focusSearch "CmdOrCtrl+F"
+    closeModal "Escape"
+  }
+  accessibility {
+    keyboardNavigation true
+    screenReaderLabels true
+    highContrast true
+    reducedMotion respectSystem
+    focusTrapInModals true
+  }
+  motion {
+    pageTransition 220ms
+    modalEnter 220ms
+    toastEnter 180ms
+    listItemStagger 40ms
+    disableOnReducedMotion true
+  }
+}
+
+security {
+  csrf {
+    enabled true
+    headerName "X-CSRF-Token"
+    cookieName "al_csrf"
+    rotateOnLogin true
+  }
+  rateLimiting {
+    enabled true
+    buckets {
+      "chat:send" 30
+      "conversation:create" 20
+      "files:upload" 20
+      "research:run" 10
+      "auth:callback" 10
+    }
+    windowSeconds 60
+  }
+  headers {
+    "Content-Security-Policy" "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    "Strict-Transport-Security" "max-age=63072000; includeSubDomains; preload"
+    "X-Content-Type-Options" "nosniff"
+    "X-Frame-Options" "DENY"
+    "Referrer-Policy" "strict-origin-when-cross-origin"
+    "Permissions-Policy" "camera=(self), microphone=(self), geolocation=()"
+    "Cross-Origin-Opener-Policy" "same-origin"
+    "Cross-Origin-Resource-Policy" "same-origin"
+  }
+  encryption {
+    masterKeyEnv "AL_MASTER_ENCRYPTION_KEY"
+    algorithm "AES-256-GCM"
+    nonceBytes 12
+    version 1
+    rotateEveryDays 90
+    keyRetentionVersions 3
+  }
+  urlGuard {
+    allowOnlyHttps true
+    blockLocalhost true
+    blockPrivateRanges true
+    blockMetadataEndpoints true
+    blockUserInfoInUrl true
+    maxUrlLength 2048
+  }
+  secrets {
+    hideFromLogs true
+    hideFromExports true
+    hideFromPrompts true
+    hideFromAnalytics true
+    maskPrefixChars 3
+    maskSuffixChars 3
+  }
+  sessions {
+    cookieName "al_session"
+    httpOnly true
+    secure true
+    sameSite "Lax"
+    path "/"
+    maxAgeDays 30
+    rotateOnPrivilegeChange true
+    absoluteTimeoutDays 90
+  }
+}
+
+storage local "al2100.axdb" {
+  migrations {
+    v1 { apply "initial" }
+    v2 { apply "add_indexes" }
+    v3 { apply "add_music" }
+    v4 { apply "add_agents" }
+  }
+  retention {
+    AuditLog.days 180
+    AgentRun.days 30
+    ResearchSource.days 90
+    Approval.expiredDays 14
+  }
+}
+
+theme {
+  variants {
+    darker {
+      colors.background #050810
+      colors.surface #0A1020
+      colors.surfaceElevated #101830
+    }
+    system {
+      colors.auto true
+    }
+  }
+}
+
+flow Chat {
+  start Czat
+  Czat => Czat when chat.activeConversationId != ""
+  Czat => Ustawienia when settings.providers.length == 0
+  Ustawienia => Czat when settings.providers.length > 0
+}
+
+flow ResearchFlow {
+  start Research
+  Research => Research when research.status == "loading"
+  Research => Czat when research.results.length > 0
+}
+
+flow FilesFlow {
+  start Pliki
+  Pliki => Pliki when files.uploading
+  Pliki => Czat when files.selectedId != ""
+}
+
+flow MemoryFlow {
+  start Pamięć
+  Pamięć => Pamięć when memory.filter != "all"
+  Pamięć => Czat when memory.entries.length > 0
+}
+
+flow DeployFlow {
+  start Deploy
+  Deploy => Zatwierdzenia when deploy.requiresApproval
+  Zatwierdzenia => Deploy when deploy.status == "approved"
+  Deploy => Deploy when deploy.status == "running"
+}
+
+flow MusicFlow {
+  start Muzyka
+  Muzyka => Muzyka when music.view == "releases"
+  Muzyka => Muzyka when music.view == "tracks"
+}
+
+api {
+  route GET /api/agents/runs/:id {
+    auth true
+    handler {
+      r = db.queryOne("SELECT * FROM AgentRun WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if r == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": r }
+    }
+  }
+
+  route POST /api/agents/runs/:id/cancel {
+    auth true
+    csrf true
+    handler {
+      ai.abortAgent(params.id)
+      db.update("AgentRun", params.id, map { "status": "cancelled", "finished_at": nowIso() })
+      return { "ok": true, "body": map { "cancelled": true } }
+    }
+  }
+
+  route POST /api/github/index {
+    auth true
+    csrf true
+    handler {
+      gh.indexRepo(env, user.id, body.repo)
+      return { "ok": true, "body": map { "indexed": true } }
+    }
+  }
+
+  route POST /api/github/sync {
+    auth true
+    csrf true
+    handler {
+      gh.syncRepo(env, user.id, body.repo)
+      return { "ok": true, "body": map { "synced": true } }
+    }
+  }
+
+  route POST /api/github/branch {
+    auth true
+    csrf true
+    requiresApproval "push"
+    handler {
+      id = requestApproval("push", "GitHubRepo", body.repo, map { "diff": body.diff, "branch": body.branch, "repo": body.repo })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/conversations/:id/export {
+    auth true
+    handler {
+      cn = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if cn == null {
+        return { "ok": false, "status": 404 }
+      }
+      msgs = db.query("SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at ASC", [params.id])
+      md = "# " + cn.title + "\n\n"
+      for m in msgs {
+        md = md + "## " + m.role + " — " + m.created_at + "\n\n" + m.content + "\n\n"
+      }
+      return { "ok": true, "body": map { "markdown": md } }
+    }
+  }
+
+  route PATCH /api/music/releases/:id {
+    auth true
+    csrf true
+    handler {
+      r = db.queryOne("SELECT * FROM MusicRelease WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if r == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.title != null {
+        patch.title = body.title
+      }
+      if body.kind != null {
+        patch.kind = body.kind
+      }
+      if body.status != null {
+        patch.status = body.status
+      }
+      if body.release_date != null {
+        patch.release_date = body.release_date
+      }
+      if body.distribution != null {
+        patch.distribution = body.distribution
+      }
+      if body.rights_status != null {
+        patch.rights_status = body.rights_status
+      }
+      if body.description != null {
+        patch.description = body.description
+      }
+      db.update("MusicRelease", params.id, patch)
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MusicRelease WHERE id = ?", [params.id]) }
+    }
+  }
+
+  route PATCH /api/music/tracks/:id {
+    auth true
+    csrf true
+    handler {
+      t = db.queryOne("SELECT * FROM MusicTrack WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.title != null {
+        patch.title = body.title
+      }
+      if body.bpm != null {
+        patch.bpm = body.bpm
+      }
+      if body.key != null {
+        patch.key = body.key
+      }
+      if body.mix_status != null {
+        patch.mix_status = body.mix_status
+      }
+      if body.suno_prompt != null {
+        patch.suno_prompt = body.suno_prompt
+      }
+      if body.elevenlabs_prompt != null {
+        patch.elevenlabs_prompt = body.elevenlabs_prompt
+      }
+      if body.energy != null {
+        patch.energy = body.energy
+      }
+      if body.duration_seconds != null {
+        patch.duration_seconds = body.duration_seconds
+      }
+      db.update("MusicTrack", params.id, patch)
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MusicTrack WHERE id = ?", [params.id]) }
+    }
+  }
+
+  route PATCH /api/projects/:id {
+    auth true
+    csrf true
+    handler {
+      p = db.queryOne("SELECT * FROM Project WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if p == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.name != null {
+        patch.name = body.name
+      }
+      if body.description != null {
+        patch.description = body.description
+      }
+      if body.status != null {
+        patch.status = body.status
+      }
+      if body.color != null {
+        patch.color = body.color
+      }
+      db.update("Project", params.id, patch)
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Project WHERE id = ?", [params.id]) }
+    }
+  }
+
+  route POST /api/approvals/:id/approve {
+    auth true
+    csrf true
+    handler {
+      applyApproval(params.id)
+      return { "ok": true, "body": map { "approved": true } }
+    }
+  }
+
+  route POST /api/approvals/:id/reject {
+    auth true
+    csrf true
+    handler {
+      rejectApproval(params.id)
+      return { "ok": true, "body": map { "rejected": true } }
+    }
+  }
+
+  route POST /api/search/run {
+    auth true
+    csrf true
+    rateLimit "research:run"
+    handler {
+      provider = body.provider
+      query = body.query
+      result = search.run(query, map { "provider": provider, "maxResults": 8 })
+      return { "ok": true, "body": result }
+    }
+  }
+
+  route GET /api/health {
+    auth false
+    handler {
+      return { "ok": true, "body": map { "status": "ok", "version": "1.0.0", "time": nowIso() } }
+    }
+  }
+}
