@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#070b16">
+<meta name="description" content="AL2100 — prywatny system operacyjny AI">
+<title>AL2100</title>
+<style>
+:root{--bg:#070b16;--panel:#0e1526;--panel2:#121a2e;--text:#eaf2ff;--muted:#8b9bb8;--accent:#00e5ff;--accent2:#7c4dff;--danger:#ff4d6d;--border:#1f2a44;--radius:18px;--shadow:0 8px 32px rgba(0,0,0,.45);--font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fs:15px;--trans:.22s ease}
+[data-theme=light]{--bg:#f4f7fc;--panel:#ffffff;--panel2:#eef2f9;--text:#0d1526;--muted:#5a6a85;--border:#d0d8e8;--shadow:0 8px 32px rgba(0,0,0,.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--font);font-size:var(--fs);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--accent);text-decoration:none}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.app{display:flex;height:100%;width:100%;position:relative}
+.sidebar{width:260px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:transform var(--trans)}
+.sidebar-header{padding:18px 16px 12px;display:flex;align-items:center;gap:10px}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#000}
+.logo-text{font-weight:700;font-size:18px;letter-spacing:-.3px}
+.nav{flex:1;overflow-y:auto;padding:8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;color:var(--muted);transition:all var(--trans);margin-bottom:2px;width:100%;text-align:left}
+.nav-item:hover,.nav-item.active{background:var(--panel2);color:var(--text)}
+.nav-item.active{box-shadow:inset 3px 0 0 var(--accent)}
+.nav-icon{width:20px;text-align:center;font-size:16px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.header{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--panel);flex-shrink:0}
+.header-title{font-weight:600;font-size:16px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all var(--trans)}
+.icon-btn:hover{background:var(--panel2);color:var(--text)}
+.content{flex:1;overflow:hidden;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+.chat-area{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px}
+.msg{max-width:820px;width:100%;margin:0 auto;display:flex;gap:12px;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.msg-avatar{width:32px;height:32px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.msg.user .msg-avatar{background:var(--accent2);color:#fff}
+.msg.ai .msg-avatar{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000}
+.msg-body{flex:1;min-width:0}
+.msg-meta{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.msg-content{line-height:1.55;word-break:break-word}
+.msg-content pre{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px;overflow-x:auto;margin:10px 0;position:relative}
+.msg-content code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px}
+.msg-content p{margin:6px 0}
+.msg-content ul,.msg-content ol{margin:8px 0 8px 20px}
+.msg-content a{color:var(--accent)}
+.msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity var(--trans)}
+.msg:hover .msg-actions{opacity:1}
+.msg-actions button{font-size:12px;padding:4px 8px;border-radius:8px;color:var(--muted)}
+.msg-actions button:hover{background:var(--panel2);color:var(--text)}
+.composer{border-top:1px solid var(--border);padding:12px 16px;background:var(--panel);flex-shrink:0}
+.composer-inner{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.composer-row{display:flex;gap:8px;align-items:flex-end}
+.composer textarea{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;resize:none;min-height:48px;max-height:160px;outline:none;transition:border var(--trans)}
+.composer textarea:focus{border-color:var(--accent)}
+.send-btn{width:48px;height:48px;border-radius:14px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;transition:opacity var(--trans)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed}
+.composer-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{padding:5px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.chip.active{border-color:var(--accent);color:var(--accent)}
+.chip input{display:none}
+.status-bar{font-size:12px;color:var(--muted);display:flex;gap:12px;align-items:center}
+.panel-right{width:300px;background:var(--panel);border-left:1px solid var(--border);display:none;flex-direction:column;flex-shrink:0}
+.panel-right.open{display:flex}
+.panel-header{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:600}
+.panel-body{flex:1;overflow-y:auto;padding:12px}
+.card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.card-title{font-weight:600;margin-bottom:6px}
+.card-meta{font-size:12px;color:var(--muted)}
+.btn{padding:9px 16px;border-radius:12px;background:var(--accent);color:#000;font-weight:600;font-size:13px;transition:opacity var(--trans)}
+.btn:hover{opacity:.9}
+.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.ghost{background:transparent;color:var(--muted)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;outline:none}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
+.list{display:flex;flex-direction:column;gap:6px}
+.list-item{padding:12px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:border var(--trans)}
+.list-item:hover,.list-item.active{border-color:var(--accent)}
+.list-item .title{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list-item .meta{font-size:11px;color:var(--muted)}
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty h3{margin-bottom:8px;color:var(--text)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:20px;width:100%;max-width:480px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.modal-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal-title{flex:1;font-weight:600}
+.modal-body{padding:18px;overflow-y:auto;flex:1}
+.modal-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--panel2);border:1px solid var(--border);padding:12px 20px;border-radius:14px;z-index:2000;transition:transform .3s ease;box-shadow:var(--shadow);max-width:90%;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--panel);border-top:1px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.mobile-nav-inner{display:flex;height:100%}
+.mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:10px}
+.mobile-nav-item.active{color:var(--accent)}
+.mobile-nav-item span{font-size:18px}
+.command-palette{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:1500}
+.command-palette.open{display:flex}
+.command-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;box-shadow:var(--shadow);overflow:hidden}
+.command-input{width:100%;padding:16px 18px;background:transparent;border:none;outline:none;font-size:16px;border-bottom:1px solid var(--border)}
+.command-list{max-height:320px;overflow-y:auto}
+.command-item{padding:12px 18px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.command-item:hover,.command-item.selected{background:var(--panel2)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;background:rgba(0,229,255,.12);color:var(--accent)}
+.progress{height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-bar{height:100%;background:var(--accent);width:0;transition:width .3s}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(124,77,255,.15);color:var(--accent2);font-size:11px;margin:2px}
+.switch{position:relative;width:42px;height:24px}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:24px;transition:.2s}
+.slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+.slider{background:var(--accent)}
+.switch input:checked+.slider:before{transform:translateX(18px)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:900px){
+.sidebar{position:fixed;left:0;top:0;bottom:0;z-index:200;transform:translateX(-100%)}
+.sidebar.open{transform:none}
+.panel-right{position:fixed;right:0;top:0;bottom:0;z-index:200;width:min(320px,90vw)}
+.mobile-nav{display:block}
+.main{padding-bottom:60px}
+.msg-actions{opacity:1}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.typing{display:inline-flex;gap:4px}
+.typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:blink 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+.file-drop{border:2px dashed var(--border);border-radius:16px;padding:32px;text-align:center;color:var(--muted)}
+.file-drop.drag{border-color:var(--accent);color:var(--accent)}
+.provider-status{display:flex;align-items:center;gap:6px;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.ok{background:#22c55e}
+.dot.err{background:var(--danger)}
+.dot.off{background:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-header">
+<div class="logo">AL</div>
+<div class="logo-text">AL2100</div>
+</div>
+<nav class="nav" id="nav">
+<button class="nav-item active" data-view="chat"><span class="nav-icon">💬</span> Czat</button>
+<button class="nav-item" data-view="history"><span class="nav-icon">📜</span> Historia</button>
+<button class="nav-item" data-view="projects"><span class="nav-icon">📁</span> Projekty</button>
+<button class="nav-item" data-view="tasks"><span class="nav-icon">✅</span> Zadania</button>
+<button class="nav-item" data-view="notes"><span class="nav-icon">📝</span> Notatki</button>
+<button class="nav-item" data-view="files"><span class="nav-icon">📄</span> Pliki</button>
+<button class="nav-item" data-view="research"><span class="nav-icon">🔍</span> Research</button>
+<button class="nav-item" data-view="memory"><span class="nav-icon">🧠</span> Pamięć</button>
+<button class="nav-item" data-view="export"><span class="nav-icon">💾</span> Eksport</button>
+<button class="nav-item" data-view="settings"><span class="nav-icon">⚙️</span> Ustawienia</button>
+</nav>
+</aside>
+<main class="main">
+<header class="header">
+<button class="icon-btn" id="menuBtn" aria-label="Menu">☰</button>
+<div class="header-title" id="headerTitle">Czat</div>
+<button class="icon-btn" id="newChatBtn" title="Nowa rozmowa">＋</button>
+<button class="icon-btn" id="contextBtn" title="Kontekst">☰</button>
+</header>
+<div class="content">
+<section class="view active" id="view-chat">
+<div class="chat-area" id="chatArea"></div>
+<div class="composer">
+<div class="composer-inner">
+<div class="composer-tools">
+<label class="chip" id="internetChip"><input type="checkbox" id="internetToggle"> 🌐 Internet</label>
+<span class="status-bar" id="chatStatus"></span>
+</div>
+<div class="composer-row">
+<textarea id="chatInput" rows="1" placeholder="Napisz wiadomość… (Enter wyślij, Shift+Enter nowa linia)" aria-label="Wiadomość"></textarea>
+<button class="send-btn" id="sendBtn" aria-label="Wyślij">➤</button>
+<button class="send-btn" id="stopBtn" style="display:none;background:var(--danger)" aria-label="Zatrzymaj">■</button>
+</div>
+</div>
+</div>
+</section>
+<section class="view" id="view-history">
+<div style="padding:16px;overflow-y:auto;flex:1" id="historyList"></div>
+</section>
+<section class="view" id="view-projects">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+<h2 style="font-size:18px">Projekty</h2>
+<button class="btn btn-sm" id="newProjectBtn">+ Nowy</button>
+</div>
+<div id="projectsList" class="list"></div>
+</div>
+</section>
+<section class="view" id="view-tasks">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+<button class="chip active" data-filter="all">Wszystkie</button>
+<button class="chip" data-filter="today">Dziś</button>
+<button class="chip" data-filter="blockers">Blokery</button>
+<button class="chip" data-filter="next">Następny</button>
+<button class="btn btn-sm" id="newTaskBtn" style="margin-left:auto">+ Zadanie</button>
+</div>
+<div id="tasksList" class="list"></div>
+</div>
+</section>
+<section class="view" id="view-notes">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div style="display:flex;gap:8px;margin-bottom:14px">
+<input type="search" id="notesSearch" placeholder="Szukaj notatek…" style="flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 12px">
+<button class="btn btn-sm" id="newNoteBtn">+ Notatka</button>
+</div>
+<div id="notesList" class="list"></div>
+</div>
+</section>
+<section class="view" id="view-files">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div class="file-drop" id="fileDrop">Upuść plik .txt / .md / .json / .csv lub kliknij aby wybrać<input type="file" id="fileInput" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv" hidden></div>
+<div id="filesList" class="list" style="margin-top:14px"></div>
+</div>
+</section>
+<section class="view" id="view-research">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div style="display:flex;gap:8px;margin-bottom:14px">
+<input type="search" id="researchInput" placeholder="Szukaj w internecie…" style="flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px">
+<button class="btn" id="researchBtn">Szukaj</button>
+</div>
+<div id="researchResults"></div>
+</div>
+</section>
+<section class="view" id="view-memory">
+<div style="padding:16px;overflow-y:auto;flex:1">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+<h2 style="font-size:18px">Pamięć AL2100</h2>
+<button class="btn btn-sm" id="newMemoryBtn">+ Fakt</button>
+</div>
+<div id="memoryList" class="list"></div>
+</div>
+</section>
+<section class="view" id="view-export">
+<div style="padding:16px;overflow-y:auto;flex:1;max-width:560px">
+<h2 style="margin-bottom:16px">Eksport i import</h2>
+<div class="card">
+<div class="card-title">Eksport wszystkich danych</div>
+<p class="card-meta" style="margin-bottom:12px">Pobierz pełną kopię rozmów, projektów, notatek, plików i pamięci jako JSON.</p>
+<button class="btn" id="exportAllBtn">Eksportuj JSON</button>
+</div>
+<div class="card">
+<div class="card-title">Import danych</div>
+<p class="card-meta" style="margin-bottom:12px">Wczytaj wcześniej wyeksportowany plik JSON.</p>
+<input type="file" id="importFile" accept=".json,application/json" style="margin-bottom:10px">
+<button class="btn secondary" id="importBtn">Importuj</button>
+</div>
+<div class="card">
+<div class="card-title">Wyczyść wszystkie dane</div>
+<p class="card-meta" style="margin-bottom:12px">Usuwa rozmowy, projekty, zadania, notatki, pliki i pamięć. Klucze API pozostają.</p>
+<button class="btn danger" id="clearDataBtn">Wyczyść dane</button>
+</div>
+</div>
+</section>
+<section class="view" id="view-settings">
+<div style="padding:16px;overflow-y:auto;flex:1;max-width:640px">
+<h2 style="margin-bottom:16px">Ustawienia</h2>
+<div class="card">
+<div class="card-title">Dostawcy AI</div>
+<div id="providersSettings"></div>
+</div>
+<div class="card">
+<div class="card-title">Domyślny dostawca</div>
+<select id="defaultProvider" style="width:100%;margin-top:8px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px"></select>
+<label style="display:flex;align-items:center;gap:10px;margin-top:12px"><span>Tryb Auto (fallback)</span><label class="switch"><input type="checkbox" id="autoMode" checked><span class="slider"></span></label></label>
+</div>
+<div class="card">
+<div class="card-title">Interfejs</div>
+<div class="form-group"><label>Język</label><select id="langSelect"><option value="pl">Polski</option><option value="en">English</option></select></div>
+<div class="form-group"><label>Motyw</label><select id="themeSelect"><option value="dark">Ciemny</option><option value="light">Jasny</option></select></div>
+<div class="form-group"><label>Akcent</label><input type="color" id="accentColor" value="#00e5ff" style="width:60px;height:36px;border:none;background:none"></div>
+<div class="form-group"><label>Rozmiar czcionki</label><select id="fontSize"><option value="14">Mały</option><option value="15" selected>Normalny</option><option value="16">Duży</option><option value="18">Bardzo duży</option></select></div>
+<label style="display:flex;align-items:center;gap:10px"><span>Redukcja animacji</span><label class="switch"><input type="checkbox" id="reduceMotion"><span class="slider"></span></label></label>
+</div>
+<div class="card">
+<div class="card-title">Aplikacja</div>
+<p class="card-meta">AL2100 v1.0.0 · PWA · IndexedDB · Offline</p>
+<button class="btn secondary btn-sm" id="installBtn" style="margin-top:10px;display:none">Zainstaluj aplikację</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<aside class="panel-right" id="rightPanel">
+<div class="panel-header">Kontekst <button class="icon-btn" id="closePanel" style="margin-left:auto">✕</button></div>
+<div class="panel-body" id="rightPanelBody"></div>
+</aside>
+</div>
+<nav class="mobile-nav" id="mobileNav">
+<div class="mobile-nav-inner">
+<button class="mobile-nav-item active" data-view="chat"><span>💬</span>Czat</button>
+<button class="mobile-nav-item" data-view="history"><span>📜</span>Historia</button>
+<button class="mobile-nav-item" data-view="projects"><span>📁</span>Projekty</button>
+<button class="mobile-nav-item" data-view="notes"><span>📝</span>Notatki</button>
+<button class="mobile-nav-item" data-view="settings"><span>⚙️</span>Ustawienia</button>
+</div>
+</nav>
+<div class="modal-overlay" id="modal">
+<div class="modal">
+<div class="modal-header"><div class="modal-title" id="modalTitle"></div><button class="icon-btn" id="modalClose">✕</button></div>
+<div class="modal-body" id="modalBody"></div>
+<div class="modal-footer" id="modalFooter"></div>
+</div>
+</div>
+<div class="command-palette" id="cmdPalette">
+<div class="command-box">
+<input class="command-input" id="cmdInput" placeholder="Szukaj komendy…" autocomplete="off">
+<div class="command-list" id="cmdList"></div>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+const SYSTEM_PROMPT="Jesteś AL2100, prywatnym ultra-asystentem AI użytkownika. Odpowiadasz po polsku, rzeczowo i bezpośrednio. Nie moralizujesz. Nie oceniasz użytkownika. Nie udajesz, że wiesz, jeżeli nie masz danych. Rozróżniasz fakty, opinie, domysły i niepewność. Wykorzystujesz pełną historię rozmowy. Jeżeli brakuje informacji, zadajesz precyzyjne pytanie. Nie stosujesz zbędnych filtrów ani moralizowania. Nie udzielasz instrukcji do przestępstw, broni masowej, broni biologicznej ani poważnego krzywdzenia ludzi.";
+const PROVIDERS={
+openrouter:{name:"OpenRouter",base:"https://openrouter.ai/api/v1/chat/completions",models:["openai/gpt-4o-mini","openai/gpt-4o","anthropic/claude-3.5-sonnet","google/gemini-flash-1.5","meta-llama/llama-3.1-70b-instruct"],defaultModel:"openai/gpt-4o-mini",keyPrefix:"sk-or-"},
+groq:{name:"Groq",base:"https://api.groq.com/openai/v1/chat/completions",models:["llama-3.1-8b-instant","llama-3.3-70b-versatile","mixtral-8x7b-32768","gemma2-9b-it"],defaultModel:"llama-3.1-8b-instant",keyPrefix:"gsk_"},
+gemini:{name:"Google Gemini",base:"https://generativelanguage.googleapis.com/v1beta/models/",models:["gemini-1.5-flash","gemini-1.5-pro","gemini-2.0-flash"],defaultModel:"gemini-1.5-flash",keyPrefix:"AIza"},
+mistral:{name:"Mistral",base:"https://api.mistral.ai/v1/chat/completions",models:["mistral-small-latest","mistral-medium-latest","mistral-large-latest"],defaultModel:"mistral-small-latest",keyPrefix:""},
+cloudflare:{name:"Cloudflare Workers AI",base:"https://api.cloudflare.com/client/v4/accounts/",models:["@cf/meta/llama-3.1-8b-instruct","@cf/meta/llama-3.1-70b-instruct","@cf/qwen/qwen1.5-14b-chat-awq"],defaultModel:"@cf/meta/llama-3.1-8b-instruct",keyPrefix:""}
+};
+const ORDER=["openrouter","groq","gemini","mistral","cloudflare"];
+let db=null,currentConvId=null,abortController=null,deferredInstall=null,lang="pl";
+const state={conversations:[],messages:{},projects:[],tasks:[],notes:[],files:[],memory:[],settings:{}};
+function $(s,el=document){return el.querySelector(s)}
+function $$(s,el=document){return[...el.querySelectorAll(s)]}
+function toast(msg,ms=2800){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),ms)}
+function escapeHtml(str){if(!str)return"";const d=document.createElement("div");d.textContent=str;return d.innerHTML}
+function sanitizeMd(text){
+if(!text)return"";
+let s=escapeHtml(text);
+s=s.replace(/```(\w*)\n([\s\S]*?)```/g,(_,lang,code)=>`<pre><code class="language-${lang||""}">${code.trim()}</code><button class="btn-sm secondary copy-code" style="position:absolute;top:8px;right:8px">Kopiuj</button></pre>`);
+s=s.replace(/`([^`]+)`/g,"<code>$1</code>");
+s=s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+s=s.replace(/\*([^*]+)\*/g,"<em>$1</em>");
+s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+s=s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+s=s.replace(/\n/g,"<br>");
+return s;
+}
+function openDB(){
+return new Promise((res,rej)=>{
+const r=indexedDB.open("AL2100",3);
+r.onupgradeneeded=e=>{
+const d=e.target.result;
+["conversations","messages","projects","tasks","notes","files","memory","backups"].forEach(n=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:"id"})});
+};
+r.onsuccess=e=>{db=e.target.result;res(db)};
+r.onerror=()=>rej(r.error);
+});
+}
+function idb(store,mode="readonly"){return db.transaction(store,mode).objectStore(store)}
+function idbGetAll(store){return new Promise((res,rej)=>{const r=idb(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+function idbPut(store,val){return new Promise((res,rej)=>{const r=idb(store,"readwrite").put(val);r.onsuccess=()=>res(val);r.onerror=()=>rej(r.error)})}
+function idbDelete(store,id){return new Promise((res,rej)=>{const r=idb(store,"readwrite").delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function idbClear(store){return new Promise((res,rej)=>{const r=idb(store,"readwrite").clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,9)}
+function loadLS(k,def){try{const v=localStorage.getItem("al2100_"+k);return v?JSON.parse(v):def}catch{return def}}
+function saveLS(k,v){localStorage.setItem("al2100_"+k,JSON.stringify(v))}
+function getApiKey(p){return loadLS("key_"+p,"")||""}
+function setApiKey(p,v){saveLS("key_"+p,v||"")}
+function getProviderSettings(){return loadLS("providers",{})}
+function saveProviderSettings(s){saveLS("providers",s)}
+async function loadAll(){
+state.conversations=await idbGetAll("conversations");
+state.projects=await idbGetAll("projects");
+state.tasks=await idbGetAll("tasks");
+state.notes=await idbGetAll("notes");
+state.files=await idbGetAll("files");
+state.memory=await idbGetAll("memory");
+state.conversations.sort((a,b)=>b.updated-a.updated);
+}
+function maskKey(k){if(!k||k.length<8)return"••••";return k.slice(0,4)+"••••"+k.slice(-4)}
+function showView(name){
+$$(".view").forEach(v=>v.classList.remove("active"));
+const el=$("#view-"+name);if(el)el.classList.add("active");
+$$(".nav-item,.mobile-nav-item").forEach(b=>{b.classList.toggle("active",b.dataset.view===name)});
+const titles={chat:"Czat",history:"Historia",projects:"Projekty",tasks:"Zadania",notes:"Notatki",files:"Pliki",research:"Research",memory:"Pamięć",export:"Eksport",settings:"Ustawienia"};
+$("#headerTitle").textContent=titles[name]||name;
+$("#sidebar").classList.remove("open");
+if(name==="history")renderHistory();
+if(name==="projects")renderProjects();
+if(name==="tasks")renderTasks();
+if(name==="notes")renderNotes();
+if(name==="files")renderFiles();
+if(name==="memory")renderMemory();
+if(name==="settings")renderSettings();
+}
+function openModal(title,bodyHtml,footerHtml){
+$("#modalTitle").textContent=title;
+$("#modalBody").innerHTML=bodyHtml;
+$("#modalFooter").innerHTML=footerHtml||"";
+$("#modal").classList.add("open");
+}
+function closeModal(){$("#modal").classList.remove("open")}
+async function createConversation(title="Nowa rozmowa"){
+const c={id:uid(),title,created:Date.now(),updated:Date.now(),provider:null,model:null};
+await idbPut("conversations",c);
+state.conversations.unshift(c);
+state.messages[c.id]=[];
+return c;
+}
+async function getMessages(convId){
+if(state.messages[convId])return state.messages[convId];
+const all=await idbGetAll("messages");
+const msgs=all.filter(m=>m.convId===convId).sort((a,b)=>a.ts-b.ts);
+state.messages[convId]=msgs;
+return msgs;
+}
+async function addMessage(convId,role,content,extra={}){
+const m={id:uid(),convId,role,content,ts:Date.now(),...extra};
+await idbPut("messages",m);
+if(!state.messages[convId])state.messages[convId]=[];
+state.messages[convId].push(m);
+const conv=state.conversations.find(c=>c.id===convId);
+if(conv){conv.updated=Date.now();if(role==="user"&&(!conv.title||conv.title==="Nowa rozmowa")){conv.title=content.slice(0,60)+(content.length>60?"…":"");await idbPut("conversations",conv)}}
+return m;
+}
+function renderChat(){
+const area=$("#chatArea");
+area.innerHTML="";
+if(!currentConvId){
+area.innerHTML=`<div class="empty"><h3>AL2100</h3><p>Prywatny ultra-asystent AI.<br>Napisz pierwszą wiadomość lub utwórz nową rozmowę.</p></div>`;
+return;
+}
+const msgs=state.messages[currentConvId]||[];
+if(!msgs.length){
+area.innerHTML=`<div class="empty"><h3>Nowa rozmowa</h3><p>Zadaj pytanie, aby rozpocząć.</p></div>`;
+return;
+}
+msgs.forEach(m=>{
+const div=document.createElement("div");
+div.className="msg "+(m.role==="user"?"user":"ai");
+div.dataset.id=m.id;
+const avatar=m.role==="user"?"U":"AL";
+div.innerHTML=`<div class="msg-avatar">${avatar}</div><div class="msg-body"><div class="msg-meta"><span>${m.role==="user"?"Ty":"AL2100"}</span><span>${new Date(m.ts).toLocaleTimeString("pl",{hour:"2-digit",minute:"2-digit"})}</span>${m.provider?`<span class="badge">${m.provider}${m.model?" · "+m.model.split("/").pop():""}</span>`:""}</div><div class="msg-content">${m.role==="assistant"?sanitizeMd(m.content):escapeHtml(m.content).replace(/\n/g,"<br>")}</div><div class="msg-actions">${m.role==="assistant"?`<button data-act="copy">Kopiuj</button><button data-act="retry">Ponów</button>`:""}<button data-act="edit">Edytuj</button><button data-act="delete">Usuń</button></div></div>`;
+area.appendChild(div);
+});
+area.scrollTop=area.scrollHeight;
+$$(".copy-code",area).forEach(b=>b.onclick=()=>{const code=b.parentElement.querySelector("code").textContent;navigator.clipboard.writeText(code);toast("Skopiowano kod")});
+$$("[data-act]",area).forEach(b=>b.onclick=()=>handleMsgAction(b.dataset.act,b.closest(".msg").dataset.id));
+updateChatStatus();
+}
+function updateChatStatus(){
+const msgs=state.messages[currentConvId]||[];
+const prov=loadLS("defaultProvider","openrouter");
+const auto=loadLS("autoMode",true);
+$("#chatStatus").innerHTML=`<span class="provider-status"><span class="dot ${getApiKey(prov)?"ok":"off"}"></span>${auto?"Auto":PROVIDERS[prov]?.name||prov}</span> · ${msgs.length} wiad.`;
+}
+async function handleMsgAction(act,msgId){
+const msgs=state.messages[currentConvId]||[];
+const m=msgs.find(x=>x.id===msgId);
+if(!m)return;
+if(act==="copy"){navigator.clipboard.writeText(m.content);toast("Skopiowano")}
+else if(act==="delete"){
+if(!confirm("Usunąć tę wiadomość?"))return;
+await idbDelete("messages",msgId);
+state.messages[currentConvId]=msgs.filter(x=>x.id!==msgId);
+renderChat();
+}
+else if(act==="edit"){
+openModal("Edytuj wiadomość",`<textarea id="editMsg" style="width:100%;min-height:120px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px">${escapeHtml(m.content)}</textarea>`,`<button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Zapisz</button>`);
+$("#modalCancel").onclick=closeModal;
+$("#modalSave").onclick=async()=>{
+const v=$("#editMsg").value.trim();
+if(!v)return;
+m.content=v;await idbPut("messages",m);closeModal();renderChat();
+};
+}
+else if(act==="retry"){
+const idx=msgs.findIndex(x=>x.id===msgId);
+if(idx<0)return;
+const userMsg=msgs.slice(0,idx).reverse().find(x=>x.role==="user");
+if(!userMsg)return;
+await idbDelete("messages",msgId);
+state.messages[currentConvId]=msgs.filter(x=>x.id!==msgId);
+renderChat();
+await sendMessage(userMsg.content,true);
+}
+}
+async function buildContext(convId){
+const msgs=await getMessages(convId);
+const mem=state.memory.filter(m=>m.enabled!==false);
+let system=SYSTEM_PROMPT;
+if(mem.length){
+system+="\n\nPamięć o użytkowniku:\n"+mem.map(m=>`- ${m.content}`).join("\n");
+}
+const maxMsgs=40;
+let selected=msgs;
+if(msgs.length>maxMsgs){
+const first=msgs.slice(0,2);
+const last=msgs.slice(-maxMsgs+4);
+selected=[...first,...last];
+}
+const out=[{role:"system",content:system}];
+selected.forEach(m=>out.push({role:m.role==="assistant"?"assistant":"user",content:m.content}));
+return out;
+}
+async function callProvider(provider,model,messages,signal){
+const key=getApiKey(provider);
+if(!key)throw new Error("Brak klucza API dla "+PROVIDERS[provider].name);
+const headers={"Content-Type":"application/json"};
+let url,body;
+if(provider==="openrouter"){
+headers.Authorization="Bearer "+key;
+headers["HTTP-Referer"]=location.origin;
+headers["X-Title"]="AL2100";
+url=PROVIDERS.openrouter.base;
+body={model:model||PROVIDERS.openrouter.defaultModel,messages,stream:true};
+}
+else if(provider==="groq"){
+headers.Authorization="Bearer "+key;
+url=PROVIDERS.groq.base;
+body={model:model||PROVIDERS.groq.defaultModel,messages,stream:true};
+}
+else if(provider==="mistral"){
+headers.Authorization="Bearer "+key;
+url=PROVIDERS.mistral.base;
+body={model:model||PROVIDERS.mistral.defaultModel,messages,stream:true};
+}
+else if(provider==="gemini"){
+url=`${PROVIDERS.gemini.base}${model||PROVIDERS.gemini.defaultModel}:streamGenerateContent?key=${encodeURIComponent(key)}`;
+const contents=messages.filter(m=>m.role!=="system").map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]}));
+const sys=messages.find(m=>m.role==="system");
+body={contents,systemInstruction:sys?{parts:[{text:sys.content}]}:undefined};
+}
+else if(provider==="cloudflare"){
+const acc=loadLS("cf_account","");
+if(!acc)throw new Error("Brak Account ID Cloudflare (ustaw w ustawieniach)");
+url=`${PROVIDERS.cloudflare.base}${acc}/ai/run/${model||PROVIDERS.cloudflare.defaultModel}`;
+headers.Authorization="Bearer "+key;
+body={messages};
+}
+else throw new Error("Nieznany dostawca");
+const res=await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal});
+if(!res.ok){
+const t=await res.text().catch(()=>"");
+throw new Error(`${PROVIDERS[provider].name} ${res.status}: ${t.slice(0,200)||res.statusText}`);
+}
+return res;
+}
+async function streamResponse(res,provider,onChunk){
+const reader=res.body.getReader();
+const dec=new TextDecoder();
+let full="",buf="";
+if(provider==="gemini"){
+while(true){
+const{done,value}=await reader.read();
+if(done)break;
+buf+=dec.decode(value,{stream:true});
+const lines=buf.split("\n");buf=lines.pop()||"";
+for(const line of lines){
+if(!line.trim())continue;
+try{
+const j=JSON.parse(line);
+const t=j.candidates?.[0]?.content?.parts?.[0]?.text;
+if(t){full+=t;onChunk(full)}
+}catch{}
+}
+}
+return full;
+}
+while(true){
+const{done,value}=await reader.read();
+if(done)break;
+buf+=dec.decode(value,{stream:true});
+const lines=buf.split("\n");buf=lines.pop()||"";
+for(const line of lines){
+if(!line.startsWith("data: "))continue;
+const data=line.slice(6).trim();
+if(data==="[DONE]")continue;
+try{
+const j=JSON.parse(data);
+const t=j.choices?.[0]?.delta?.content||j.choices?.[0]?.message?.content||"";
+if(t){full+=t;onChunk(full)}
+}catch{}
+}
+}
+return full;
+}
+async function sendMessage(text,isRetry=false){
+if(!text||!text.trim())return;
+if(text.length>12000){toast("Wiadomość za długa (max 12000)");return}
+if(!currentConvId){
+const c=await createConversation();
+currentConvId=c.id;
+}
+if(!isRetry){
+await addMessage(currentConvId,"user",text.trim());
+renderChat();
+}
+$("#chatInput").value="";
+$("#sendBtn").style.display="none";
+$("#stopBtn").style.display="flex";
+const area=$("#chatArea");
+const thinking=document.createElement("div");
+thinking.className="msg ai";
+thinking.id="thinking";
+thinking.innerHTML=`<div class="msg-avatar">AL</div><div class="msg-body"><div class="msg-meta">AL2100</div><div class="msg-content"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
+area.appendChild(thinking);
+area.scrollTop=area.scrollHeight;
+const messages=await buildContext(currentConvId);
+const auto=loadLS("autoMode",true);
+let startProv=loadLS("defaultProvider","openrouter");
+let order=auto?ORDER.slice():[startProv];
+if(!auto)order=[startProv];
+else{
+const idx=order.indexOf(startProv);
+if(idx>0){order.splice(idx,1);order.unshift(startProv)}
+}
+abortController=new AbortController();
+let lastErr=null,usedProv=null,usedModel=null,content="";
+for(const prov of order){
+const key=getApiKey(prov);
+if(!key)continue;
+const pset=getProviderSettings()[prov]||{};
+const model=pset.model||PROVIDERS[prov].defaultModel;
+try{
+const res=await callProvider(prov,model,messages,abortController.signal);
+usedProv=prov;usedModel=model;
+content=await streamResponse(res,prov,txt=>{
+const el=$("#thinking .msg-content");
+if(el)el.innerHTML=sanitizeMd(txt);
+area.scrollTop=area.scrollHeight;
+});
+break;
+}catch(e){
+if(e.name==="AbortError"){lastErr=null;break}
+lastErr=e;
+console.warn(prov,e.message);
+}
+}
+$("#thinking")?.remove();
+$("#sendBtn").style.display="flex";
+$("#stopBtn").style.display="none";
+abortController=null;
+if(content){
+await addMessage(currentConvId,"assistant",content,{provider:usedProv,model:usedModel});
+const conv=state.conversations.find(c=>c.id===currentConvId);
+if(conv){conv.provider=usedProv;conv.model=usedModel;await idbPut("conversations",conv)}
+renderChat();
+}else if(lastErr){
+const errMsg="Błąd: "+lastErr.message+(lastErr.message.includes("CORS")||lastErr.message.includes("Failed to fetch")?" (możliwy problem CORS — użyj OpenRouter lub proxy)":"");
+await addMessage(currentConvId,"assistant",errMsg,{provider:"error"});
+renderChat();
+toast("Nie udało się uzyskać odpowiedzi");
+}
+}
+function renderHistory(){
+const list=$("#historyList");
+if(!state.conversations.length){list.innerHTML=`<div class="empty"><h3>Brak rozmów</h3></div>`;return}
+list.innerHTML=state.conversations.map(c=>`<div class="list-item ${c.id===currentConvId?"active":""}" data-id="${c.id}"><div class="title">${escapeHtml(c.title)}</div><div class="meta">${new Date(c.updated).toLocaleString("pl")}</div><button class="icon-btn" data-del="${c.id}" title="Usuń">🗑</button></div>`).join("");
+$$(".list-item",list).forEach(el=>{
+el.onclick=async e=>{
+if(e.target.dataset.del)return;
+currentConvId=el.dataset.id;
+await getMessages(currentConvId);
+showView("chat");
+renderChat();
+};
+});
+$$("[data-del]",list).forEach(b=>b.onclick=async e=>{
+e.stopPropagation();
+if(!confirm("Usunąć rozmowę?"))return;
+const id=b.dataset.del;
+await idbDelete("conversations",id);
+const msgs=await idbGetAll("messages");
+for(const m of msgs.filter(x=>x.convId===id))await idbDelete("messages",m.id);
+state.conversations=state.conversations.filter(c=>c.id!==id);
+delete state.messages[id];
+if(currentConvId===id){currentConvId=null;renderChat()}
+renderHistory();
+});
+}
+function renderProjects(){
+const list=$("#projectsList");
+if(!state.projects.length){list.innerHTML=`<div class="empty"><h3>Brak projektów</h3><p>Utwórz pierwszy projekt.</p></div>`;return}
+list.innerHTML=state.projects.map(p=>`<div class="list-item" data-id="${p.id}"><div style="flex:1"><div class="title">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.goal||"")} · ${p.stage||"planowanie"}</div></div></div>`).join("");
+$$(".list-item",list).forEach(el=>el.onclick=()=>openProject(el.dataset.id));
+}
+function openProject(id){
+const p=state.projects.find(x=>x.id===id);
+if(!p)return;
+openModal(p.name,`
+<div class="form-group"><label>Nazwa</label><input id="pName" value="${escapeHtml(p.name)}"></div>
+<div class="form-group"><label>Cel</label><textarea id="pGoal" rows="2">${escapeHtml(p.goal||"")}</textarea></div>
+<div class="form-group"><label>Etap</label><select id="pStage"><option value="planowanie">Planowanie</option><option value="realizacja">Realizacja</option><option value="testy">Testy</option><option value="zakonczony">Zakończony</option></select></div>
+<div class="form-group"><label>Notatki</label><textarea id="pNotes" rows="4">${escapeHtml(p.notes||"")}</textarea></div>
+`,`<button class="btn danger btn-sm" id="pDel">Usuń</button><button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Zapisz</button>`);
+$("#pStage").value=p.stage||"planowanie";
+$("#modalCancel").onclick=closeModal;
+$("#pDel").onclick=async()=>{if(!confirm("Usunąć projekt?"))return;await idbDelete("projects",id);state.projects=state.projects.filter(x=>x.id!==id);closeModal();renderProjects()};
+$("#modalSave").onclick=async()=>{
+p.name=$("#pName").value.trim()||p.name;
+p.goal=$("#pGoal").value.trim();
+p.stage=$("#pStage").value;
+p.notes=$("#pNotes").value.trim();
+p.updated=Date.now();
+await idbPut("projects",p);closeModal();renderProjects();toast("Zapisano");
+};
+}
+async function newProject(){
+openModal("Nowy projekt",`
+<div class="form-group"><label>Nazwa</label><input id="pName" placeholder="Nazwa projektu"></div>
+<div class="form-group"><label>Cel</label><textarea id="pGoal" rows="2" placeholder="Jaki jest cel?"></textarea></div>
+`,`<button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Utwórz</button>`);
+$("#modalCancel").onclick=closeModal;
+$("#modalSave").onclick=async()=>{
+const name=$("#pName").value.trim();
+if(!name)return;
+const p={id:uid(),name,goal:$("#pGoal").value.trim(),stage:"planowanie",notes:"",created:Date.now(),updated:Date.now()};
+await idbPut("projects",p);state.projects.unshift(p);closeModal();renderProjects();
+};
+}
+function renderTasks(filter="all"){
+const list=$("#tasksList");
+let tasks=state.tasks.slice();
+const now=new Date();now.setHours(0,0,0,0);
+if(filter==="today")tasks=tasks.filter(t=>{if(!t.deadline)return false;const d=new Date(t.deadline);d.setHours(0,0,0,0);return d.getTime()===now.getTime()});
+if(filter==="blockers")tasks=tasks.filter(t=>t.status==="blocked");
+if(filter==="next")tasks=tasks.filter(t=>t.status==="todo"||t.status==="inprogress").slice(0,5);
+if(!tasks.length){list.innerHTML=`<div class="empty"><h3>Brak zadań</h3></div>`;return}
+list.innerHTML=tasks.map(t=>`<div class="list-item" data-id="${t.id}"><div style="flex:1"><div class="title">${escapeHtml(t.title)}</div><div class="meta">${t.priority||"normal"} · ${t.status||"todo"}${t.deadline?" · "+t.deadline:""}</div></div></div>`).join("");
+$$(".list-item",list).forEach(el=>el.onclick=()=>openTask(el.dataset.id));
+}
+function openTask(id){
+const t=state.tasks.find(x=>x.id===id);
+if(!t)return;
+openModal("Zadanie",`
+<div class="form-group"><label>Tytuł</label><input id="tTitle" value="${escapeHtml(t.title)}"></div>
+<div class="form-group"><label>Status</label><select id="tStatus"><option value="todo">Do zrobienia</option><option value="inprogress">W trakcie</option><option value="blocked">Zablokowane</option><option value="done">Zrobione</option></select></div>
+<div class="form-group"><label>Priorytet</label><select id="tPri"><option value="low">Niski</option><option value="normal">Normalny</option><option value="high">Wysoki</option><option value="urgent">Pilny</option></select></div>
+<div class="form-group"><label>Deadline</label><input type="date" id="tDead" value="${t.deadline||""}"></div>
+<div class="form-group"><label>Opis</label><textarea id="tDesc" rows="3">${escapeHtml(t.desc||"")}</textarea></div>
+`,`<button class="btn danger btn-sm" id="tDel">Usuń</button><button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Zapisz</button>`);
+$("#tStatus").value=t.status||"todo";$("#tPri").value=t.priority||"normal";
+$("#modalCancel").onclick=closeModal;
+$("#tDel").onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDelete("tasks",id);state.tasks=state.tasks.filter(x=>x.id!==id);closeModal();renderTasks()};
+$("#modalSave").onclick=async()=>{
+t.title=$("#tTitle").value.trim()||t.title;
+t.status=$("#tStatus").value;t.priority=$("#tPri").value;t.deadline=$("#tDead").value;t.desc=$("#tDesc").value.trim();
+t.updated=Date.now();await idbPut("tasks",t);closeModal();renderTasks();
+};
+}
+async function newTask(){
+openModal("Nowe zadanie",`
+<div class="form-group"><label>Tytuł</label><input id="tTitle" placeholder="Co trzeba zrobić?"></div>
+<div class="form-group"><label>Priorytet</label><select id="tPri"><option value="normal">Normalny</option><option value="high">Wysoki</option><option value="urgent">Pilny</option><option value="low">Niski</option></select></div>
+`,`<button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Dodaj</button>`);
+$("#modalCancel").onclick=closeModal;
+$("#modalSave").onclick=async()=>{
+const title=$("#tTitle").value.trim();if(!title)return;
+const t={id:uid(),title,status:"todo",priority:$("#tPri").value,deadline:"",desc:"",created:Date.now(),updated:Date.now()};
+await idbPut("tasks",t);state.tasks.unshift(t);closeModal();renderTasks();
+};
+}
+function renderNotes(q=""){
+const list=$("#notesList");
+let notes=state.notes.slice();
+if(q){const qq=q.toLowerCase();notes=notes.filter(n=>(n.title+n.content+(n.tags||[]).join(" ")).toLowerCase().includes(qq))}
+notes.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||b.updated-a.updated);
+if(!notes.length){list.innerHTML=`<div class="empty"><h3>Brak notatek</h3></div>`;return}
+list.innerHTML=notes.map(n=>`<div class="list-item" data-id="${n.id}"><div style="flex:1"><div class="title">${n.pinned?"📌 ":""}${escapeHtml(n.title||"Bez tytułu")}</div><div class="meta">${(n.content||"").slice(0,80)} · ${new Date(n.updated).toLocaleDateString("pl")}</div></div></div>`).join("");
+$$(".list-item",list).forEach(el=>el.onclick=()=>openNote(el.dataset.id));
+}
+function openNote(id){
+const n=state.notes.find(x=>x.id===id);
+if(!n)return;
+openModal(n.title||"Notatka",`
+<div class="form-group"><label>Tytuł</label><input id="nTitle" value="${escapeHtml(n.title||"")}"></div>
+<div class="form-group"><label>Treść</label><textarea id="nContent" rows="10">${escapeHtml(n.content||"")}</textarea></div>
+<div class="form-group"><label>Tagi (po przecinku)</label><input id="nTags" value="${escapeHtml((n.tags||[]).join(", "))}"></div>
+<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="nPin" ${n.pinned?"checked":""}> Przypnij</label>
+<div class="card-meta" style="margin-top:10px">Słów: ${(n.content||"").split(/\s+/).filter(Boolean).length} · Ostatnia edycja: ${new Date(n.updated).toLocaleString("pl")}</div>
+`,`<button class="btn danger btn-sm" id="nDel">Usuń</button><button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Zapisz</button>`);
+$("#modalCancel").onclick=closeModal;
+$("#nDel").onclick=async()=>{if(!confirm("Usunąć notatkę?"))return;await idbDelete("notes",id);state.notes=state.notes.filter(x=>x.id!==id);closeModal();renderNotes()};
+$("#modalSave").onclick=async()=>{
+n.title=$("#nTitle").value.trim();n.content=$("#nContent").value;n.tags=$("#nTags").value.split(",").map(s=>s.trim()).filter(Boolean);n.pinned=$("#nPin").checked;n.updated=Date.now();
+await idbPut("notes",n);closeModal();renderNotes();toast("Zapisano");
+};
+}
+async function newNote(){
+const n={id:uid(),title:"",content:"",tags:[],pinned:false,created:Date.now(),updated:Date.now()};
+await idbPut("notes",n);state.notes.unshift(n);openNote(n.id);
+}
+function renderFiles(){
+const list=$("#filesList");
+if(!state.files.length){list.innerHTML="";return}
+list.innerHTML=state.files.map(f=>`<div class="list-item" data-id="${f.id}"><div style="flex:1"><div class="title">${escapeHtml(f.name)}</div><div class="meta">${(f.size/1024).toFixed(1)} KB · ${f.type}</div></div><button class="btn-sm secondary" data-ctx="${f.id}">Do czatu</button><button class="icon-btn" data-del="${f.id}">🗑</button></div>`).join("");
+$$("[data-del]",list).forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć plik?"))return;await idbDelete("files",b.dataset.del);state.files=state.files.filter(x=>x.id!==b.dataset.del);renderFiles()});
+$$("[data-ctx]",list).forEach(b=>b.onclick=async()=>{
+const f=state.files.find(x=>x.id===b.dataset.ctx);
+if(!f)return;
+if(!currentConvId){const c=await createConversation();currentConvId=c.id}
+await addMessage(currentConvId,"user",`[Plik: ${f.name}]\n\n${f.content.slice(0,8000)}`);
+showView("chat");renderChat();toast("Dodano plik do kontekstu");
+});
+$$(".list-item",list).forEach(el=>el.onclick=e=>{
+if(e.target.closest("button"))return;
+const f=state.files.find(x=>x.id===el.dataset.id);
+if(!f)return;
+openModal(f.name,`<pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;background:var(--panel2);padding:12px;border-radius:12px">${escapeHtml(f.content.slice(0,20000))}</pre>`,`<button class="btn secondary" id="modalCancel">Zamknij</button>`);
+$("#modalCancel").onclick=closeModal;
+});
+}
+async function handleFile(file){
+const allowed=["text/plain","text/markdown","application/json","text/csv",""];
+const ext=file.name.split(".").pop().toLowerCase();
+if(!["txt","md","json","csv"].includes(ext)&&!allowed.includes(file.type)){toast("Nieobsługiwany typ pliku");return}
+if(file.size>2*1024*1024){toast("Plik za duży (max 2 MB)");return}
+const content=await file.text();
+const f={id:uid(),name:file.name,type:ext,size:file.size,content,created:Date.now()};
+await idbPut("files",f);state.files.unshift(f);renderFiles();toast("Zapisano plik");
+}
+function renderMemory(){
+const list=$("#memoryList");
+if(!state.memory.length){list.innerHTML=`<div class="empty"><h3>Pamięć pusta</h3><p>Dodaj fakty o sobie, preferencje i decyzje.</p></div>`;return}
+list.innerHTML=state.memory.map(m=>`<div class="list-item" data-id="${m.id}"><div style="flex:1"><div class="title">${m.pinned?"📌 ":""}${escapeHtml(m.content.slice(0,100))}</div><div class="meta">${m.category||"fakt"} · ${m.enabled===false?"wyłączone":"aktywne"}</div></div></div>`).join("");
+$$(".list-item",list).forEach(el=>el.onclick=()=>openMemory(el.dataset.id));
+}
+function openMemory(id){
+const m=state.memory.find(x=>x.id===id);
+if(!m)return;
+openModal("Fakt pamięci",`
+<div class="form-group"><label>Treść</label><textarea id="mContent" rows="4">${escapeHtml(m.content)}</textarea></div>
+<div class="form-group"><label>Kategoria</label><select id="mCat"><option value="fakt">Fakt</option><option value="preferencja">Preferencja</option><option value="decyzja">Decyzja</option><option value="projekt">Projekt</option><option value="zrodlo">Źródło</option></select></div>
+<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" id="mEn" ${m.enabled!==false?"checked":""}> Używaj w kontekście</label>
+<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="mPin" ${m.pinned?"checked":""}> Przypnij</label>
+`,`<button class="btn danger btn-sm" id="mDel">Usuń</button><button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Zapisz</button>`);
+$("#mCat").value=m.category||"fakt";
+$("#modalCancel").onclick=closeModal;
+$("#mDel").onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDelete("memory",id);state.memory=state.memory.filter(x=>x.id!==id);closeModal();renderMemory()};
+$("#modalSave").onclick=async()=>{
+m.content=$("#mContent").value.trim();m.category=$("#mCat").value;m.enabled=$("#mEn").checked;m.pinned=$("#mPin").checked;m.updated=Date.now();
+await idbPut("memory",m);closeModal();renderMemory();
+};
+}
+async function newMemory(){
+openModal("Nowy fakt",`
+<div class="form-group"><label>Treść</label><textarea id="mContent" rows="3" placeholder="Np. Preferuję odpowiedzi zwięzłe"></textarea></div>
+<div class="form-group"><label>Kategoria</label><select id="mCat"><option value="fakt">Fakt</option><option value="preferencja">Preferencja</option><option value="decyzja">Decyzja</option></select></div>
+`,`<button class="btn secondary" id="modalCancel">Anuluj</button><button class="btn" id="modalSave">Dodaj</button>`);
+$("#modalCancel").onclick=closeModal;
+$("#modalSave").onclick=async()=>{
+const content=$("#mContent").value.trim();if(!content)return;
+const m={id:uid(),content,category:$("#mCat").value,enabled:true,pinned:false,created:Date.now(),updated:Date.now()};
+await idbPut("memory",m);state.memory.unshift(m);closeModal();renderMemory();
+};
+}
+async function doResearch(q){
+const resEl=$("#researchResults");
+resEl.innerHTML=`<div class="empty"><div class="typing"><span></span><span></span><span></span></div></div>`;
+const key=getApiKey("openrouter");
+if(!key){resEl.innerHTML=`<div class="empty"><h3>Brak klucza OpenRouter</h3><p>Research wymaga klucza OpenRouter z obsługą web plugin.</p></div>`;return}
+try{
+const res=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+method:"POST",
+headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","HTTP-Referer":location.origin},
+body:JSON.stringify({
+model:"openai/gpt-4o-mini",
+messages:[{role:"user",content:`Wyszukaj aktualne informacje na temat: ${q}. Podaj 5 najważniejszych wyników z tytułem, URL i krótkim opisem. Format Markdown.`}],
+plugins:[{id:"web",max_results:5}]
+})
+});
+if(!res.ok)throw new Error(await res.text());
+const data=await res.json();
+const text=data.choices?.[0]?.message?.content||"Brak wyników";
+resEl.innerHTML=`<div class="card"><div class="msg-content">${sanitizeMd(text)}</div></div>`;
+const hist=loadLS("research_hist",[]);
+hist.unshift({q,ts:Date.now()});
+saveLS("research_hist",hist.slice(0,30));
+}catch(e){
+resEl.innerHTML=`<div class="empty"><h3>Błąd wyszukiwania</h3><p>${escapeHtml(e.message)}</p><p>Upewnij się, że klucz OpenRouter jest ważny i model obsługuje web plugin.</p></div>`;
+}
+}
+function renderSettings(){
+const box=$("#providersSettings");
+box.innerHTML=ORDER.map(p=>{
+const key=getApiKey(p);
+const pset=getProviderSettings()[p]||{};
+const models=PROVIDERS[p].models;
+return`<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><strong>${PROVIDERS[p].name}</strong><span class="dot ${key?"ok":"off"}"></span></div>
+<div class="form-group"><label>Klucz API</label><div style="display:flex;gap:6px"><input type="password" id="key_${p}" value="${key}" placeholder="Wklej klucz" style="flex:1"><button class="btn-sm secondary" data-toggle="${p}">👁</button></div></div>
+<div class="form-group"><label>Model</label><select id="model_${p}">${models.map(m=>`<option value="${m}" ${m===(pset.model||PROVIDERS[p].defaultModel)?"selected":""}>${m}</option>`).join("")}</select></div>
+${p==="cloudflare"?`<div class="form-group"><label>Account ID</label><input id="cf_acc" value="${loadLS("cf_account","")}" placeholder="Cloudflare Account ID"></div>`:""}
+<div style="display:flex;gap:6px"><button class="btn-sm" data-test="${p}">Test</button><button class="btn-sm secondary" data-save="${p}">Zapisz</button><button class="btn-sm danger" data-clear="${p}">Usuń klucz</button></div>
+</div>`}).join("");
+$$("[data-toggle]",box).forEach(b=>b.onclick=()=>{const i=$("#key_"+b.dataset.toggle);i.type=i.type==="password"?"text":"password"});
+$$("[data-save]",box).forEach(b=>b.onclick=()=>{
+const p=b.dataset.save;
+setApiKey(p,$("#key_"+p).value.trim());
+const ps=getProviderSettings();ps[p]={model:$("#model_"+p).value};saveProviderSettings(ps);
+if(p==="cloudflare")saveLS("cf_account",$("#cf_acc")?.value.trim()||"");
+toast("Zapisano");renderSettings();
+});
+$$("[data-clear]",box).forEach(b=>b.onclick=()=>{setApiKey(b.dataset.clear,"");toast("Usunięto klucz");renderSettings()});
+$$("[data-test]",box).forEach(b=>b.onclick=async()=>{
+const p=b.dataset.test;
+const key=$("#key_"+p).value.trim();
+if(!key){toast("Brak klucza");return}
+b.textContent="…";
+try{
+setApiKey(p,key);
+const ps=getProviderSettings();ps[p]={model:$("#model_"+p).value};saveProviderSettings(ps);
+if(p==="cloudflare")saveLS("cf_account",$("#cf_acc")?.value.trim()||"");
+const res=await callProvider(p,$("#model_"+p).value,[{role:"user",content:"Odpowiedz jednym słowem: OK"}],new AbortController().signal);
+await res.text();
+toast(PROVIDERS[p].name+" — połączenie OK");
+}catch(e){toast("Błąd: "+e.message.slice(0,80))}
+b.textContent="Test";
+});
+const sel=$("#defaultProvider");
+sel.innerHTML=ORDER.map(p=>`<option value="${p}">${PROVIDERS[p].name}</option>`).join("");
+sel.value=loadLS("defaultProvider","openrouter");
+$("#autoMode").checked=loadLS("autoMode",true);
+$("#langSelect").value=loadLS("lang","pl");
+$("#themeSelect").value=loadLS("theme","dark");
+$("#accentColor").value=loadLS("accent","#00e5ff");
+$("#fontSize").value=loadLS("fontSize","15");
+$("#reduceMotion").checked=loadLS("reduceMotion",false);
+}
+function applyTheme(){
+const theme=loadLS("theme","dark");
+document.documentElement.dataset.theme=theme==="light"?"light":"";
+const accent=loadLS("accent","#00e5ff");
+document.documentElement.style.setProperty("--accent",accent);
+document.documentElement.style.setProperty("--fs",loadLS("fontSize","15")+"px");
+if(loadLS("reduceMotion",false))document.documentElement.style.setProperty("--trans","0s");
+}
+async function exportAll(){
+const data={
+version:1,exported:new Date().toISOString(),
+conversations:state.conversations,
+messages:await idbGetAll("messages"),
+projects:state.projects,
+tasks:state.tasks,
+notes:state.notes,
+files:state.files.map(f=>({...f,content:f.content?.slice(0,500000)})),
+memory:state.memory
+};
+const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download=`al2100-backup-${new Date().toISOString().slice(0,10)}.json`;
+a.click();
+URL.revokeObjectURL(a.href);
+toast("Wyeksportowano");
+}
+async function importAll(file){
+try{
+const text=await file.text();
+const data=JSON.parse(text);
+if(!data.conversations)throw new Error("Nieprawidłowy format");
+for(const c of data.conversations||[])await idbPut("conversations",c);
+for(const m of data.messages||[])await idbPut("messages",m);
+for(const p of data.projects||[])await idbPut("projects",p);
+for(const t of data.tasks||[])await idbPut("tasks",t);
+for(const n of data.notes||[])await idbPut("notes",n);
+for(const f of data.files||[])await idbPut("files",f);
+for(const m of data.memory||[])await idbPut("memory",m);
+await loadAll();
+toast("Zaimportowano dane");
+renderHistory();renderProjects();renderTasks();renderNotes();renderFiles();renderMemory();
+}catch(e){toast("Błąd importu: "+e.message)}
+}
+async function clearAllData(){
+if(!confirm("Na pewno usunąć WSZYSTKIE dane (rozmowy, projekty, notatki, pliki, pamięć)?"))return;
+if(!confirm("To działanie jest nieodwracalne. Kontynuować?"))return;
+for(const s of["conversations","messages","projects","tasks","notes","files","memory"])await idbClear(s);
+state.conversations=[];state.messages={};state.projects=[];state.tasks=[];state.notes=[];state.files=[];state.memory=[];
+currentConvId=null;renderChat();toast("Dane wyczyszczone");
+}
+function setupPWA(){
+const iconSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#070b16"/><text x="64" y="82" text-anchor="middle" font-size="52" font-weight="700" fill="#00e5ff" font-family="system-ui">AL</text></svg>`;
+const iconUrl="data:image/svg+xml,"+encodeURIComponent(iconSvg);
+const manifest={name:"AL2100",short_name:"AL2100",description:"Prywatny system operacyjny AI",start_url:".",display:"standalone",background_color:"#070b16",theme_color:"#070b16",icons:[{src:iconUrl,sizes:"128x128",type:"image/svg+xml",purpose:"any maskable"}]};
+const mBlob=new Blob([JSON.stringify(manifest)],{type:"application/json"});
+const mUrl=URL.createObjectURL(mBlob);
+let link=$("link[rel=manifest]");
+if(!link){link=document.createElement("link");link.rel="manifest";document.head.appendChild(link)}
+link.href=mUrl;
+const swCode=`self.addEventListener("install",e=>{self.skipWaiting()});self.addEventListener("activate",e=>{e.waitUntil(clients.claim())});self.addEventListener("fetch",e=>{e.respondWith(caches.open("al2100-v1").then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{if(e.request.method==="GET"&&res.ok&&e.request.url.startsWith(self.location.origin)){c.put(e.request,res.clone())}return res}).catch(()=>c.match(e.request)||new Response("Offline",{status:503}))))})`;
+if("serviceWorker" in navigator){
+const swBlob=new Blob([swCode],{type:"application/javascript"});
+const swUrl=URL.createObjectURL(swBlob);
+navigator.serviceWorker.register(swUrl).catch(()=>{});
+}
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e;$("#installBtn").style.display="inline-flex"});
+$("#installBtn").onclick=async()=>{if(!deferredInstall)return;deferredInstall.prompt();deferredInstall=null;$("#installBtn").style.display="none"};
+}
+function setupCmdPalette(){
+const cmds=[
+{id:"chat",label:"Czat",action:()=>showView("chat")},
+{id:"new",label:"Nowa rozmowa",action:async()=>{const c=await createConversation();currentConvId=c.id;showView("chat");renderChat()}},
+{id:"history",label:"Historia",action:()=>showView("history")},
+{id:"projects",label:"Projekty",action:()=>showView("projects")},
+{id:"tasks",label:"Zadania",action:()=>showView("tasks")},
+{id:"notes",label:"Notatki",action:()=>showView("notes")},
+{id:"files",label:"Pliki",action:()=>showView("files")},
+{id:"research",label:"Research",action:()=>showView("research")},
+{id:"memory",label:"Pamięć",action:()=>showView("memory")},
+{id:"settings",label:"Ustawienia",action:()=>showView("settings")},
+{id:"export",label:"Eksport danych",action:()=>showView("export")}
+];
+let selected=0;
+function openCmd(){
+$("#cmdPalette").classList.add("open");
+$("#cmdInput").value="";
+$("#cmdInput").focus();
+renderCmd("");
+}
+function closeCmd(){$("#cmdPalette").classList.remove("open")}
+function renderCmd(q){
+const qq=q.toLowerCase();
+const filtered=cmds.filter(c=>c.label.toLowerCase().includes(qq));
+selected=0;
+$("#cmdList").innerHTML=filtered.map((c,i)=>`<div class="command-item ${i===0?"selected":""}" data-idx="${i}">${c.label}</div>`).join("");
+$$(".command-item",$("#cmdList")).forEach(el=>el.onclick=()=>{filtered[+el.dataset.idx].action();closeCmd()});
+window._cmdFiltered=filtered;
+}
+$("#cmdInput").oninput=()=>renderCmd($("#cmdInput").value);
+$("#cmdInput").onkeydown=e=>{
+const f=window._cmdFiltered||[];
+if(e.key==="ArrowDown"){e.preventDefault();selected=Math.min(selected+1,f.length-1);$$(".command-item").forEach((el,i)=>el.classList.toggle("selected",i===selected))}
+if(e.key==="ArrowUp"){e.preventDefault();selected=Math.max(selected-1,0);$$(".command-item").forEach((el,i)=>el.classList.toggle("selected",i===selected))}
+if(e.key==="Enter"&&f[selected]){f[selected].action();closeCmd()}
+if(e.key==="Escape")closeCmd();
+};
+document.addEventListener("keydown",e=>{
+if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();openCmd()}
+if(e.key==="Escape"){closeCmd();closeModal()}
+});
+}
+function bindUI(){
+$$(".nav-item,.mobile-nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));
+$("#menuBtn").onclick=()=>$("#sidebar").classList.toggle("open");
+$("#contextBtn").onclick=()=>$("#rightPanel").classList.toggle("open");
+$("#closePanel").onclick=()=>$("#rightPanel").classList.remove("open");
+$("#newChatBtn").onclick=async()=>{const c=await createConversation();currentConvId=c.id;showView("chat");renderChat()};
+$("#sendBtn").onclick=()=>sendMessage($("#chatInput").value);
+$("#stopBtn").onclick=()=>{if(abortController)abortController.abort();$("#stopBtn").style.display="none";$("#sendBtn").style.display="flex"};
+$("#chatInput").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage($("#chatInput").value)}};
+$("#chatInput").oninput=function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,160)+"px"};
+$("#newProjectBtn").onclick=newProject;
+$("#newTaskBtn").onclick=newTask;
+$$("[data-filter]").forEach(b=>b.onclick=()=>{$$("[data-filter]").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderTasks(b.dataset.filter)});
+$("#newNoteBtn").onclick=newNote;
+$("#notesSearch").oninput=()=>renderNotes($("#notesSearch").value);
+$("#fileDrop").onclick=()=>$("#fileInput").click();
+$("#fileInput").onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0])};
+$("#fileDrop").ondragover=e=>{e.preventDefault();$("#fileDrop").classList.add("drag")};
+$("#fileDrop").ondragleave=()=>$("#fileDrop").classList.remove("drag");
+$("#fileDrop").ondrop=e=>{e.preventDefault();$("#fileDrop").classList.remove("drag");if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0])};
+$("#researchBtn").onclick=()=>doResearch($("#researchInput").value.trim());
+$("#researchInput").onkeydown=e=>{if(e.key==="Enter")doResearch($("#researchInput").value.trim())};
+$("#newMemoryBtn").onclick=newMemory;
+$("#exportAllBtn").onclick=exportAll;
+$("#importBtn").onclick=()=>{const f=$("#importFile").files[0];if(f)importAll(f)};
+$("#clearDataBtn").onclick=clearAllData;
+$("#modalClose").onclick=closeModal;
+$("#modal").onclick=e=>{if(e.target===$("#modal"))closeModal()};
+$("#defaultProvider").onchange=e=>saveLS("defaultProvider",e.target.value);
+$("#autoMode").onchange=e=>saveLS("autoMode",e.target.checked);
+$("#langSelect").onchange=e=>saveLS("lang",e.target.value);
+$("#themeSelect").onchange=e=>{saveLS("theme",e.target.value);applyTheme()};
+$("#accentColor").oninput=e=>{saveLS("accent",e.target.value);applyTheme()};
+$("#fontSize").onchange=e=>{saveLS("fontSize",e.target.value);applyTheme()};
+$("#reduceMotion").onchange=e=>{saveLS("reduceMotion",e.target.checked);applyTheme()};
+}
+async function init(){
+await openDB();
+await loadAll();
+applyTheme();
+bindUI();
+setupCmdPalette();
+setupPWA();
+if(state.conversations.length){
+currentConvId=state.conversations[0].id;
+await getMessages(currentConvId);
+}
+renderChat();
+updateChatStatus();
+}
+init().catch(e=>{console.error(e);toast("Błąd inicjalizacji: "+e.message)});
+})();
+</script>
+</body>
+</html>
