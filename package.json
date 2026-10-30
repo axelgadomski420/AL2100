@@ -1,0 +1,20 @@
+{
+  "name": "al2100",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AL2100 — prywatny system operacyjny AI",
+  "scripts": {
+    "build": "node axc.js build AL2100.ax",
+    "check": "node axc.js check AL2100.ax",
+    "lint": "node axc.js lint AL2100.ax",
+    "dev": "node axc.js dev AL2100.ax",
+    "start": "npx wrangler dev --local",
+    "deploy": "npx wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
