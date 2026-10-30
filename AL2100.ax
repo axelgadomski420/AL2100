@@ -5447,7 +5447,7 @@ screen SettingsMobile {
     section Audyt {
       AuditTable(settings.auditLog)
     }
-    section Język {
+    section "Język" {
       Select(["pl", "en"], user.locale, { user.locale = value })
     }
     section Motyw {
