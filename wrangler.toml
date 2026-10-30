@@ -20,11 +20,3 @@ bucket_name = "al2100"
 binding = "AL_KV"
 id = "87d4fd94c6114923b3ef02ae7069115c"
 
-[[queues.producers]]
-binding = "AL_QUEUE"
-queue = "al2100-jobs"
-
-[[queues.consumers]]
-queue = "al2100-jobs"
-max_batch_size = 10
-max_batch_timeout = 5
