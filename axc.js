@@ -94,7 +94,7 @@ class Lexer {
           if (brace === '{') {
             this.advance();
             const braces = this.src.slice(this.pos, this.pos + 6);
-            const m = braces.match(/^([0-9A-Fa-f]+)}/u);
+            const m = braces.match(/^([0-9A-Fa-f]+)\}/u)
             if (m) {
               s += String.fromCodePoint(parseInt(m[1], 16));
               this.pos += m[1].length + 1;
