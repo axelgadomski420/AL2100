@@ -6285,3 +6285,2299 @@ api {
     }
   }
 }
+api {
+  route POST /api/auth/login/github {
+    auth false
+    handler {
+      state = crypto.randomHex(16)
+      cache.set("oauth:" + state, "github", 300)
+      url = oauth.github.startUrl(env.GITHUB_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/github/callback", state)
+      return redirect(url)
+    }
+  }
+
+  route POST /api/auth/login/google {
+    auth false
+    handler {
+      state = crypto.randomHex(16)
+      cache.set("oauth:" + state, "google", 300)
+      url = oauth.google.startUrl(env.GOOGLE_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/google/callback", state)
+      return redirect(url)
+    }
+  }
+
+  route POST /api/auth/refresh {
+    auth true
+    csrf true
+    handler {
+      s = db.queryOne("SELECT * FROM Session WHERE id = ? AND user_id = ? AND revoked_at IS NULL", [session.id, user.id])
+      if s == null {
+        return { "ok": false, "status": 401 }
+      }
+      newCsrf = crypto.randomHex(32)
+      db.update("Session", s.id, map { "csrf_token": newCsrf, "expires_at": date.addDays(nowIso(), 30) })
+      return { "ok": true, "body": map { "csrfToken": newCsrf } }
+    }
+  }
+
+  route GET /api/me {
+    auth true
+    handler {
+      u = db.queryOne("SELECT * FROM User WHERE id = ?", [user.id])
+      return { "ok": true, "body": map {
+        "id": u.id,
+        "name": u.name,
+        "email": u.email,
+        "avatarUrl": u.avatar_url,
+        "provider": u.provider,
+        "locale": u.locale
+      } }
+    }
+  }
+
+  route PATCH /api/me {
+    auth true
+    csrf true
+    handler {
+      patch = map { "updated_at": nowIso() }
+      if body.name != null {
+        patch.name = body.name
+      }
+      if body.locale != null {
+        patch.locale = body.locale
+      }
+      db.update("User", user.id, patch)
+      return { "ok": true, "body": map { "updated": true } }
+    }
+  }
+
+  route GET /api/conversations/:id {
+    auth true
+    handler {
+      c = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if c == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": c }
+    }
+  }
+
+  route DELETE /api/conversations/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Conversation", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route POST /api/conversations/:id/archive {
+    auth true
+    csrf true
+    handler {
+      c = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if c == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.update("Conversation", params.id, map { "archived": true, "updated_at": nowIso() })
+      return { "ok": true, "body": map { "archived": true } }
+    }
+  }
+
+  route POST /api/conversations/:id/unarchive {
+    auth true
+    csrf true
+    handler {
+      c = db.queryOne("SELECT * FROM Conversation WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if c == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.update("Conversation", params.id, map { "archived": false, "updated_at": nowIso() })
+      return { "ok": true, "body": map { "archived": false } }
+    }
+  }
+
+  route GET /api/conversations/search {
+    auth true
+    handler {
+      q = request.query["q"]
+      if q == "" {
+        return { "ok": true, "body": map { "items": [] } }
+      }
+      like = "%" + q + "%"
+      items = db.query("SELECT * FROM Conversation WHERE user_id = ? AND title LIKE ? ORDER BY last_message_at DESC LIMIT 50", [user.id, like])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/messages/:id/copy {
+    auth true
+    handler {
+      m = db.queryOne("SELECT * FROM Message WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if m == null {
+        return { "ok": false, "status": 404 }
+      }
+      audit(user.id, "message.copy", "Message", params.id, "success", map {})
+      return { "ok": true, "body": map { "content": m.content } }
+    }
+  }
+
+  route DELETE /api/messages/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Message", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/files/:id {
+    auth true
+    handler {
+      f = db.queryOne("SELECT * FROM File WHERE id = ? AND user_id = ? AND status != 'deleted'", [params.id, user.id])
+      if f == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": f }
+    }
+  }
+
+  route PATCH /api/files/:id {
+    auth true
+    csrf true
+    handler {
+      f = db.queryOne("SELECT * FROM File WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if f == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.name != null {
+        patch.name = body.name
+      }
+      if body.project_id != null {
+        patch.project_id = body.project_id
+      }
+      if body.conversation_id != null {
+        patch.conversation_id = body.conversation_id
+      }
+      if body.task_id != null {
+        patch.task_id = body.task_id
+      }
+      db.update("File", params.id, patch)
+      return { "ok": true, "body": db.queryOne("SELECT * FROM File WHERE id = ?", [params.id]) }
+    }
+  }
+
+  route POST /api/files/:id/version {
+    auth true
+    csrf true
+    handler {
+      f = db.queryOne("SELECT * FROM File WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if f == null {
+        return { "ok": false, "status": 404 }
+      }
+      upload = request.file
+      if upload == null {
+        return { "ok": false, "status": 400 }
+      }
+      key = user.id + "/" + f.id + "/v" + (f.version + 1) + "/" + upload.name
+      r2.put(env.AL_BUCKET, key, upload.data, map { "httpMetadata": map { "contentType": upload.mime } })
+      db.update("File", f.id, map {
+        "r2_key": key,
+        "version": f.version + 1,
+        "size": upload.size,
+        "mime": upload.mime,
+        "updated_at": nowIso()
+      })
+      return { "ok": true, "body": map { "version": f.version + 1 } }
+    }
+  }
+
+  route DELETE /api/files/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "File", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/tasks/:id {
+    auth true
+    handler {
+      t = db.queryOne("SELECT * FROM Task WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": t }
+    }
+  }
+
+  route DELETE /api/tasks/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Task", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/tasks/today {
+    auth true
+    handler {
+      end = date.endOfDay(nowIso())
+      items = db.query("SELECT * FROM Task WHERE user_id = ? AND status != 'done' AND deadline <= ? ORDER BY deadline ASC", [user.id, end])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/tasks/blockers {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Task WHERE user_id = ? AND status = 'blocked' ORDER BY priority DESC", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/tasks/next {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Task WHERE user_id = ? AND status IN ('todo','doing') ORDER BY priority DESC, deadline ASC LIMIT 5", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/tasks/:id/complete {
+    auth true
+    csrf true
+    handler {
+      t = db.queryOne("SELECT * FROM Task WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.update("Task", t.id, map { "status": "done", "updated_at": nowIso() })
+      audit(user.id, "task.complete", "Task", t.id, "success", map {})
+      return { "ok": true, "body": map { "done": true } }
+    }
+  }
+
+  route POST /api/tasks/:id/block {
+    auth true
+    csrf true
+    handler {
+      t = db.queryOne("SELECT * FROM Task WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      db.update("Task", t.id, map { "status": "blocked", "updated_at": nowIso() })
+      return { "ok": true, "body": map { "blocked": true } }
+    }
+  }
+
+  route GET /api/projects/:id {
+    auth true
+    handler {
+      p = db.queryOne("SELECT * FROM Project WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if p == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": p }
+    }
+  }
+
+  route DELETE /api/projects/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Project", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/projects/:id/timeline {
+    auth true
+    handler {
+      p = db.queryOne("SELECT * FROM Project WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if p == null {
+        return { "ok": false, "status": 404 }
+      }
+      tasks = db.query("SELECT * FROM Task WHERE user_id = ? AND project_id = ? ORDER BY deadline ASC NULLS LAST", [user.id, params.id])
+      return { "ok": true, "body": map { "items": tasks } }
+    }
+  }
+
+  route POST /api/memory {
+    auth true
+    csrf true
+    handler {
+      id = newId("mem")
+      db.insert("MemoryEntry", map {
+        "id": id,
+        "user_id": user.id,
+        "scope": body.scope,
+        "scope_id": body.scope_id,
+        "kind": body.kind,
+        "content": body.content,
+        "pinned": false,
+        "disabled": false,
+        "importance": body.importance,
+        "created_at": nowIso(),
+        "updated_at": nowIso(),
+        "approval_state": "user_confirmed"
+      })
+      audit(user.id, "memory.create", "MemoryEntry", id, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM MemoryEntry WHERE id = ?", [id]) }
+    }
+  }
+
+  route DELETE /api/memory/:id {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "MemoryEntry", params.id, map { "id": params.id })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/memory/search {
+    auth true
+    handler {
+      q = request.query["q"]
+      if q == "" {
+        return { "ok": true, "body": map { "items": [] } }
+      }
+      like = "%" + q + "%"
+      items = db.query("SELECT * FROM MemoryEntry WHERE user_id = ? AND content LIKE ? ORDER BY importance DESC LIMIT 100", [user.id, like])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/memory/promote {
+    auth true
+    csrf true
+    requiresApproval "memory_promote"
+    handler {
+      id = requestApproval("memory_promote", "MemoryEntry", body.entry_id, map { "entry_id": body.entry_id, "target_scope": body.target_scope })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/providers/:provider/models {
+    auth true
+    handler {
+      provider = params.provider
+      if !ai.isKnownProvider(provider) {
+        return { "ok": false, "status": 400 }
+      }
+      models = ai.listModels(provider)
+      return { "ok": true, "body": map { "items": models } }
+    }
+  }
+
+  route DELETE /api/providers/:provider {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "ProviderKey", params.provider, map { "provider": params.provider })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route GET /api/usage {
+    auth true
+    handler {
+      since = date.subDays(nowIso(), 30)
+      rows = db.query("SELECT provider, SUM(tokens) as tokens FROM Message WHERE user_id = ? AND created_at >= ? AND role = 'assistant' GROUP BY provider", [user.id, since])
+      total = 0
+      for r in rows {
+        total = total + r.tokens
+      }
+      return { "ok": true, "body": map { "byProvider": rows, "total": total } }
+    }
+  }
+
+  route GET /api/usage/daily {
+    auth true
+    handler {
+      since = date.subDays(nowIso(), 30)
+      rows = db.query("SELECT DATE(created_at) as day, SUM(tokens) as tokens FROM Message WHERE user_id = ? AND created_at >= ? GROUP BY day ORDER BY day ASC", [user.id, since])
+      return { "ok": true, "body": map { "items": rows } }
+    }
+  }
+
+  route POST /api/github/oauth/start {
+    auth true
+    csrf true
+    handler {
+      state = crypto.randomHex(16)
+      cache.set("gh_workspace:" + state, user.id, 300)
+      url = oauth.github.startUrl(env.GITHUB_OAUTH_CLIENT_ID, env.PUBLIC_URL + "/auth/github/workspace/callback", state)
+      return { "ok": true, "body": map { "url": url, "state": state } }
+    }
+  }
+
+  route GET /auth/github/workspace/callback {
+    auth false
+    handler {
+      code = request.query["code"]
+      state = request.query["state"]
+      uid = cache.get("gh_workspace:" + state)
+      if code == "" || uid == null {
+        return redirect("/")
+      }
+      token = oauth.github.exchange(env.GITHUB_OAUTH_CLIENT_ID, env.GITHUB_OAUTH_CLIENT_SECRET, code, env.PUBLIC_URL + "/auth/github/workspace/callback")
+      cache.set("gh_token:" + uid, token.access_token, 3600)
+      gh.listRepos(env, uid, token.access_token)
+      audit(uid, "github.workspace.connect", "GitHubRepo", "", "success", map {})
+      return redirect("/#GitHub")
+    }
+  }
+
+  route GET /api/github/repos/:owner/:repo/tree {
+    auth true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      tree = gh.tree(env, token, params.owner + "/" + params.repo)
+      return { "ok": true, "body": map { "tree": tree } }
+    }
+  }
+
+  route GET /api/github/repos/:owner/:repo/file {
+    auth true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      path = request.query["path"]
+      content = gh.file(env, token, params.owner + "/" + params.repo, path)
+      return { "ok": true, "body": map { "path": path, "content": content } }
+    }
+  }
+
+  route POST /api/github/repos/:owner/:repo/search {
+    auth true
+    csrf true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      q = body.query
+      items = gh.searchCode(env, token, params.owner + "/" + params.repo, q)
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/github/repos/:owner/:repo/prs {
+    auth true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      items = gh.listPRs(env, token, params.owner + "/" + params.repo)
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route GET /api/github/repos/:owner/:repo/prs/:number {
+    auth true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      pr = gh.getPR(env, token, params.owner + "/" + params.repo, params.number)
+      diff = gh.getPRDiff(env, token, params.owner + "/" + params.repo, params.number)
+      return { "ok": true, "body": map { "pr": pr, "diff": diff } }
+    }
+  }
+
+  route POST /api/github/repos/:owner/:repo/prs/:number/comment {
+    auth true
+    csrf true
+    handler {
+      token = cache.get("gh_token:" + user.id)
+      if token == null {
+        return { "ok": false, "status": 401 }
+      }
+      gh.commentPR(env, token, params.owner + "/" + params.repo, params.number, body.comment)
+      return { "ok": true, "body": map { "commented": true } }
+    }
+  }
+
+  route GET /api/deploy/targets {
+    auth true
+    handler {
+      items = db.query("SELECT * FROM Deployment WHERE user_id = ? ORDER BY started_at DESC LIMIT 50", [user.id])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/deploy/request {
+    auth true
+    csrf true
+    requiresApproval "deploy"
+    handler {
+      target = body.target
+      environment = body.environment
+      if environment == "production" {
+        id = requestApproval("deploy", "Deployment", target, map { "target": target, "environment": environment })
+        return { "ok": true, "body": map { "approvalId": id } }
+      }
+      did = newId("dpl")
+      db.insert("Deployment", map {
+        "id": did,
+        "user_id": user.id,
+        "target": target,
+        "environment": "preview",
+        "status": "running",
+        "started_at": nowIso(),
+        "logs": []
+      })
+      queue.push(env.AL_QUEUE, map { "kind": "deploy.run", "payload": map { "deployment_id": did, "user_id": user.id, "target": target, "environment": "preview" } })
+      return { "ok": true, "body": map { "deploymentId": did } }
+    }
+  }
+
+  route GET /api/deploy/:id {
+    auth true
+    handler {
+      d = db.queryOne("SELECT * FROM Deployment WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if d == null {
+        return { "ok": false, "status": 404 }
+      }
+      return { "ok": true, "body": d }
+    }
+  }
+
+  route POST /api/deploy/:id/rollback {
+    auth true
+    csrf true
+    requiresApproval "deploy"
+    handler {
+      id = requestApproval("deploy", "Deployment", params.id, map { "target": params.id, "action": "rollback" })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route POST /api/appcreator/templates {
+    auth false
+    handler {
+      templates = [
+        map { "id": "fiszki", "name": "Fiszki", "description": "Nauka języków i powtórki" },
+        map { "id": "zdrowie", "name": "Tracker zdrowia", "description": "Nawadnianie, sen, aktywność" },
+        map { "id": "zadania", "name": "Menedżer zadań", "description": "Zadania i projekty" },
+        map { "id": "notatnik", "name": "Notatnik AI", "description": "Notatki z asystentem" },
+        map { "id": "muzyka", "name": "Kreator muzyki", "description": "Suno, ElevenLabs, aranżacje" },
+        map { "id": "panel", "name": "Panel projektu", "description": "Dashboard projektu" },
+        map { "id": "katalog", "name": "Katalog produktów", "description": "Produkty i wyszukiwanie" },
+        map { "id": "artysta", "name": "Strona artysty", "description": "Portfolio i kontakt" },
+        map { "id": "marketing", "name": "Generator treści", "description": "Teksty marketingowe" },
+        map { "id": "research", "name": "Aplikacja researchowa", "description": "Wyszukiwanie z cytowaniami" }
+      ]
+      return { "ok": true, "body": map { "items": templates } }
+    }
+  }
+
+  route POST /api/appcreator/generate/plan {
+    auth true
+    csrf true
+    rateLimit "chat:send"
+    handler {
+      provider = logic.pickProvider(false, body.description).provider
+      model = ai.defaultModel(provider)
+      prompt = logic.appCreatorPlanPrompt(body.description, body.template)
+      plan = ai.generate(provider, model, prompt)
+      return { "ok": true, "body": map { "plan": plan } }
+    }
+  }
+
+  route POST /api/appcreator/generate/code {
+    auth true
+    csrf true
+    rateLimit "chat:send"
+    handler {
+      provider = logic.pickProvider(false, body.plan).provider
+      model = ai.defaultModel(provider)
+      prompt = logic.appCreatorCodePrompt(body.plan, body.template)
+      code = ai.generate(provider, model, prompt)
+      diff = diff.unified("", code)
+      return { "ok": true, "body": map { "code": code, "diff": diff } }
+    }
+  }
+
+  route POST /api/appcreator/generate/readme {
+    auth true
+    csrf true
+    handler {
+      provider = logic.pickProvider(false, body.plan).provider
+      prompt = "Wygeneruj README.md dla aplikacji AXCode na podstawie planu: " + body.plan
+      readme = ai.generate(provider, ai.defaultModel(provider), prompt)
+      return { "ok": true, "body": map { "readme": readme } }
+    }
+  }
+
+  route POST /api/appcreator/generate/wrangler {
+    auth true
+    csrf true
+    handler {
+      toml = "name = \"" + body.name + "\"\nmain = \"dist/worker.js\"\ncompatibility_date = \"2026-10-30\"\n\n[assets]\ndirectory = \"dist/assets\"\n\n[[d1_databases]]\nbinding = \"AL_DB\"\ndatabase_name = \"" + body.name + "-db\"\ndatabase_id = \"\"\n\n[[r2_buckets]]\nbinding = \"AL_BUCKET\"\nbucket_name = \"" + body.name + "-bucket\"\n"
+      return { "ok": true, "body": map { "toml": toml } }
+    }
+  }
+
+  route POST /api/appcreator/generate/ci {
+    auth true
+    csrf true
+    handler {
+      yml = "name: Deploy\non:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm install\n      - run: npm run build\n      - uses: cloudflare/wrangler-action@v3\n        with:\n          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}\n"
+      return { "ok": true, "body": map { "yml": yml } }
+    }
+  }
+
+  route POST /api/appcreator/create/repo {
+    auth true
+    csrf true
+    requiresApproval "push"
+    handler {
+      id = requestApproval("push", "AppCreator", body.name, map { "name": body.name, "files": body.files, "private": body.private })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route POST /api/music/releases/:id/cover {
+    auth true
+    csrf true
+    handler {
+      r = db.queryOne("SELECT * FROM MusicRelease WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if r == null {
+        return { "ok": false, "status": 404 }
+      }
+      upload = request.file
+      if upload == null {
+        return { "ok": false, "status": 400 }
+      }
+      fid = newId("fil")
+      key = user.id + "/covers/" + fid + "/" + upload.name
+      r2.put(env.AL_BUCKET, key, upload.data, map { "httpMetadata": map { "contentType": upload.mime } })
+      db.insert("File", map {
+        "id": fid,
+        "user_id": user.id,
+        "name": upload.name,
+        "mime": upload.mime,
+        "size": upload.size,
+        "r2_key": key,
+        "version": 1,
+        "status": "ready",
+        "extracted_text": "",
+        "created_at": nowIso(),
+        "updated_at": nowIso()
+      })
+      db.update("MusicRelease", r.id, map { "cover_file_id": fid, "updated_at": nowIso() })
+      return { "ok": true, "body": map { "fileId": fid } }
+    }
+  }
+
+  route POST /api/music/tracks/:id/analyze {
+    auth true
+    csrf true
+    handler {
+      t = db.queryOne("SELECT * FROM MusicTrack WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      upload = request.file
+      if upload == null {
+        return { "ok": false, "status": 400 }
+      }
+      analysis = audio.analyze(upload.data)
+      db.update("MusicTrack", t.id, map {
+        "bpm": analysis.bpm,
+        "key": analysis.key,
+        "energy": analysis.energy,
+        "duration_seconds": analysis.duration,
+        "updated_at": nowIso()
+      })
+      return { "ok": true, "body": analysis }
+    }
+  }
+
+  route POST /api/music/tracks/:id/prompt {
+    auth true
+    csrf true
+    handler {
+      t = db.queryOne("SELECT * FROM MusicTrack WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if t == null {
+        return { "ok": false, "status": 404 }
+      }
+      provider = logic.pickProvider(false, "music").provider
+      prompt = "Wygeneruj prompt Suno i ElevenLabs dla utworu o tytule " + t.title + " w gatunku zgodnym z release. Uwzględnij BPM " + t.bpm + ", tonację " + t.key + ", energię " + t.energy + "."
+      result = ai.generate(provider, ai.defaultModel(provider), prompt)
+      db.update("MusicTrack", t.id, map { "suno_prompt": result, "elevenlabs_prompt": result, "updated_at": nowIso() })
+      return { "ok": true, "body": map { "prompt": result } }
+    }
+  }
+
+  route GET /api/audit {
+    auth true
+    handler {
+      since = request.query["since"]
+      if since == "" {
+        since = date.subDays(nowIso(), 30)
+      }
+      items = db.query("SELECT * FROM AuditLog WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 500", [user.id, since])
+      return { "ok": true, "body": map { "items": items } }
+    }
+  }
+
+  route POST /api/sessions/revoke-all {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Session", "all", map {})
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route POST /api/diagnostics/ping {
+    auth false
+    handler {
+      return { "ok": true, "body": map { "pong": nowIso() } }
+    }
+  }
+
+  route GET /api/diagnostics/runtime {
+    auth true
+    handler {
+      return { "ok": true, "body": map {
+        "runtime": env.RUNTIME || "cloudflare-worker",
+        "compatibilityDate": "2026-10-30",
+        "region": request.cf.colo,
+        "version": "1.0.0"
+      } }
+    }
+  }
+
+  route GET /api/diagnostics/secrets {
+    auth true
+    handler {
+      present = map {
+        "AL_MASTER_ENCRYPTION_KEY": env.AL_MASTER_ENCRYPTION_KEY != "",
+        "GITHUB_OAUTH_CLIENT_ID": env.GITHUB_OAUTH_CLIENT_ID != "",
+        "GITHUB_OAUTH_CLIENT_SECRET": env.GITHUB_OAUTH_CLIENT_SECRET != "",
+        "GOOGLE_OAUTH_CLIENT_ID": env.GOOGLE_OAUTH_CLIENT_ID != "",
+        "GOOGLE_OAUTH_CLIENT_SECRET": env.GOOGLE_OAUTH_CLIENT_SECRET != "",
+        "PUBLIC_URL": env.PUBLIC_URL != ""
+      }
+      return { "ok": true, "body": map { "present": present } }
+    }
+  }
+}
+
+gh {
+  function listRepos(env, userId, token) {
+    res = http.get("https://api.github.com/user/repos?per_page=100", map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    items = []
+    for r in res.items {
+      items = items + [map {
+        "repo_full_name": r.full_name,
+        "default_branch": r.default_branch,
+        "private": r.private
+      }]
+      existing = db.queryOne("SELECT * FROM GitHubRepo WHERE user_id = ? AND repo_full_name = ?", [userId, r.full_name])
+      if existing == null {
+        db.insert("GitHubRepo", map {
+          "id": newId("ghr"),
+          "user_id": userId,
+          "repo_full_name": r.full_name,
+          "default_branch": r.default_branch,
+          "connected_at": nowIso(),
+          "last_sync_at": null,
+          "scope": [],
+          "status": "active"
+        })
+      }
+    }
+    return items
+  }
+
+  function tree(env, token, repoFullName) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/git/trees/HEAD?recursive=1"
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    return res.tree
+  }
+
+  function file(env, token, repoFullName, path) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/contents/" + path
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    return crypto.base64Decode(res.content)
+  }
+
+  function searchCode(env, token, repoFullName, q) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/search/code?q=" + encodeURIComponent(q + " repo:" + repoFullName)
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    return res.items
+  }
+
+  function listPRs(env, token, repoFullName) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/pulls?state=all&per_page=50"
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    return res
+  }
+
+  function getPR(env, token, repoFullName, number) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/pulls/" + number
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    return res
+  }
+
+  function getPRDiff(env, token, repoFullName, number) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/pulls/" + number
+    res = http.get(url, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.v3.diff" })
+    return res.body
+  }
+
+  function commentPR(env, token, repoFullName, number, comment) {
+    parts = repoFullName.split("/")
+    url = "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/issues/" + number + "/comments"
+    http.post(url, map { "body": comment }, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+  }
+
+  function indexRepo(env, userId, repoFullName) {
+    token = cache.get("gh_token:" + userId)
+    if token == null {
+      return
+    }
+    t = tree(env, token, repoFullName)
+    for entry in t {
+      if entry.type == "blob" && entry.size < 200000 {
+        content = file(env, token, repoFullName, entry.path)
+        cache.set("gh_file:" + repoFullName + ":" + entry.path, content, 3600)
+      }
+    }
+  }
+
+  function syncRepo(env, userId, repoFullName) {
+    token = cache.get("gh_token:" + userId)
+    if token == null {
+      return
+    }
+    existing = db.queryOne("SELECT * FROM GitHubRepo WHERE user_id = ? AND repo_full_name = ?", [userId, repoFullName])
+    if existing == null {
+      return
+    }
+    db.update("GitHubRepo", existing.id, map { "last_sync_at": nowIso() })
+    indexRepo(env, userId, repoFullName)
+  }
+
+  function createBranchAndPR(env, userId, repoFullName, branchName, diffContent, title) {
+    token = cache.get("gh_token:" + userId)
+    if token == null {
+      return
+    }
+    parts = repoFullName.split("/")
+    ref = http.get("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/git/ref/heads/main", map { "Authorization": "Bearer " + token })
+    sha = ref.object.sha
+    http.post("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/git/refs", map {
+      "ref": "refs/heads/" + branchName,
+      "sha": sha
+    }, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    files = diff.files(diffContent)
+    for f in files {
+      content = crypto.base64Encode(f.content)
+      existing = http.get("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/contents/" + f.path, map { "Authorization": "Bearer " + token })
+      if existing.sha != null {
+        http.put("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/contents/" + f.path, map {
+          "message": "AL2100 update " + f.path,
+          "content": content,
+          "sha": existing.sha,
+          "branch": branchName
+        }, map { "Authorization": "Bearer " + token })
+      } else {
+        http.put("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/contents/" + f.path, map {
+          "message": "AL2100 create " + f.path,
+          "content": content,
+          "branch": branchName
+        }, map { "Authorization": "Bearer " + token })
+      }
+    }
+    pr = http.post("https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/pulls", map {
+      "title": title,
+      "head": branchName,
+      "base": "main",
+      "draft": true
+    }, map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+    audit(userId, "github.pr.create", "GitHubRepo", repoFullName, "success", map { "pr": pr.number })
+    return pr
+  }
+
+  function applyAppCreatorDiff(env, userId, diffContent) {
+    files = diff.files(diffContent)
+    for f in files {
+      cache.set("appcreator:" + userId + ":" + f.path, f.content, 3600)
+    }
+    audit(userId, "appcreator.apply", "AppCreator", "", "success", map { "files": files.length })
+  }
+}
+
+cloudflare {
+  function build() {
+    return map { "ok": true, "artifacts": ["worker.js", "assets"] }
+  }
+
+  function migrate(d1) {
+    migrations = ["v1", "v2", "v3", "v4"]
+    applied = []
+    for m in migrations {
+      d1.exec("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [m, nowIso()])
+      applied = applied + [m]
+    }
+    return applied
+  }
+
+  function publish(target, environment) {
+    return map { "url": "https://" + target + "." + environment + ".al2100.workers.dev", "id": newId("dep") }
+  }
+}
+
+diff {
+  function unified(oldText, newText) {
+    oldLines = oldText.split("\n")
+    newLines = newText.split("\n")
+    out = []
+    max = oldLines.length > newLines.length ? oldLines.length : newLines.length
+    for i in range(0, max) {
+      o = i < oldLines.length ? oldLines[i] : ""
+      n = i < newLines.length ? newLines[i] : ""
+      if o != n {
+        if o != "" {
+          out = out + ["-" + o]
+        }
+        if n != "" {
+          out = out + ["+" + n]
+        }
+      } else {
+        out = out + [" " + o]
+      }
+    }
+    return out.join("\n")
+  }
+
+  function files(diffContent) {
+    files = []
+    current = null
+    for line in diffContent.split("\n") {
+      if line.startsWith("+++ b/") {
+        current = map { "path": line.substring(6), "content": "" }
+        files = files + [current]
+      } else if line.startsWith("+") && current != null {
+        current.content = current.content + line.substring(1) + "\n"
+      }
+    }
+    return files
+  }
+}
+
+search {
+  function run(query, opts) {
+    provider = opts.provider || "brave"
+    if provider == "brave" {
+      key = cache.get("search_key:brave:" + user.id)
+      if key == null {
+        row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = 'brave'", [user.id])
+        if row != null {
+          key = decryptSecret(row.encrypted_key)
+        }
+      }
+      if key == null {
+        return map { "results": [] }
+      }
+      res = http.get("https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(query) + "&count=" + opts.maxResults, map { "X-Subscription-Token": key })
+      return map { "results": res.web.results }
+    }
+    if provider == "serper" {
+      row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = 'serper'", [user.id])
+      if row == null {
+        return map { "results": [] }
+      }
+      key = decryptSecret(row.encrypted_key)
+      res = http.post("https://google.serper.dev/search", map { "q": query, "num": opts.maxResults }, map { "X-API-KEY": key })
+      return map { "results": res.organic }
+    }
+    if provider == "tavily" {
+      row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = 'tavily'", [user.id])
+      if row == null {
+        return map { "results": [] }
+      }
+      key = decryptSecret(row.encrypted_key)
+      res = http.post("https://api.tavily.com/search", map { "query": query, "max_results": opts.maxResults }, map { "Authorization": "Bearer " + key })
+      return map { "results": res.results }
+    }
+    return map { "results": [] }
+  }
+}
+
+ai {
+  function defaultModel(provider) {
+    if provider == "gemini" {
+      return "gemini-2.5-flash"
+    }
+    if provider == "groq" {
+      return "llama-3.3-70b-versatile"
+    }
+    if provider == "mistral" {
+      return "mistral-large-latest"
+    }
+    if provider == "openrouter" {
+      return "openrouter/auto"
+    }
+    if provider == "cloudflare" {
+      return "@cf/meta/llama-3.1-70b-instruct"
+    }
+    if provider == "anthropic" {
+      return "claude-sonnet-4-5"
+    }
+    if provider == "openai" {
+      return "gpt-5-mini"
+    }
+    return ""
+  }
+
+  function isKnownProvider(provider) {
+    return provider == "gemini" || provider == "groq" || provider == "mistral" || provider == "openrouter" || provider == "cloudflare" || provider == "anthropic" || provider == "openai"
+  }
+
+  function listModels(provider) {
+    if provider == "gemini" {
+      return ["gemini-2.5-pro", "gemini-2.5-flash"]
+    }
+    if provider == "groq" {
+      return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+    }
+    if provider == "mistral" {
+      return ["mistral-large-latest", "mistral-small-latest", "codestral-latest"]
+    }
+    if provider == "openrouter" {
+      return ["openrouter/auto"]
+    }
+    if provider == "cloudflare" {
+      return ["@cf/meta/llama-3.1-70b-instruct", "@cf/meta/llama-3.1-8b-instruct"]
+    }
+    if provider == "anthropic" {
+      return ["claude-sonnet-4-5", "claude-haiku-4-5"]
+    }
+    if provider == "openai" {
+      return ["gpt-5", "gpt-5-mini"]
+    }
+    return []
+  }
+
+  function testKey(provider, key) {
+    try {
+      if provider == "gemini" {
+        res = http.get("https://generativelanguage.googleapis.com/v1beta/models?key=" + key)
+        return res.models != null
+      }
+      if provider == "groq" {
+        res = http.get("https://api.groq.com/openai/v1/models", map { "Authorization": "Bearer " + key })
+        return res.data != null
+      }
+      if provider == "mistral" {
+        res = http.get("https://api.mistral.ai/v1/models", map { "Authorization": "Bearer " + key })
+        return res.data != null
+      }
+      if provider == "openrouter" {
+        res = http.get("https://openrouter.ai/api/v1/models", map { "Authorization": "Bearer " + key })
+        return res.data != null
+      }
+      if provider == "anthropic" {
+        res = http.get("https://api.anthropic.com/v1/models", map { "x-api-key": key, "anthropic-version": "2023-06-01" })
+        return res.data != null
+      }
+      if provider == "openai" {
+        res = http.get("https://api.openai.com/v1/models", map { "Authorization": "Bearer " + key })
+        return res.data != null
+      }
+      return false
+    } catch err {
+      return false
+    }
+  }
+
+  function generate(provider, model, prompt) {
+    keyRow = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND status = 'active'", [user.id, provider])
+    if keyRow == null {
+      throw "no_provider_key"
+    }
+    key = decryptSecret(keyRow.encrypted_key)
+    if provider == "gemini" {
+      res = http.post("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + key, map {
+        "contents": [map { "parts": [map { "text": prompt }] }]
+      })
+      return res.candidates[0].content.parts[0].text
+    }
+    if provider == "groq" || provider == "mistral" || provider == "openrouter" || provider == "openai" {
+      baseUrl = "https://api.groq.com/openai/v1"
+      if provider == "mistral" {
+        baseUrl = "https://api.mistral.ai/v1"
+      }
+      if provider == "openrouter" {
+        baseUrl = "https://openrouter.ai/api/v1"
+      }
+      if provider == "openai" {
+        baseUrl = "https://api.openai.com/v1"
+      }
+      res = http.post(baseUrl + "/chat/completions", map {
+        "model": model,
+        "messages": [map { "role": "user", "content": prompt }]
+      }, map { "Authorization": "Bearer " + key, "Content-Type": "application/json" })
+      return res.choices[0].message.content
+    }
+    if provider == "anthropic" {
+      res = http.post("https://api.anthropic.com/v1/messages", map {
+        "model": model,
+        "max_tokens": 8192,
+        "messages": [map { "role": "user", "content": prompt }]
+      }, map { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" })
+      return res.content[0].text
+    }
+    if provider == "cloudflare" {
+      row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = 'cloudflare'", [user.id])
+      accountId = env.CF_ACCOUNT_ID
+      res = http.post("https://api.cloudflare.com/client/v4/accounts/" + accountId + "/ai/run/" + model, map {
+        "messages": [map { "role": "user", "content": prompt }]
+      }, map { "Authorization": "Bearer " + key })
+      return res.result.response
+    }
+    throw "unknown_provider"
+  }
+
+  function generateWithKey(provider, model, key, context) {
+    if provider == "gemini" {
+      res = http.post("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + key, map {
+        "contents": context.messages
+      })
+      return map {
+        "content": res.candidates[0].content.parts[0].text,
+        "tokens": res.usageMetadata.totalTokenCount
+      }
+    }
+    if provider == "groq" || provider == "mistral" || provider == "openrouter" || provider == "openai" {
+      baseUrl = "https://api.groq.com/openai/v1"
+      if provider == "mistral" {
+        baseUrl = "https://api.mistral.ai/v1"
+      }
+      if provider == "openrouter" {
+        baseUrl = "https://openrouter.ai/api/v1"
+      }
+      if provider == "openai" {
+        baseUrl = "https://api.openai.com/v1"
+      }
+      res = http.post(baseUrl + "/chat/completions", map {
+        "model": model,
+        "messages": context.messages
+      }, map { "Authorization": "Bearer " + key, "Content-Type": "application/json" })
+      return map {
+        "content": res.choices[0].message.content,
+        "tokens": res.usage.total_tokens
+      }
+    }
+    if provider == "anthropic" {
+      res = http.post("https://api.anthropic.com/v1/messages", map {
+        "model": model,
+        "max_tokens": 8192,
+        "messages": context.messages
+      }, map { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" })
+      return map {
+        "content": res.content[0].text,
+        "tokens": res.usage.input_tokens + res.usage.output_tokens
+      }
+    }
+    throw "unknown_provider"
+  }
+
+  function stream(provider, model, context, attachments) {
+    keyRow = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND status = 'active'", [user.id, provider])
+    if keyRow == null {
+      throw "no_provider_key"
+    }
+    key = decryptSecret(keyRow.encrypted_key)
+    if provider == "gemini" {
+      return http.stream("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?key=" + key, map {
+        "contents": context.messages
+      })
+    }
+    if provider == "groq" || provider == "mistral" || provider == "openrouter" || provider == "openai" {
+      baseUrl = "https://api.groq.com/openai/v1"
+      if provider == "mistral" {
+        baseUrl = "https://api.mistral.ai/v1"
+      }
+      if provider == "openrouter" {
+        baseUrl = "https://openrouter.ai/api/v1"
+      }
+      if provider == "openai" {
+        baseUrl = "https://api.openai.com/v1"
+      }
+      return http.stream(baseUrl + "/chat/completions", map {
+        "model": model,
+        "messages": context.messages,
+        "stream": true
+      }, map { "Authorization": "Bearer " + key, "Content-Type": "application/json" })
+    }
+    if provider == "anthropic" {
+      return http.stream("https://api.anthropic.com/v1/messages", map {
+        "model": model,
+        "max_tokens": 8192,
+        "messages": context.messages,
+        "stream": true
+      }, map { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" })
+    }
+    throw "unknown_provider"
+  }
+
+  function stop(conversationId) {
+    cache.set("abort:" + conversationId, true, 60)
+  }
+
+  function abortRequested(runId) {
+    return cache.get("abort_agent:" + runId) == true
+  }
+
+  function abortAgent(runId) {
+    cache.set("abort_agent:" + runId, true, 60)
+  }
+
+  function classifyIntent(text) {
+    t = text.toLowerCase()
+    if t.includes("deploy") || t.includes("wdroż") {
+      return "deploy"
+    }
+    if t.includes("research") || t.includes("znajdź") || t.includes("wyszukaj") || t.includes("sprawdź w sieci") {
+      return "research"
+    }
+    if t.includes("kod") || t.includes("code") || t.includes("napisz funkcję") || t.includes("napisz aplikację") {
+      return "code"
+    }
+    if t.includes("pamięć") || t.includes("pamiętaj") || t.includes("zapamiętaj") {
+      return "memory"
+    }
+    if t.includes("app creator") || t.includes("stwórz aplikację") {
+      return "app"
+    }
+    if t.includes("muzyka") || t.includes("suno") || t.includes("elevenlabs") || t.includes("beat") {
+      return "music"
+    }
+    if t.includes("?") && t.length < 60 {
+      return "question"
+    }
+    return "chat"
+  }
+
+  function extractMemory(text) {
+    items = []
+    sentences = text.split(". ")
+    for s in sentences {
+      if s.length < 10 || s.length > 240 {
+        continue
+      }
+      low = s.toLowerCase()
+      kind = "fact"
+      if low.includes("decyzja") || low.includes("postanawiam") || low.includes("wybieram") {
+        kind = "decision"
+      } else if low.includes("odrzucam") || low.includes("rezygnuję") || low.includes("nie chcę") {
+        kind = "rejection"
+      } else if low.includes("pytanie") || low.includes("?") {
+        kind = "question"
+      } else if low.includes("blokuje") || low.includes("problem") {
+        kind = "blocker"
+      }
+      items = items + [map {
+        "kind": kind,
+        "scope": "global",
+        "scope_id": null,
+        "content": s,
+        "importance": 5
+      }]
+    }
+    return map { "items": items }
+  }
+
+  function summarize(messages) {
+    if messages.length == 0 {
+      return ""
+    }
+    provider = logic.pickProvider(false, "summary").provider
+    keyRow = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ?", [user.id, provider])
+    if keyRow == null {
+      return ""
+    }
+    text = ""
+    for m in messages {
+      text = text + m.role + ": " + m.content + "\n"
+    }
+    prompt = "Streść poniższą rozmowę w 5-8 punktach, po polsku, zachowując fakty, decyzje, blokery i otwarte pytania:\n\n" + text
+    return ai.generate(provider, ai.defaultModel(provider), prompt)
+  }
+
+  function composeContext(recent, memoryParts, sources, query, budget) {
+    messages = []
+    messages = messages + [map { "role": "system", "content": ai.systemPrompt[user.locale] || ai.systemPrompt.pl }]
+    if memoryParts.length > 0 {
+      memText = "Pamięć długoterminowa:\n"
+      for m in memoryParts {
+        memText = memText + "- [" + m.kind + "] " + m.content + "\n"
+      }
+      messages = messages + [map { "role": "system", "content": memText }]
+    }
+    if sources.length > 0 {
+      srcText = "Źródła:\n"
+      for s in sources {
+        srcText = srcText + "- " + s.title + " — " + s.url + "\n"
+      }
+      messages = messages + [map { "role": "system", "content": srcText }]
+    }
+    for m in recent.reverse() {
+      messages = messages + [map { "role": m.role, "content": m.content }]
+    }
+    return map { "messages": messages, "budget": budget }
+  }
+
+  function contextFromConversation(conversationId, query) {
+    recent = db.query("SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 15", [conversationId])
+    messages = [map { "role": "system", "content": ai.systemPrompt[user.locale] || ai.systemPrompt.pl }]
+    for m in recent.reverse() {
+      messages = messages + [map { "role": m.role, "content": m.content }]
+    }
+    return map { "messages": messages, "budget": chat.contextBudget }
+  }
+
+  function splitQuery(query) {
+    parts = []
+    lines = query.split("\n")
+    for line in lines {
+      if line.length > 8 {
+        parts = parts + [line]
+      }
+    }
+    if parts.length == 0 {
+      parts = [query]
+    }
+    return parts
+  }
+
+  function agentStep(agentName, payload, log) {
+    provider = logic.pickProvider(false, payload.input).provider
+    prompt = "Jesteś agentem " + agentName + " w systemie AL2100. Cel: " + payload.input + ". Wykonaj kolejny krok. Zwróć JSON: {kind: 'tool'|'final'|'approval_required', tool: '...', args: {...}, result: '...', approval_kind: '...', resource: '...', resource_id: '...', tokens: number}"
+    raw = ai.generate(provider, ai.defaultModel(provider), prompt)
+    try {
+      parsed = json.parse(raw)
+      return parsed
+    } catch err {
+      return map { "kind": "final", "result": raw, "tokens": 100 }
+    }
+  }
+}
+assets {
+  manifest {
+    name "AL2100"
+    shortName "AL2100"
+    description "Prywatny system operacyjny AI"
+    startUrl "/"
+    display "standalone"
+    background "#0A0F1E"
+    theme "#00E5FF"
+    orientation "portrait-primary"
+    icons [
+      map { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+      map { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+      map { "src": "/assets/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+    shortcuts [
+      map { "name": "Nowa rozmowa", "url": "/?action=new-chat" },
+      map { "name": "Zadania", "url": "/?screen=Zadania" },
+      map { "name": "Research", "url": "/?screen=Research" },
+      map { "name": "Deploy", "url": "/?screen=Deploy" }
+    ]
+  }
+
+  serviceWorker {
+    cacheName "al2100-v1"
+    precache [
+      "/",
+      "/assets/app.css",
+      "/assets/app.js",
+      "/assets/al2100-avatar.svg",
+      "/assets/icon-192.png",
+      "/assets/icon-512.png",
+      "/assets/manifest.webmanifest"
+    ]
+    runtimeCaching [
+      map { "pattern": "/api/*", "strategy": "network-first", "maxAgeSeconds": 300 },
+      map { "pattern": "/assets/*", "strategy": "cache-first", "maxAgeSeconds": 2592000 },
+      map { "pattern": "/auth/*", "strategy": "network-only" }
+    ]
+    offlineFallback "/offline"
+    skipWaiting true
+    clientsClaim true
+  }
+
+  icons {
+    generate [
+      map { "name": "sparkles", "path": "M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z" },
+      map { "name": "folder", "path": "M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" },
+      map { "name": "check", "path": "M5 13l4 4L19 7" },
+      map { "name": "brain", "path": "M9 4a3 3 0 00-3 3v1a3 3 0 00-1 5.8V16a3 3 0 003 3h1a3 3 0 003-3V7a3 3 0 00-3-3z" },
+      map { "name": "file", "path": "M6 2h7l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2z" },
+      map { "name": "search", "path": "M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35" },
+      map { "name": "timeline", "path": "M4 20V4M4 20h16M8 16V8M12 16v-5M16 16v-3" },
+      map { "name": "wrench", "path": "M14 7l3-3a4 4 0 00-5 5L4 17l3 3 8-8a4 4 0 005-5l-3 3z" },
+      map { "name": "git", "path": "M12 2l10 10-10 10L2 12zM8 12a2 2 0 104 0 2 2 0 10-4 0M16 8a2 2 0 10-4 0 2 2 0 104 0M16 16a2 2 0 10-4 0 2 2 0 104 0" },
+      map { "name": "rocket", "path": "M4 20l4-4M14 6a6 6 0 016 6l-4 4-6-6z" },
+      map { "name": "music", "path": "M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0M21 16a3 3 0 11-6 0 3 3 0 016 0" },
+      map { "name": "shield", "path": "M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z" },
+      map { "name": "user", "path": "M12 12a4 4 0 100-8 4 4 0 000 8zM4 22a8 8 0 1116 0" },
+      map { "name": "gear", "path": "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-1-1.5 1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H3a2 2 0 110-4h.1a1.6 1.6 0 001.5-1 1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V3a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z" },
+      map { "name": "pulse", "path": "M3 12h4l3-8 4 16 3-8h4" },
+      map { "name": "lock", "path": "M5 11V7a7 7 0 1114 0v4M5 11h14v10H5z" }
+    ]
+  }
+
+  fonts {
+    preload [
+      map { "family": "Inter", "weights": [400, 500, 600, 700], "display": "swap" },
+      map { "family": "Space Grotesk", "weights": [500, 600, 700], "display": "swap" },
+      map { "family": "JetBrains Mono", "weights": [400, 500], "display": "swap" }
+    ]
+    sources {
+      Inter "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      SpaceGrotesk "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+      JetBrainsMono "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+    }
+  }
+}
+
+client {
+  bootstrap {
+    order [
+      "hydrate-state",
+      "load-session",
+      "register-service-worker",
+      "attach-keyboard-shortcuts",
+      "attach-network-listeners",
+      "attach-visibility-listeners",
+      "mount-router",
+      "mount-ui"
+    ]
+  }
+
+  router {
+    history true
+    hashFallback false
+    basePath "/"
+    routes [
+      map { "path": "/", "screen": "Czat", "auth": true },
+      map { "path": "/login", "screen": "Login", "auth": false },
+      map { "path": "/chat", "screen": "Czat", "auth": true },
+      map { "path": "/chat/:id", "screen": "Czat", "auth": true },
+      map { "path": "/projects", "screen": "Projekty", "auth": true },
+      map { "path": "/projects/:id", "screen": "Projekty", "auth": true },
+      map { "path": "/tasks", "screen": "Zadania", "auth": true },
+      map { "path": "/memory", "screen": "Pamięć", "auth": true },
+      map { "path": "/files", "screen": "Pliki", "auth": true },
+      map { "path": "/research", "screen": "Research", "auth": true },
+      map { "path": "/timeline", "screen": "Timeline", "auth": true },
+      map { "path": "/appcreator", "screen": "App Creator", "auth": true },
+      map { "path": "/github", "screen": "GitHub", "auth": true },
+      map { "path": "/deploy", "screen": "Deploy", "auth": true },
+      map { "path": "/music", "screen": "Muzyka", "auth": true },
+      map { "path": "/approvals", "screen": "Zatwierdzenia", "auth": true },
+      map { "path": "/sessions", "screen": "Sesje", "auth": true },
+      map { "path": "/settings", "screen": "Ustawienia", "auth": true },
+      map { "path": "/diagnostics", "screen": "Diagnostyka", "auth": true }
+    ]
+    guard {
+      if route.auth && !hasActiveSession {
+        navigate("/login")
+      }
+      if !route.auth && hasActiveSession && route.path == "/login" {
+        navigate("/")
+      }
+    }
+    onNavigate {
+      nav.previous = nav.current
+      nav.current = route.screen
+    }
+  }
+
+  keyboard {
+    bindings [
+      map { "combo": "CmdOrCtrl+K", "action": "openCommandPalette" },
+      map { "combo": "CmdOrCtrl+N", "action": "createConversation" },
+      map { "combo": "CmdOrCtrl+B", "action": "toggleSidebar" },
+      map { "combo": "CmdOrCtrl+Enter", "action": "sendMessage" },
+      map { "combo": "Escape", "action": "closeActiveOverlay" },
+      map { "combo": "CmdOrCtrl+/", "action": "openShortcutsHelp" },
+      map { "combo": "CmdOrCtrl+Shift+D", "action": "navigateDiagnostics" },
+      map { "combo": "CmdOrCtrl+Shift+S", "action": "navigateSettings" }
+    ]
+    ignoreInInputs ["Escape", "CmdOrCtrl+Enter"]
+  }
+
+  persistence {
+    localDb "al2100-local"
+    stores [
+      map { "name": "drafts", "keyPath": "conversationId" },
+      map { "name": "settings", "keyPath": "key" },
+      map { "name": "outbox", "keyPath": "id", "autoIncrement": true },
+      map { "name": "cache", "keyPath": "key" }
+    ]
+    sync {
+      autoSync true
+      syncOnReconnect true
+      conflictResolution "lastWriteWins"
+    }
+  }
+
+  network {
+    onOnline {
+      ui.online = true
+      logic.flushOutbox()
+      logic.refreshAll()
+    }
+    onOffline {
+      ui.online = false
+      memory.contextMode = "degraded"
+    }
+    retry {
+      maxAttempts 5
+      backoff "exponential"
+      jitter true
+      retryOn ["network_error", "timeout", "5xx"]
+    }
+  }
+
+  visibility {
+    onHidden {
+      cache.flush()
+    }
+    onVisible {
+      if isGenerating {
+        logic.checkGenerationHealth()
+      }
+    }
+  }
+
+  telemetry {
+    enabled false
+    neverSend ["content", "keys", "tokens", "user_input"]
+  }
+}
+
+logic {
+  function flushOutbox() {
+    if !ui.online {
+      return
+    }
+    pending = localDb.query("outbox")
+    for item in pending {
+      try {
+        fetch(item.url, item.method, item.body, item.headers)
+        localDb.delete("outbox", item.id)
+      } catch err {
+        if item.attempts >= 5 {
+          localDb.delete("outbox", item.id)
+          toast("danger", "Nie udało się wysłać: " + item.url)
+        } else {
+          localDb.update("outbox", item.id, map { "attempts": item.attempts + 1 })
+        }
+      }
+    }
+  }
+
+  function checkGenerationHealth() {
+    if chat.generation.status != "streaming" {
+      return
+    }
+    age = date.diffSeconds(nowIso(), chat.generation.startedAt)
+    if age > 240 {
+      chat.generation.status = "failed"
+      toast("danger", "Generacja przekroczyła limit czasu")
+    }
+  }
+
+  function closeActiveOverlay() {
+    if nav.commandPaletteOpen {
+      nav.commandPaletteOpen = false
+      return
+    }
+    if ui.modal.name != "" {
+      ui.modal = map { "name": "", "payload": "" }
+      return
+    }
+    if nav.mobileSheet != "" {
+      nav.mobileSheet = ""
+    }
+  }
+
+  function openShortcutsHelp() {
+    ui.modal = map { "name": "Shortcuts", "payload": map {} }
+  }
+
+  function navigateDiagnostics() {
+    nav.previous = nav.current
+    nav.current = "Diagnostyka"
+  }
+
+  function navigateSettings() {
+    nav.previous = nav.current
+    nav.current = "Ustawienia"
+  }
+
+  function saveDraft(conversationId, draft) {
+    localDb.put("drafts", map { "conversationId": conversationId, "draft": draft, "savedAt": nowIso() })
+  }
+
+  function loadDraft(conversationId) {
+    row = localDb.get("drafts", conversationId)
+    if row != null {
+      chat.draft = row.draft
+    }
+  }
+
+  function persistSetting(key, value) {
+    localDb.put("settings", map { "key": key, "value": value })
+    cache.set("setting:" + key, value)
+  }
+
+  function loadSetting(key, fallback) {
+    row = localDb.get("settings", key)
+    if row != null {
+      return row.value
+    }
+    return fallback
+  }
+
+  function attachKeyboardShortcuts() {
+    keyboard.on("CmdOrCtrl+K", {
+      logic.openCommandPalette()
+    })
+    keyboard.on("CmdOrCtrl+N", {
+      logic.createConversation()
+    })
+    keyboard.on("CmdOrCtrl+B", {
+      logic.toggleSidebar()
+    })
+    keyboard.on("CmdOrCtrl+Enter", {
+      if canSend {
+        logic.sendMessage()
+      }
+    })
+    keyboard.on("Escape", {
+      logic.closeActiveOverlay()
+    })
+    keyboard.on("CmdOrCtrl+/", {
+      logic.openShortcutsHelp()
+    })
+    keyboard.on("CmdOrCtrl+Shift+D", {
+      logic.navigateDiagnostics()
+    })
+    keyboard.on("CmdOrCtrl+Shift+S", {
+      logic.navigateSettings()
+    })
+  }
+
+  function attachNetworkListeners() {
+    network.onOnline {
+      logic.flushOutbox()
+    }
+  }
+
+  function attachVisibilityListeners() {
+    visibility.onVisible {
+      logic.checkGenerationHealth()
+    }
+  }
+
+  function registerServiceWorker() {
+    if serviceWorker.supported {
+      serviceWorker.register("/sw.js")
+    }
+  }
+
+  function mountRouter() {
+    router.mount()
+  }
+
+  function mountUI() {
+    app.mount("#app")
+  }
+
+  function hydrateState() {
+    chat.draft = logic.loadSetting("chat.draft", "")
+    chat.contextBudget = logic.loadSetting("chat.contextBudget", 24000)
+    nav.sidebarCollapsed = logic.loadSetting("nav.sidebarCollapsed", false)
+    user.theme = logic.loadSetting("user.theme", "dark")
+    user.locale = logic.loadSetting("user.locale", "pl")
+    settings.rateLimitPerMinute = logic.loadSetting("settings.rateLimitPerMinute", 60)
+  }
+
+  event chat.draft changed {
+    if chat.activeConversationId != "" {
+      logic.saveDraft(chat.activeConversationId, chat.draft)
+    }
+  }
+
+  event nav.sidebarCollapsed changed {
+    logic.persistSetting("nav.sidebarCollapsed", nav.sidebarCollapsed)
+  }
+
+  event user.theme changed {
+    logic.persistSetting("user.theme", user.theme)
+    theme.apply(user.theme)
+  }
+
+  event user.locale changed {
+    logic.persistSetting("user.locale", user.locale)
+  }
+
+  onStart {
+    logic.hydrateState()
+    logic.attachKeyboardShortcuts()
+    logic.attachNetworkListeners()
+    logic.attachVisibilityListeners()
+    logic.registerServiceWorker()
+    logic.loadSession()
+    logic.mountRouter()
+    logic.mountUI()
+  }
+}
+
+theme {
+  function apply(mode) {
+    if mode == "system" {
+      prefers = media.query("(prefers-color-scheme: dark)")
+      body.setAttribute("data-theme", prefers ? "dark" : "light")
+    } else {
+      body.setAttribute("data-theme", mode)
+    }
+  }
+  function tokens() {
+    return map {
+      "--color-background": colors.background,
+      "--color-surface": colors.surface,
+      "--color-surface-elevated": colors.surfaceElevated,
+      "--color-surface-muted": colors.surfaceMuted,
+      "--color-border": colors.border,
+      "--color-text": colors.text,
+      "--color-text-muted": colors.textMuted,
+      "--color-primary": colors.primary,
+      "--color-secondary": colors.secondary,
+      "--color-success": colors.success,
+      "--color-warning": colors.warning,
+      "--color-danger": colors.danger,
+      "--radius-md": shape.radius.md + "px",
+      "--shadow-soft": shape.shadow.soft,
+      "--duration-normal": motion.duration.normal,
+      "--easing-standard": motion.easing.standard
+    }
+  }
+}
+
+media {
+  function query(q) {
+    return window.matchMedia(q).matches
+  }
+}
+
+http {
+  function get(url, headers) {
+    return fetch(url, map { "method": "GET", "headers": headers })
+  }
+  function post(url, body, headers) {
+    return fetch(url, map { "method": "POST", "headers": headers, "body": json.stringify(body) })
+  }
+  function put(url, body, headers) {
+    return fetch(url, map { "method": "PUT", "headers": headers, "body": json.stringify(body) })
+  }
+  function del(url, headers) {
+    return fetch(url, map { "method": "DELETE", "headers": headers })
+  }
+  function stream(url, body, headers) {
+    return fetchEventSource(url, map { "method": "POST", "headers": headers, "body": json.stringify(body) })
+  }
+}
+
+oauth {
+  function github_startUrl(clientId, redirectUri, state) {
+    s = state || crypto.randomHex(16)
+    return "https://github.com/login/oauth/authorize?client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&scope=read:user%20user:email&state=" + s
+  }
+  function github_exchange(clientId, clientSecret, code, redirectUri) {
+    return http.post("https://github.com/login/oauth/access_token", map {
+      "client_id": clientId,
+      "client_secret": clientSecret,
+      "code": code,
+      "redirect_uri": redirectUri
+    }, map { "Accept": "application/json" })
+  }
+  function github_profile(token) {
+    return http.get("https://api.github.com/user", map { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" })
+  }
+  function google_startUrl(clientId, redirectUri, state) {
+    s = state || crypto.randomHex(16)
+    return "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=code&scope=openid%20email%20profile&access_type=offline&prompt=consent&state=" + s
+  }
+  function google_exchange(clientId, clientSecret, code, redirectUri) {
+    return http.post("https://oauth2.googleapis.com/token", map {
+      "client_id": clientId,
+      "client_secret": clientSecret,
+      "code": code,
+      "grant_type": "authorization_code",
+      "redirect_uri": redirectUri
+    })
+  }
+  function google_profile(token) {
+    return http.get("https://openidconnect.googleapis.com/v1/userinfo", map { "Authorization": "Bearer " + token })
+  }
+}
+
+crypto {
+  function randomHex(bytes) {
+    return hex(randomBytes(bytes))
+  }
+  function randomBytes(n) {
+    return cryptoImpl.randomBytes(n)
+  }
+  function sha256(input) {
+    return cryptoImpl.sha256(input)
+  }
+  function hex(buf) {
+    return cryptoImpl.hex(buf)
+  }
+  function unhex(s) {
+    return cryptoImpl.unhex(s)
+  }
+  function base64Encode(s) {
+    return btoa(unescape(encodeURIComponent(s)))
+  }
+  function base64Decode(s) {
+    return decodeURIComponent(escape(atob(s)))
+  }
+  function aesGcm_encrypt(plain, key, nonce) {
+    return cryptoImpl.aesGcmEncrypt(plain, key, nonce)
+  }
+  function aesGcm_decrypt(cipher, key, nonce) {
+    return cryptoImpl.aesGcmDecrypt(cipher, key, nonce)
+  }
+}
+
+pdf {
+  function extractText(data) {
+    return pdfImpl.extractText(data)
+  }
+}
+
+whisper {
+  function transcribe(data) {
+    return whisperImpl.transcribe(data)
+  }
+}
+
+audio {
+  function analyze(data) {
+    return audioImpl.analyze(data)
+  }
+}
+
+media {
+  function record(opts) {
+    return recorder.record(opts)
+  }
+}
+
+file {
+  function pick(opts) {
+    return picker.pick(opts)
+  }
+}
+
+clipboard {
+  function write(text) {
+    return navigator.clipboard.writeText(text)
+  }
+  function read() {
+    return navigator.clipboard.readText()
+  }
+}
+
+cache {
+  function get(key) {
+    return localStorage.getItem("al2100:cache:" + key)
+  }
+  function set(key, value, ttl) {
+    localStorage.setItem("al2100:cache:" + key, value)
+    if ttl {
+      setTimeout(() => localStorage.removeItem("al2100:cache:" + key), ttl * 1000)
+    }
+  }
+  function incr(key, windowSeconds) {
+    current = parseInt(localStorage.getItem("al2100:cache:" + key) || "0")
+    current = current + 1
+    localStorage.setItem("al2100:cache:" + key, current)
+    return current
+  }
+  function del(key) {
+    localStorage.removeItem("al2100:cache:" + key)
+  }
+  function flush() {
+    for k in localStorage.keys() {
+      if k.startsWith("al2100:cache:") {
+        continue
+      }
+      if k.startsWith("al2100:") {
+        continue
+      }
+    }
+  }
+}
+
+localDb {
+  function get(store, key) {
+    return localDbImpl.get(store, key)
+  }
+  function put(store, value) {
+    return localDbImpl.put(store, value)
+  }
+  function delete_(store, key) {
+    return localDbImpl.delete(store, key)
+  }
+  function query(store) {
+    return localDbImpl.all(store)
+  }
+  function update(store, key, patch) {
+    current = localDbImpl.get(store, key)
+    if current == null {
+      return
+    }
+    for k in patch {
+      current[k] = patch[k]
+    }
+    return localDbImpl.put(store, current)
+  }
+}
+
+serviceWorker {
+  function supported() {
+    return "serviceWorker" in navigator
+  }
+  function register(path) {
+    return navigator.serviceWorker.register(path)
+  }
+}
+
+router {
+  function mount() {
+    routerImpl.mount(routes, guard, onNavigate)
+  }
+}
+
+app {
+  function mount(selector) {
+    appImpl.mount(selector)
+  }
+}
+
+date {
+  function nowIso() {
+    return new Date().toISOString()
+  }
+  function today() {
+    return new Date().toISOString().slice(0, 10)
+  }
+  function endOfDay(iso) {
+    d = new Date(iso)
+    d.setHours(23, 59, 59, 999)
+    return d.toISOString()
+  }
+  function addDays(iso, n) {
+    d = new Date(iso)
+    d.setDate(d.getDate() + n)
+    return d.toISOString()
+  }
+  function subDays(iso, n) {
+    return addDays(iso, -n)
+  }
+  function subHours(iso, n) {
+    d = new Date(iso)
+    d.setHours(d.getHours() - n)
+    return d.toISOString()
+  }
+  function diffHours(a, b) {
+    return Math.abs(new Date(a) - new Date(b)) / 3600000
+  }
+  function diffSeconds(a, b) {
+    return Math.abs(new Date(a) - new Date(b)) / 1000
+  }
+  function unix() {
+    return Math.floor(Date.now() / 1000)
+  }
+}
+
+uuid {
+  function v4() {
+    return uuidImpl.v4()
+  }
+}
+
+json {
+  function stringify(obj) {
+    return JSON.stringify(obj)
+  }
+  function parse(s) {
+    return JSON.parse(s)
+  }
+}
+
+notify {
+  function fire(message) {
+    if notifications.permission == "granted" {
+      notifications.create(message)
+    }
+    ui.toast = map { "id": uuid.v4(), "type": "info", "message": message }
+  }
+}
+
+worker {
+  function handle(request, env, ctx) {
+    url = new URL(request.url)
+    if url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/") {
+      return routeApi(request, env, ctx)
+    }
+    if url.pathname == "/sw.js" {
+      return new Response(assets.sw, map { "headers": map { "Content-Type": "application/javascript" } })
+    }
+    return serveStatic(request, env)
+  }
+
+  function routeApi(request, env, ctx) {
+    url = new URL(request.url)
+    method = request.method
+    path = url.pathname
+    route = matchRoute(method, path)
+    if route == null {
+      return new Response(json.stringify(map { "ok": false, "error": "not_found" }), map {
+        "status": 404,
+        "headers": map { "Content-Type": "application/json" }
+      })
+    }
+    if route.auth {
+      sessionCookie = request.headers.get("Cookie")
+      sid = parseCookie(sessionCookie, "al_session")
+      if sid == "" {
+        return new Response(json.stringify(map { "ok": false, "error": "unauthorized" }), map {
+          "status": 401,
+          "headers": map { "Content-Type": "application/json" }
+        })
+      }
+      s = env.AL_DB.prepare("SELECT * FROM Session WHERE id = ? AND revoked_at IS NULL AND expires_at > ?").bind(sid, new Date().toISOString()).first()
+      if s == null {
+        return new Response(json.stringify(map { "ok": false, "error": "session_expired" }), map {
+          "status": 401,
+          "headers": map { "Content-Type": "application/json" }
+        })
+      }
+      request.userId = s.user_id
+      request.sessionId = s.id
+      if route.csrf {
+        csrfHeader = request.headers.get("X-CSRF-Token")
+        if csrfHeader != s.csrf_token {
+          return new Response(json.stringify(map { "ok": false, "error": "csrf_failed" }), map {
+            "status": 403,
+            "headers": map { "Content-Type": "application/json" }
+          })
+        }
+      }
+    }
+    if route.rateLimit {
+      count = env.AL_KV.get("rate:" + route.rateLimit + ":" + request.userId)
+      if count != null && parseInt(count) > settings.rateLimitPerMinute {
+        return new Response(json.stringify(map { "ok": false, "error": "rate_limited" }), map {
+          "status": 429,
+          "headers": map { "Content-Type": "application/json" }
+        })
+      }
+      env.AL_KV.put("rate:" + route.rateLimit + ":" + request.userId, String(parseInt(count || "0") + 1), map { "expirationTtl": 60 })
+    }
+    if route.requiresApproval {
+      approvalId = requestApproval(route.requiresApproval, route.resource, params.id || "", map {})
+      return new Response(json.stringify(map { "ok": true, "body": map { "approvalId": approvalId } }), map {
+        "status": 202,
+        "headers": map { "Content-Type": "application/json" }
+      })
+    }
+    try {
+      body = method == "GET" || method == "DELETE" ? map {} : await request.json()
+      params = extractParams(route.path, path)
+      result = route.handler(request, env, ctx, body, params)
+      if result instanceof Response {
+        return result
+      }
+      return new Response(json.stringify(result), map {
+        "status": result.status || 200,
+        "headers": map { "Content-Type": "application/json" }
+      })
+    } catch err {
+      return new Response(json.stringify(map { "ok": false, "error": err.message || "internal_error" }), map {
+        "status": 500,
+        "headers": map { "Content-Type": "application/json" }
+      })
+    }
+  }
+
+  function matchRoute(method, path) {
+    for r in routes {
+      if r.method != method {
+        continue
+      }
+      if r.path == path {
+        return r
+      }
+      if r.path.includes(":") {
+        pattern = r.path.replace(/:[^/]+/g, "[^/]+")
+        regex = new RegExp("^" + pattern + "$")
+        if regex.test(path) {
+          return r
+        }
+      }
+    }
+    return null
+  }
+
+  function extractParams(routePath, actualPath) {
+    params = map {}
+    rp = routePath.split("/")
+    ap = actualPath.split("/")
+    for i in range(0, rp.length) {
+      if rp[i].startsWith(":") {
+        params[rp[i].substring(1)] = ap[i]
+      }
+    }
+    return params
+  }
+
+  function parseCookie(header, name) {
+    if header == null {
+      return ""
+    }
+    parts = header.split(";")
+    for p in parts {
+      kv = p.trim().split("=")
+      if kv[0] == name {
+        return kv[1]
+      }
+    }
+    return ""
+  }
+
+  function serveStatic(request, env) {
+    return env.ASSETS.fetch(request)
+  }
+
+  function requestApproval(kind, resource, resourceId, payload) {
+    id = "apr-" + uuid.v4()
+    env.AL_DB.prepare("INSERT INTO Approval (id, user_id, kind, resource, resource_id, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)").bind(id, request.userId, kind, resource, resourceId, json.stringify(payload), new Date().toISOString()).run()
+    return id
+  }
+
+  const routes = [
+    { method: "GET", path: "/api/session", auth: false, handler: handleSessionGet },
+    { method: "POST", path: "/api/logout", auth: true, csrf: true, handler: handleLogout },
+    { method: "GET", path: "/auth/github/callback", auth: false, handler: handleGithubCallback },
+    { method: "GET", path: "/auth/google/callback", auth: false, handler: handleGoogleCallback },
+    { method: "GET", path: "/api/conversations", auth: true, handler: handleConversationsList },
+    { method: "POST", path: "/api/conversations", auth: true, csrf: true, rateLimit: "conversation:create", handler: handleConversationCreate },
+    { method: "GET", path: "/api/conversations/:id/messages", auth: true, handler: handleConversationMessages },
+    { method: "PATCH", path: "/api/conversations/:id", auth: true, csrf: true, handler: handleConversationUpdate },
+    { method: "POST", path: "/api/chat/send", auth: true, csrf: true, rateLimit: "chat:send", stream: true, handler: handleChatSend },
+    { method: "POST", path: "/api/chat/stop", auth: true, csrf: true, handler: handleChatStop },
+    { method: "POST", path: "/api/files/upload", auth: true, csrf: true, rateLimit: "files:upload", handler: handleFileUpload },
+    { method: "GET", path: "/api/files", auth: true, handler: handleFilesList },
+    { method: "GET", path: "/api/files/:id/download", auth: true, handler: handleFileDownload },
+    { method: "GET", path: "/api/projects", auth: true, handler: handleProjectsList },
+    { method: "POST", path: "/api/projects", auth: true, csrf: true, handler: handleProjectCreate },
+    { method: "GET", path: "/api/tasks", auth: true, handler: handleTasksList },
+    { method: "POST", path: "/api/tasks", auth: true, csrf: true, handler: handleTaskCreate },
+    { method: "PATCH", path: "/api/tasks/:id", auth: true, csrf: true, handler: handleTaskUpdate },
+    { method: "GET", path: "/api/memory", auth: true, handler: handleMemoryList },
+    { method: "PATCH", path: "/api/memory/:id", auth: true, csrf: true, handler: handleMemoryUpdate },
+    { method: "POST", path: "/api/research", auth: true, csrf: true, rateLimit: "research:run", handler: handleResearch },
+    { method: "GET", path: "/api/providers", auth: true, handler: handleProvidersList },
+    { method: "POST", path: "/api/providers", auth: true, csrf: true, handler: handleProviderSave },
+    { method: "POST", path: "/api/providers/:provider/test", auth: true, csrf: true, handler: handleProviderTest },
+    { method: "GET", path: "/api/approvals", auth: true, handler: handleApprovalsList },
+    { method: "GET", path: "/api/sessions", auth: true, handler: handleSessionsList },
+    { method: "DELETE", path: "/api/sessions/:id", auth: true, csrf: true, handler: handleSessionRevoke },
+    { method: "POST", path: "/api/diagnostics", auth: true, csrf: true, handler: handleDiagnostics },
+    { method: "GET", path: "/api/health", auth: false, handler: handleHealth }
+  ]
+}
+
+sitemap {
+  routes [
+    map { "path": "/", "priority": 1.0, "changefreq": "daily" },
+    map { "path": "/login", "priority": 0.5, "changefreq": "monthly" },
+    map { "path": "/chat", "priority": 0.9, "changefreq": "daily" },
+    map { "path": "/projects", "priority": 0.8, "changefreq": "weekly" },
+    map { "path": "/tasks", "priority": 0.8, "changefreq": "daily" },
+    map { "path": "/memory", "priority": 0.7, "changefreq": "weekly" },
+    map { "path": "/files", "priority": 0.7, "changefreq": "weekly" },
+    map { "path": "/research", "priority": 0.8, "changefreq": "daily" },
+    map { "path": "/appcreator", "priority": 0.6, "changefreq": "weekly" },
+    map { "path": "/github", "priority": 0.6, "changefreq": "weekly" },
+    map { "path": "/deploy", "priority": 0.6, "changefreq": "weekly" },
+    map { "path": "/music", "priority": 0.6, "changefreq": "weekly" },
+    map { "path": "/settings", "priority": 0.4, "changefreq": "monthly" },
+    map { "path": "/diagnostics", "priority": 0.3, "changefreq": "monthly" }
+  ]
+}
+
+meta {
+  title "AL2100 — System operacyjny AI"
+  description "Prywatny, polskojęzyczny system operacyjny AI: asystent, pamięć, projekty, pliki, research, GitHub, App Creator, deploy, muzyka, agenci."
+  keywords ["AI", "asystent", "pamięć", "projekty", "research", "github", "cloudflare", "axcode", "al2100"]
+  og {
+    title "AL2100"
+    description "Prywatny system operacyjny AI"
+    image "/assets/og.png"
+    type "website"
+  }
+  twitter {
+    card "summary_large_image"
+    title "AL2100"
+    description "Prywatny system operacyjny AI"
+    image "/assets/og.png"
+  }
+  robots {
+    index true
+    follow true
+  }
+}
