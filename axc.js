@@ -441,7 +441,7 @@ class Merger {
       }
     }
     ai.limits = { maxTokensPerRequest: 32000, maxTokensPerConversation: 200000, maxDailyCost: 5.0, maxConcurrentGenerations: 1, maxAgentSteps: 24, maxAgentSeconds: 180, ...ai.limits };
-    ai.safety = { confirmBeforeDelete: true, confirmBeforeDeploy: true, confirmBeforePush: true, confirmBeforeExternalCall: true, hideSecrets: true, redactLogs: true, blockUnknownProviders: true, blockSsrf: true, ...ai.safety };
+    ai.safety = { confirmBeforeDelete: true, confirmBeforeDeploy: true, confirmBeforePush: true, confirmBeforeExternalCall: true, hideSecrets: true, redactLogs: true, blockUnknownProviders: true, ...ai.safety };
   }
   static mergeState(state, body) {
     state.raw += '\n' + body;
@@ -757,7 +757,7 @@ async function getSession(env, request) {
 
 async function handleApi(request, env, ctx, url) {
   const method = request.method;
-  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token' } });
+  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token' } });
 
   const path = url.pathname;
   const sessionData = await getSession(env, request);
@@ -768,7 +768,7 @@ async function handleApi(request, env, ctx, url) {
 
   if (path === '/api/session' && method === 'GET') {
     if (!user) return json({ ok: false }, 401);
-    return json({ ok: true, body: { sessionId: session.id, csrfToken: session.csrf_token, expiresAt: session.expires_at, user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatar_url, provider: user.provider } } });
+    return json({ ok: true, body: { sessionId: session.id, csrfToken: session.csrf_token, expiresAt: session.expires_at, user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatar_url } } });
   }
 
   if (path === '/api/logout' && method === 'POST') {
@@ -797,14 +797,14 @@ async function handleApi(request, env, ctx, url) {
     return json({ ok: true, body: { id, title: body.title || 'Nowa rozmowa' } });
   }
 
-  if (path.match(/^\\/api\\/conversations\\/[^/]+$/) && method === 'GET') {
+  if (path.match(/^\/api\/conversations\/[^/]+$/) && method === 'GET') {
     const id = path.split('/').pop();
     const conv = await dbQueryOne(env, 'SELECT * FROM Conversation WHERE id = ? AND user_id = ?', [id, user.id]);
     if (!conv) return json({ ok: false }, 404);
     return json({ ok: true, body: conv });
   }
 
-  if (path.match(/^\\/api\\/conversations\\/[^/]+\\/messages$/) && method === 'GET') {
+  if (path.match(/^\/api\/conversations\/[^/]+\/messages$/) && method === 'GET') {
     const id = path.split('/')[3];
     const items = await dbQueryAll(env, 'SELECT * FROM Message WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 500', [id]);
     return json({ ok: true, body: { items } });
@@ -864,6 +864,9 @@ export default {
     if (url.pathname === '/api/health') return json({ ok: true, status: 'ok', version: VERSION, time: new Date().toISOString() });
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) {
       return handleApi(request, env, ctx, url);
+    }
+    if (url.pathname === '/') {
+      return env.ASSETS.fetch(new Request(new URL('/index.html', request.url), request));
     }
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response('Not found', { status: 404 });
@@ -1045,10 +1048,10 @@ document.addEventListener('DOMContentLoaded', boot);
   renderScreenBody(body) {
     let html = '';
     const stack = [];
-    for (const raw of body.split('\\n')) {
+    for (const raw of body.split('\n')) {
       const line = raw.trim();
       if (!line) continue;
-      const openBlock = line.match(/^(\\w+)(?:\\s+"([^"]*)")?\\s*\\{$/);
+      const openBlock = line.match(/^(\w+)(?:\s+"([^"]*)")?\s*\{$/);
       if (openBlock) {
         const tag = this.htmlTag(openBlock[1]);
         html += `<${tag} class="el-${openBlock[1]}">`;
@@ -1057,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', boot);
         continue;
       }
       if (line === '}') { if (stack.length) html += `</${stack.pop()}>`; continue; }
-      const kv = line.match(/^(\\w+)\\s+(.+)$/);
+      const kv = line.match(/^(\w+)\s+(.+)$/);
       if (kv) {
         html += `<div class="prop prop-${kv[1]}"><span class="prop-key">${this.escape(kv[1])}</span><span class="prop-val">${this.escape(kv[2].replace(/^"|"$/g, ''))}</span></div>`;
         continue;
@@ -1068,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', boot);
     return html;
   }
   htmlTag(name) {
-    const map = { button: 'button', input: 'input', textarea: 'textarea', select: 'select', card: 'div', row: 'div', column: 'div', list: 'ul', surface: 'div', dialog: 'div', overlay: 'div', badge: 'span', tabs: 'div', code: 'pre', markdown: 'div', header: 'header', footer: 'footer', nav: 'nav', section: 'section', field: 'div', label: 'label', title: 'h2', subtitle: 'p', hint: 'small', meta: 'small', spinner: 'div', divider: 'hr' };
+    const map = { button: 'button', input: 'input', textarea: 'textarea', select: 'select', card: 'div', row: 'div', column: 'div', list: 'ul', surface: 'div', dialog: 'div', overlay: 'div', badge: 'span', header: 'header', footer: 'footer', sidebar: 'aside', main: 'main', panel: 'div' };
     return map[name] || 'div';
   }
   parseStateValue(v) {
@@ -1076,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', boot);
     if (v === 'true') return true;
     if (v === 'false') return false;
     if (v === 'null') return null;
-    if (/^-?\\d+(\\.\\d+)?$/.test(v)) return parseFloat(v);
+    if (/^-?\d+(\.\d+)?$/.test(v)) return parseFloat(v);
     if (v.startsWith('"') && v.endsWith('"')) return v.slice(1, -1);
     if (v.startsWith('list<')) return [];
     if (v.startsWith('map')) return {};
@@ -1087,7 +1090,7 @@ document.addEventListener('DOMContentLoaded', boot);
   }
   genCSS() {
     const colors = this.ast.theme.colors || {};
-    const cssVars = Object.entries(colors).map(([k, v]) => `  --color-${k}: ${v};`).join('\\n');
+    const cssVars = Object.entries(colors).map(([k, v]) => `  --color-${k}: ${v};`).join('\n');
     const css = `*{box-sizing:border-box;margin:0;padding:0}
 :root{
 ${cssVars}
@@ -1109,8 +1112,8 @@ html,body{height:100%;font-family:Inter,system-ui,sans-serif;background:var(--co
 .el-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;padding:20px}
 .el-button{background:var(--color-primary);color:#04121B;border:none;padding:10px 18px;border-radius:10px;cursor:pointer;font-weight:600}
 .loading,.empty{display:flex;align-items:center;justify-content:center;padding:48px;color:#93A1C4}
-.cmd-palette{position:fixed;top:20%;left:50%;transform:translateX(-50%);background:var(--color-surface);border:1px solid var(--color-border);border-radius:20px;width:640px;max-width:90%;z-index:200;display:flex;flex-direction:column}
-.cmd-input{padding:16px 20px;background:#0E1526;border:none;color:var(--color-text);font-size:16px;outline:none}
+.cmd-palette{position:fixed;top:20%;left:50%;transform:translateX(-50%);background:var(--color-surface);border:1px solid var(--color-border);border-radius:20px;width:640px;max-width:90%;z-index:300;overflow:hidden}
+.cmd-input{padding:16px 20px;background:#0E1526;border:none;color:var(--color-text);font-size:16px;outline:none;width:100%}
 .cmd-list{overflow-y:auto;max-height:50vh;padding:8px}
 .cmd-item{display:block;width:100%;padding:12px 16px;background:transparent;border:none;color:var(--color-text);text-align:left;cursor:pointer;border-radius:10px}
 .cmd-item:hover{background:#17213A}
@@ -1168,14 +1171,14 @@ self.addEventListener('fetch', e => {
 </html>`;
   }
   genWrangler() {
-    const name = (this.ast.app?.id || 'al2100').replace(/\\./g, '-');
+    const name = (this.ast.app?.id || 'al2100').replace(/\./g, '-');
     this.files['wrangler.toml'] = `name = "${name}"
 main = "worker.js"
 compatibility_date = "2026-10-30"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
-directory = "./assets"
+directory = "./"
 binding = "ASSETS"
 
 [[d1_databases]]
@@ -1299,7 +1302,7 @@ Opcje:
     const { ast, errors, warnings } = this.analyze(file, flags);
     for (const e of errors) console.error(e.format ? e.format() : e);
     for (const w of warnings) console.warn('warning:', w);
-    console.log(`\\nPodsumowanie: ${Object.keys(ast.screens).length} ekranów, ${Object.keys(ast.components).length} komponentów, ${ast.logic.functions.length} funkcji, ${ast.apis.length} API, ${Object.keys(ast.storage.models).length} modeli`);
+    console.log(`\nPodsumowanie: ${Object.keys(ast.screens).length} ekranów, ${Object.keys(ast.components).length} komponentów, ${ast.logic.functions.length} funkcji, ${ast.apis.length} API, ${ast.queues.length} kolejek, ${ast.crons.length} cronów`);
     return errors.length || (flags.strict && warnings.length) ? 1 : 0;
   }
   static build(file, flags) {
@@ -1324,22 +1327,22 @@ Opcje:
     const code = this.build(file, flags);
     if (code !== 0) return code;
     const outDir = path.resolve(ROOT, flags.out);
-    console.log('\\nDev server: http://localhost:8787');
-    console.log('Uruchamiam wrangler dev…\\n');
+    console.log('\nDev server: http://localhost:8787');
+    console.log('Uruchamiam wrangler dev…\n');
     const child = spawn('npx', ['wrangler', 'dev', '--local'], { cwd: outDir, stdio: 'inherit' });
     return new Promise(resolve => child.on('exit', c => resolve(c || 0)));
   }
   static async deploy(file, flags) {
     const code = this.build(file, flags);
     if (code !== 0) return code;
-    console.log('\\nDeploy wymaga potwierdzenia. Uruchom ręcznie:');
+    console.log('\nDeploy wymaga potwierdzenia. Uruchom ręcznie:');
     console.log('  cd dist && npx wrangler deploy');
     return 0;
   }
   static format(file, flags) {
     const src = fs.readFileSync(file, 'utf8');
-    let out = src.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n');
-    if (!out.endsWith('\\n')) out += '\\n';
+    let out = src.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    if (!out.endsWith('\n')) out += '\n';
     fs.writeFileSync(file, out, 'utf8');
     console.log(`Sformatowano ${file}`);
     return 0;
@@ -1351,7 +1354,7 @@ Opcje:
     };
     run();
     fs.watch(file, () => {
-      console.log(`\\nZmiana: ${file} — rekompilacja…`);
+      console.log(`\nZmiana: ${file} — rekompilacja…`);
       run();
     });
     return new Promise(() => {});
