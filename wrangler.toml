@@ -9,16 +9,16 @@ binding = "ASSETS"
 
 [[d1_databases]]
 binding = "AL_DB"
-database_name = "al2100-db"
-database_id = ""
+database_name = "al2100"
+database_id = "1431274d-c8d8-431b-aa1f-eaff2c466ada"
 
 [[r2_buckets]]
 binding = "AL_BUCKET"
-bucket_name = "al2100-bucket"
+bucket_name = "al2100"
 
 [[kv_namespaces]]
 binding = "AL_KV"
-id = ""
+id = "87d4fd94c6114923b3ef02ae7069115c"
 
 [[queues.producers]]
 binding = "AL_QUEUE"
