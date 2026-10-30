@@ -8462,7 +8462,7 @@ worker {
         return r
       }
       if r.path.includes(":") {
-        pattern = r.path.replace(/:[^/]+/g, "[^/]+")
+        pattern = r.path.replace(/:"[^/]+"/g, "[^/]+")
         regex = new RegExp("^" + pattern + "$")
         if regex.test(path) {
           return r
