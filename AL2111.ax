@@ -8581,3 +8581,545 @@ meta {
     follow true
   }
 }
+state {
+  credentials.aiKeys = map {
+    "gemini": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "groq": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "mistral": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "openrouter": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "cloudflare": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "anthropic": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "openai": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" }
+  }
+  credentials.searchKeys = map {
+    "brave": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "serper": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "tavily": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" },
+    "cloudflare": map { "configured": false, "masked": "", "status": "unset", "lastTested": "" }
+  }
+  credentials.oauth = map {
+    "github": map { "clientId": "", "secretMasked": "", "configured": false, "callbackUrl": "" },
+    "google": map { "clientId": "", "secretMasked": "", "configured": false, "callbackUrl": "" }
+  }
+  credentials.cloudflare = map {
+    "accountId": "",
+    "apiTokenMasked": "",
+    "configured": false,
+    "workerName": "al2100",
+    "zoneId": ""
+  }
+  credentials.editMode = map { "kind": "", "provider": "" }
+  credentials.draftKey = ""
+  credentials.draftClientId = ""
+  credentials.draftSecret = ""
+  credentials.draftAccountId = ""
+  credentials.draftZoneId = ""
+  credentials.testing = ""
+  credentials.testResult = map { "ok": false, "message": "" }
+  credentials.loading = false
+  credentials.error = ""
+  settings.tab = "aiKeys"
+  settings.searchTab = ""
+  settings.showSecrets = false
+  settings.rotateKeyOpen = false
+
+  computed configuredAiCount {
+    n = 0
+    for k in credentials.aiKeys {
+      if k.configured {
+        n = n + 1
+      }
+    }
+    return n
+  }
+  computed configuredSearchCount {
+    n = 0
+    for k in credentials.searchKeys {
+      if k.configured {
+        n = n + 1
+      }
+    }
+    return n
+  }
+  computed readyToChat {
+    return configuredAiCount > 0 && hasActiveSession
+  }
+  computed missingCritical {
+    if configuredAiCount == 0 {
+      return "Brak klucza AI — dodaj w Ustawienia → Klucze AI"
+    }
+    return ""
+  }
+}
+
+logic {
+  function loadCredentials() {
+    credentials.loading = true
+    credentials.error = ""
+    res = fetch("/api/credentials", "GET", null, null)
+    if res.ok {
+      credentials.aiKeys = res.body.aiKeys
+      credentials.searchKeys = res.body.searchKeys
+      credentials.oauth = res.body.oauth
+      credentials.cloudflare = res.body.cloudflare
+    } else {
+      credentials.error = res.body.error || "Nie udało się pobrać kluczy"
+    }
+    credentials.loading = false
+  }
+
+  function saveAiKey(provider, key) {
+    if key == "" {
+      credentials.error = "Klucz nie może być pusty"
+      return
+    }
+    res = fetch("/api/credentials/ai", "POST", map { "provider": provider, "key": key }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      toast("success", "Klucz " + provider + " zapisany")
+      credentials.draftKey = ""
+      credentials.editMode = map { "kind": "", "provider": "" }
+      logic.loadCredentials()
+    } else {
+      credentials.error = res.body.error || "Błąd zapisu"
+      toast("danger", credentials.error)
+    }
+  }
+
+  function saveSearchKey(provider, key) {
+    if key == "" {
+      credentials.error = "Klucz nie może być pusty"
+      return
+    }
+    res = fetch("/api/credentials/search", "POST", map { "provider": provider, "key": key }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      toast("success", "Klucz wyszukiwania " + provider + " zapisany")
+      credentials.draftKey = ""
+      credentials.editMode = map { "kind": "", "provider": "" }
+      logic.loadCredentials()
+    } else {
+      credentials.error = res.body.error || "Błąd zapisu"
+      toast("danger", credentials.error)
+    }
+  }
+
+  function saveOAuth(provider, clientId, clientSecret) {
+    res = fetch("/api/credentials/oauth", "POST", map { "provider": provider, "clientId": clientId, "clientSecret": clientSecret }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      toast("success", "OAuth " + provider + " zapisany")
+      credentials.draftClientId = ""
+      credentials.draftSecret = ""
+      credentials.editMode = map { "kind": "", "provider": "" }
+      logic.loadCredentials()
+    } else {
+      toast("danger", res.body.error || "Błąd zapisu OAuth")
+    }
+  }
+
+  function saveCloudflare(accountId, apiToken, zoneId, workerName) {
+    res = fetch("/api/credentials/cloudflare", "POST", map { "accountId": accountId, "apiToken": apiToken, "zoneId": zoneId, "workerName": workerName }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      toast("success", "Cloudflare zapisany")
+      credentials.draftAccountId = ""
+      credentials.draftSecret = ""
+      credentials.draftZoneId = ""
+      logic.loadCredentials()
+    } else {
+      toast("danger", res.body.error || "Błąd zapisu Cloudflare")
+    }
+  }
+
+  function testCredential(kind, provider) {
+    credentials.testing = kind + ":" + provider
+    res = fetch("/api/credentials/test", "POST", map { "kind": kind, "provider": provider }, map { "X-CSRF-Token": session.csrfToken })
+    credentials.testing = ""
+    credentials.testResult = map { "ok": res.ok && res.body.ok, "message": res.body.message || "" }
+    if res.ok && res.body.ok {
+      toast("success", "Test OK: " + provider)
+    } else {
+      toast("danger", "Test nieudany: " + provider + " — " + (res.body.message || "błąd"))
+    }
+    logic.loadCredentials()
+  }
+
+  function deleteCredential(kind, provider) {
+    requestApproval("delete", "Credential", kind + ":" + provider, map { "kind": kind, "provider": provider })
+  }
+
+  function rotateMasterKey() {
+    if credentials.draftSecret == "" {
+      toast("danger", "Podaj nowy klucz główny")
+      return
+    }
+    res = fetch("/api/credentials/rotate-master", "POST", map { "newKey": credentials.draftSecret }, map { "X-CSRF-Token": session.csrfToken })
+    if res.ok {
+      toast("success", "Klucz główny zrotowany")
+      credentials.rotateKeyOpen = false
+      credentials.draftSecret = ""
+    } else {
+      toast("danger", "Rotacja nie powiodła się")
+    }
+  }
+
+  function openEditAiKey(provider) {
+    credentials.editMode = map { "kind": "ai", "provider": provider }
+    credentials.draftKey = ""
+  }
+
+  function openEditSearchKey(provider) {
+    credentials.editMode = map { "kind": "search", "provider": provider }
+    credentials.draftKey = ""
+  }
+
+  function openEditOAuth(provider) {
+    credentials.editMode = map { "kind": "oauth", "provider": provider }
+    credentials.draftClientId = ""
+    credentials.draftSecret = ""
+  }
+
+  function openEditCloudflare() {
+    credentials.editMode = map { "kind": "cloudflare", "provider": "cloudflare" }
+    credentials.draftAccountId = credentials.cloudflare.accountId
+    credentials.draftSecret = ""
+    credentials.draftZoneId = credentials.cloudflare.zoneId
+  }
+
+  function cancelCredentialEdit() {
+    credentials.editMode = map { "kind": "", "provider": "" }
+    credentials.draftKey = ""
+    credentials.draftClientId = ""
+    credentials.draftSecret = ""
+    credentials.draftAccountId = ""
+    credentials.draftZoneId = ""
+    credentials.error = ""
+  }
+
+  event settings.tab changed {
+    if settings.tab == "aiKeys" || settings.tab == "searchKeys" || settings.tab == "oauth" || settings.tab == "cloudflare" {
+      logic.loadCredentials()
+    }
+  }
+
+  onStart {
+    if hasActiveSession {
+      logic.loadCredentials()
+    }
+  }
+}
+
+api {
+  route GET /api/credentials {
+    auth true
+    handler {
+      aiRows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND kind = 'ai' AND status != 'deleted'", [user.id])
+      searchRows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND kind = 'search' AND status != 'deleted'", [user.id])
+      aiKeys = map {}
+      for p in ["gemini", "groq", "mistral", "openrouter", "cloudflare", "anthropic", "openai"] {
+        aiKeys[p] = map { "configured": false, "masked": "", "status": "unset", "lastTested": "" }
+      }
+      for r in aiRows {
+        plain = decryptSecret(r.encrypted_key)
+        aiKeys[r.provider] = map {
+          "configured": true,
+          "masked": maskSecret(plain),
+          "status": r.status,
+          "lastTested": r.last_tested_at || ""
+        }
+      }
+      searchKeys = map {}
+      for p in ["brave", "serper", "tavily", "cloudflare"] {
+        searchKeys[p] = map { "configured": false, "masked": "", "status": "unset", "lastTested": "" }
+      }
+      for r in searchRows {
+        plain = decryptSecret(r.encrypted_key)
+        searchKeys[r.provider] = map {
+          "configured": true,
+          "masked": maskSecret(plain),
+          "status": r.status,
+          "lastTested": r.last_tested_at || ""
+        }
+      }
+      oauthRows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND kind = 'oauth' AND status != 'deleted'", [user.id])
+      oauthMap = map {
+        "github": map { "clientId": "", "secretMasked": "", "configured": false, "callbackUrl": env.PUBLIC_URL + "/auth/github/callback" },
+        "google": map { "clientId": "", "secretMasked": "", "configured": false, "callbackUrl": env.PUBLIC_URL + "/auth/google/callback" }
+      }
+      for r in oauthRows {
+        parts = json.parse(decryptSecret(r.encrypted_key))
+        oauthMap[r.provider] = map {
+          "clientId": parts.clientId,
+          "secretMasked": maskSecret(parts.clientSecret),
+          "configured": true,
+          "callbackUrl": env.PUBLIC_URL + "/auth/" + r.provider + "/callback"
+        }
+      }
+      cfRow = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND kind = 'cloudflare' AND status != 'deleted'", [user.id])
+      cf = map { "accountId": "", "apiTokenMasked": "", "configured": false, "workerName": "al2100", "zoneId": "" }
+      if cfRow != null {
+        cfParts = json.parse(decryptSecret(cfRow.encrypted_key))
+        cf = map {
+          "accountId": cfParts.accountId,
+          "apiTokenMasked": maskSecret(cfParts.apiToken),
+          "configured": true,
+          "workerName": cfParts.workerName || "al2100",
+          "zoneId": cfParts.zoneId || ""
+        }
+      }
+      return { "ok": true, "body": map {
+        "aiKeys": aiKeys,
+        "searchKeys": searchKeys,
+        "oauth": oauthMap,
+        "cloudflare": cf
+      } }
+    }
+  }
+
+  route POST /api/credentials/ai {
+    auth true
+    csrf true
+    handler {
+      provider = body.provider
+      key = body.key
+      if provider == "" || key == "" {
+        return { "ok": false, "status": 400, "body": map { "error": "missing_params" } }
+      }
+      if !ai.isKnownProvider(provider) {
+        return { "ok": false, "status": 400, "body": map { "error": "unknown_provider" } }
+      }
+      enc = encryptSecret(key)
+      existing = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND kind = 'ai'", [user.id, provider])
+      if existing != null {
+        db.update("ProviderKey", existing.id, map {
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null
+        })
+      } else {
+        db.insert("ProviderKey", map {
+          "id": newId("pky"),
+          "user_id": user.id,
+          "provider": provider,
+          "kind": "ai",
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null,
+          "created_at": nowIso()
+        })
+      }
+      audit(user.id, "credential.ai.save", "ProviderKey", provider, "success", map { "provider": provider })
+      return { "ok": true, "body": map { "saved": true } }
+    }
+  }
+
+  route POST /api/credentials/search {
+    auth true
+    csrf true
+    handler {
+      provider = body.provider
+      key = body.key
+      if provider == "" || key == "" {
+        return { "ok": false, "status": 400 }
+      }
+      if provider != "brave" && provider != "serper" && provider != "tavily" && provider != "cloudflare" {
+        return { "ok": false, "status": 400, "body": map { "error": "unknown_provider" } }
+      }
+      enc = encryptSecret(key)
+      existing = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND kind = 'search'", [user.id, provider])
+      if existing != null {
+        db.update("ProviderKey", existing.id, map {
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null
+        })
+      } else {
+        db.insert("ProviderKey", map {
+          "id": newId("pky"),
+          "user_id": user.id,
+          "provider": provider,
+          "kind": "search",
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null,
+          "created_at": nowIso()
+        })
+      }
+      audit(user.id, "credential.search.save", "ProviderKey", provider, "success", map {})
+      return { "ok": true, "body": map { "saved": true } }
+    }
+  }
+
+  route POST /api/credentials/oauth {
+    auth true
+    csrf true
+    handler {
+      provider = body.provider
+      clientId = body.clientId
+      clientSecret = body.clientSecret
+      if provider != "github" && provider != "google" {
+        return { "ok": false, "status": 400 }
+      }
+      payload = json.stringify(map { "clientId": clientId, "clientSecret": clientSecret })
+      enc = encryptSecret(payload)
+      existing = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND kind = 'oauth'", [user.id, provider])
+      if existing != null {
+        db.update("ProviderKey", existing.id, map {
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active"
+        })
+      } else {
+        db.insert("ProviderKey", map {
+          "id": newId("pky"),
+          "user_id": user.id,
+          "provider": provider,
+          "kind": "oauth",
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null,
+          "created_at": nowIso()
+        })
+      }
+      audit(user.id, "credential.oauth.save", "ProviderKey", provider, "success", map {})
+      return { "ok": true, "body": map { "saved": true } }
+    }
+  }
+
+  route POST /api/credentials/cloudflare {
+    auth true
+    csrf true
+    handler {
+      accountId = body.accountId
+      apiToken = body.apiToken
+      zoneId = body.zoneId || ""
+      workerName = body.workerName || "al2100"
+      if accountId == "" || apiToken == "" {
+        return { "ok": false, "status": 400 }
+      }
+      payload = json.stringify(map { "accountId": accountId, "apiToken": apiToken, "zoneId": zoneId, "workerName": workerName })
+      enc = encryptSecret(payload)
+      existing = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND kind = 'cloudflare'", [user.id])
+      if existing != null {
+        db.update("ProviderKey", existing.id, map {
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active"
+        })
+      } else {
+        db.insert("ProviderKey", map {
+          "id": newId("pky"),
+          "user_id": user.id,
+          "provider": "cloudflare",
+          "kind": "cloudflare",
+          "encrypted_key": enc.cipher,
+          "nonce": enc.nonce,
+          "version": enc.version,
+          "status": "active",
+          "last_tested_at": null,
+          "created_at": nowIso()
+        })
+      }
+      audit(user.id, "credential.cloudflare.save", "ProviderKey", "cloudflare", "success", map {})
+      return { "ok": true, "body": map { "saved": true } }
+    }
+  }
+
+  route POST /api/credentials/test {
+    auth true
+    csrf true
+    handler {
+      kind = body.kind
+      provider = body.provider
+      row = db.queryOne("SELECT * FROM ProviderKey WHERE user_id = ? AND provider = ? AND kind = ? AND status != 'deleted'", [user.id, provider, kind])
+      if row == null {
+        return { "ok": false, "status": 404, "body": map { "ok": false, "message": "Brak klucza" } }
+      }
+      plain = decryptSecret(row.encrypted_key)
+      ok = false
+      message = ""
+      if kind == "ai" {
+        ok = ai.testKey(provider, plain)
+        message = ok ? "Połączenie działa" : "Nieprawidłowy klucz lub brak dostępu"
+      } else if kind == "search" {
+        if provider == "brave" {
+          res = http.get("https://api.search.brave.com/res/v1/web/search?q=test&count=1", map { "X-Subscription-Token": plain })
+          ok = res.web != null
+        } else if provider == "serper" {
+          res = http.post("https://google.serper.dev/search", map { "q": "test", "num": 1 }, map { "X-API-KEY": plain })
+          ok = res.organic != null
+        } else if provider == "tavily" {
+          res = http.post("https://api.tavily.com/search", map { "query": "test", "max_results": 1 }, map { "Authorization": "Bearer " + plain })
+          ok = res.results != null
+        } else if provider == "cloudflare" {
+          ok = plain != ""
+        }
+        message = ok ? "Połączenie działa" : "Nieprawidłowy klucz"
+      } else if kind == "oauth" {
+        parts = json.parse(plain)
+        if provider == "github" {
+          res = http.get("https://api.github.com/user", map { "Accept": "application/vnd.github+json" })
+          ok = parts.clientId != "" && parts.clientSecret != ""
+        } else if provider == "google" {
+          ok = parts.clientId != "" && parts.clientSecret != ""
+        }
+        message = ok ? "OAuth skonfigurowany" : "Nieprawidłowe dane OAuth"
+      } else if kind == "cloudflare" {
+        parts = json.parse(plain)
+        res = http.get("https://api.cloudflare.com/client/v4/accounts/" + parts.accountId + "/tokens/verify", map { "Authorization": "Bearer " + parts.apiToken })
+        ok = res.success == true
+        message = ok ? "Cloudflare OK" : "Nieprawidłowy token lub accountId"
+      }
+      db.update("ProviderKey", row.id, map {
+        "status": ok ? "active" : "invalid",
+        "last_tested_at": nowIso()
+      })
+      audit(user.id, "credential.test", "ProviderKey", provider, ok ? "success" : "failure", map { "kind": kind })
+      return { "ok": true, "body": map { "ok": ok, "message": message } }
+    }
+  }
+
+  route DELETE /api/credentials/:kind/:provider {
+    auth true
+    csrf true
+    requiresApproval "delete"
+    handler {
+      id = requestApproval("delete", "Credential", params.kind + ":" + params.provider, map { "kind": params.kind, "provider": params.provider })
+      return { "ok": true, "body": map { "approvalId": id } }
+    }
+  }
+
+  route POST /api/credentials/rotate-master {
+    auth true
+    csrf true
+    handler {
+      newKey = body.newKey
+      if newKey == "" || newKey.length < 32 {
+        return { "ok": false, "status": 400, "body": map { "error": "key_too_short" } }
+      }
+      rows = db.query("SELECT * FROM ProviderKey WHERE user_id = ? AND status != 'deleted'", [user.id])
+      reencrypted = 0
+      for r in rows {
+        plain = decryptSecret(r.encrypted_key)
+        newEnc = crypto.aesGcm.encrypt(plain, newKey, crypto.randomBytes(12))
+        db.update("ProviderKey", r.id, map {
+          "encrypted_key": newEnc.cipher,
+          "nonce": crypto.hex(newEnc.nonce),
+          "version": r.version + 1
+        })
+        reencrypted = reencrypted + 1
+      }
+      audit(user.id, "credential.master.rotate", "ProviderKey", "all", "success", map { "reencrypted": reencrypted })
+      return { "ok": true, "body": map { "rotated": true, "reencrypted": reencrypted } }
+    }
+  }
+}
