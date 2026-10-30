@@ -6065,7 +6065,7 @@ flow FilesFlow {
 }
 
 flow MemoryFlow {
-  start Pamięć
+  start "Pamięć"
   Pamięć => Pamięć when memory.filter != "all"
   Pamięć => Czat when memory.entries.length > 0
 }
