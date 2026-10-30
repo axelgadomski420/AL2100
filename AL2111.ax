@@ -9123,3 +9123,1168 @@ api {
     }
   }
 }
+component CredentialCard(provider, info, kind) {
+  card {
+    tone surface
+    padding lg
+    radius md
+    border true
+    column {
+      gap sm
+      row {
+        align center
+        justify space-between
+        left {
+          row {
+            align center
+            gap sm
+            name {
+              text provider
+              weight semibold
+              size md
+              color text
+            }
+            if info.configured {
+              Badge(info.status)
+            } else {
+              Badge("brak")
+            }
+          }
+        }
+        right {
+          row {
+            gap sm
+            if info.configured {
+              button "Test" {
+                style ghost
+                disabled credentials.testing == kind + ":" + provider
+                action {
+                  logic.testCredential(kind, provider)
+                }
+              }
+              button "Zmień" {
+                style ghost
+                action {
+                  if kind == "ai" {
+                    logic.openEditAiKey(provider)
+                  } else if kind == "search" {
+                    logic.openEditSearchKey(provider)
+                  } else if kind == "oauth" {
+                    logic.openEditOAuth(provider)
+                  }
+                }
+              }
+              button "Usuń" {
+                style danger
+                action {
+                  logic.deleteCredential(kind, provider)
+                }
+              }
+            } else {
+              button "Dodaj klucz" {
+                style primary
+                action {
+                  if kind == "ai" {
+                    logic.openEditAiKey(provider)
+                  } else if kind == "search" {
+                    logic.openEditSearchKey(provider)
+                  } else if kind == "oauth" {
+                    logic.openEditOAuth(provider)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if info.configured {
+        masked {
+          text info.masked
+          mono true
+          size sm
+          muted true
+        }
+        meta {
+          text "Ostatni test: " + (info.lastTested != "" ? info.lastTested : "—")
+          size xs
+          muted true
+        }
+      } else {
+        hint {
+          text "Dodaj klucz, aby aktywować tego dostawcę"
+          size xs
+          muted true
+        }
+      }
+      if credentials.testing == kind + ":" + provider {
+        Spinner("Testuję połączenie…")
+      }
+    }
+  }
+}
+
+component AiKeysPanel {
+  column {
+    gap md
+    SectionHeader("Klucze AI", "Szyfrowane AES-256-GCM. Pełna wartość nigdy nie wraca do interfejsu.", {
+      row {
+        gap sm
+        Badge(configuredAiCount + " aktywnych")
+        button "Rotacja klucza głównego" {
+          style ghost
+          action {
+            credentials.rotateKeyOpen = true
+          }
+        }
+      }
+    })
+    Alert("info", "Dozwolone dostawcy: Gemini, Groq, Mistral, OpenRouter, Cloudflare Workers AI, Anthropic, OpenAI.")
+    for provider in ["gemini", "groq", "mistral", "openrouter", "cloudflare", "anthropic", "openai"] {
+      CredentialCard(provider, credentials.aiKeys[provider], "ai")
+    }
+    if configuredAiCount == 0 {
+      Alert("warning", "Brak klucza AI. Czat będzie niedostępny do momentu dodania przynajmniej jednego klucza.")
+    }
+  }
+}
+
+component SearchKeysPanel {
+  column {
+    gap md
+    SectionHeader("Klucze wyszukiwania", "Wymagane do modułu Research i cytowań.", {
+      row {
+        gap sm
+        Badge(configuredSearchCount + " aktywnych")
+      }
+    })
+    Alert("info", "Obsługiwane dostawcy wyszukiwania: Brave Search, Serper, Tavily, Cloudflare AI Search.")
+    for provider in ["brave", "serper", "tavily", "cloudflare"] {
+      CredentialCard(provider, credentials.searchKeys[provider], "search")
+    }
+    if configuredSearchCount == 0 {
+      Alert("warning", "Brak dostawcy wyszukiwania. Research będzie zwracał puste wyniki.")
+    }
+  }
+}
+
+component OAuthPanel {
+  column {
+    gap md
+    SectionHeader("OAuth", "Konfiguracja logowania GitHub i Google.", {})
+    Alert("info", "Callback URL muszą być dokładnie takie same w konsoli OAuth providera.")
+    card {
+      tone surface
+      padding lg
+      column {
+        gap sm
+        row {
+          align center
+          justify space-between
+          name {
+            text "GitHub"
+            weight semibold
+          }
+          if credentials.oauth.github.configured {
+            Badge("skonfigurowany")
+          } else {
+            Badge("brak")
+          }
+        }
+        ListRow("Client ID", credentials.oauth.github.clientId != "" ? credentials.oauth.github.clientId : "—", true)
+        ListRow("Client Secret", credentials.oauth.github.secretMasked != "" ? credentials.oauth.github.secretMasked : "—", true)
+        ListRow("Callback URL", credentials.oauth.github.callbackUrl, true)
+        row {
+          right {
+            button "Edytuj" {
+              style primary
+              action {
+                logic.openEditOAuth("github")
+              }
+            }
+          }
+        }
+      }
+    }
+    card {
+      tone surface
+      padding lg
+      column {
+        gap sm
+        row {
+          align center
+          justify space-between
+          name {
+            text "Google"
+            weight semibold
+          }
+          if credentials.oauth.google.configured {
+            Badge("skonfigurowany")
+          } else {
+            Badge("brak")
+          }
+        }
+        ListRow("Client ID", credentials.oauth.google.clientId != "" ? credentials.oauth.google.clientId : "—", true)
+        ListRow("Client Secret", credentials.oauth.google.secretMasked != "" ? credentials.oauth.google.secretMasked : "—", true)
+        ListRow("Callback URL", credentials.oauth.google.callbackUrl, true)
+        row {
+          right {
+            button "Edytuj" {
+              style primary
+              action {
+                logic.openEditOAuth("google")
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component CloudflarePanel {
+  column {
+    gap md
+    SectionHeader("Cloudflare", "Konto, token API, Worker, D1, R2, Queues, KV.", {})
+    Alert("info", "Token powinien mieć uprawnienia: Workers Scripts, Workers KV, D1, R2, Queues, Account Settings (read).")
+    card {
+      tone surface
+      padding lg
+      column {
+        gap sm
+        row {
+          align center
+          justify space-between
+          name {
+            text "Konto Cloudflare"
+            weight semibold
+          }
+          if credentials.cloudflare.configured {
+            Badge("skonfigurowany")
+          } else {
+            Badge("brak")
+          }
+        }
+        ListRow("Account ID", credentials.cloudflare.accountId != "" ? credentials.cloudflare.accountId : "—", true)
+        ListRow("API Token", credentials.cloudflare.apiTokenMasked != "" ? credentials.cloudflare.apiTokenMasked : "—", true)
+        ListRow("Zone ID", credentials.cloudflare.zoneId != "" ? credentials.cloudflare.zoneId : "—", true)
+        ListRow("Worker", credentials.cloudflare.workerName, true)
+        row {
+          right {
+            row {
+              gap sm
+              if credentials.cloudflare.configured {
+                button "Test" {
+                  style ghost
+                  action {
+                    logic.testCredential("cloudflare", "cloudflare")
+                  }
+                }
+              }
+              button "Edytuj" {
+                style primary
+                action {
+                  logic.openEditCloudflare()
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    Divider()
+    SectionHeader("Zasoby", "Wymagane bindingi dla wdrożenia", {})
+    card {
+      tone surfaceMuted
+      padding md
+      column {
+        gap xs
+        ListRow("AL_DB", "D1", true)
+        ListRow("AL_BUCKET", "R2", true)
+        ListRow("AL_QUEUE", "Queues", true)
+        ListRow("AL_KV", "KV", true)
+        ListRow("ASSETS", "Workers Assets", true)
+      }
+    }
+  }
+}
+
+component LimitsPanel {
+  column {
+    gap md
+    SectionHeader("Limity", "Koszty, tokeny, współbieżność", {})
+    card {
+      tone surface
+      padding lg
+      column {
+        gap md
+        field "Rate limit / min" {
+          input {
+            type number
+            value settings.rateLimitPerMinute
+            onChange {
+              settings.rateLimitPerMinute = value
+            }
+          }
+        }
+        field "Max tokenów / request" {
+          input {
+            type number
+            value 32000
+            onChange {}
+          }
+        }
+        field "Max tokenów / rozmowa" {
+          input {
+            type number
+            value 200000
+            onChange {}
+          }
+        }
+        field "Max koszt dzienny (USD)" {
+          input {
+            type text
+            value "5.00"
+            onChange {}
+          }
+        }
+        field "Max współbieżnych generacji" {
+          input {
+            type number
+            value 1
+            onChange {}
+          }
+        }
+        field "Max kroków agenta" {
+          input {
+            type number
+            value 24
+            onChange {}
+          }
+        }
+      }
+    }
+  }
+}
+
+component RotateMasterKeyDialog {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 520
+      padding xl
+      column {
+        gap md
+        title {
+          text "Rotacja klucza głównego"
+          weight semibold
+          size lg
+        }
+        Alert("warning", "Wszystkie zapisane klucze zostaną ponownie zaszyfrowane nowym kluczem. Poprzedni klucz w env pozostanie ważny do następnego deployu.")
+        field "Nowy klucz główny (min. 32 znaki)" {
+          input {
+            type password
+            value credentials.draftSecret
+            onChange {
+              credentials.draftSecret = value
+            }
+          }
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              credentials.rotateKeyOpen = false
+              credentials.draftSecret = ""
+            }
+          }
+          button "Rotuj" {
+            style primary
+            action {
+              logic.rotateMasterKey()
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component AddAiKeyModal(provider) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 520
+      padding xl
+      column {
+        gap md
+        title {
+          text "Dodaj klucz AI — " + provider
+          weight semibold
+          size lg
+        }
+        hint {
+          text "Klucz zostanie zaszyfrowany AES-256-GCM i nigdy nie wróci do interfejsu w pełnej formie."
+          size sm
+          muted true
+        }
+        field "Klucz API" {
+          input {
+            type password
+            value credentials.draftKey
+            placeholder "Wklej klucz"
+            onChange {
+              credentials.draftKey = value
+            }
+          }
+        }
+        if credentials.error != "" {
+          Alert("danger", credentials.error)
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              logic.cancelCredentialEdit()
+            }
+          }
+          button "Zapisz" {
+            style primary
+            action {
+              logic.saveAiKey(provider, credentials.draftKey)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component AddSearchKeyModal(provider) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 520
+      padding xl
+      column {
+        gap md
+        title {
+          text "Dodaj klucz wyszukiwania — " + provider
+          weight semibold
+          size lg
+        }
+        field "Klucz API" {
+          input {
+            type password
+            value credentials.draftKey
+            onChange {
+              credentials.draftKey = value
+            }
+          }
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              logic.cancelCredentialEdit()
+            }
+          }
+          button "Zapisz" {
+            style primary
+            action {
+              logic.saveSearchKey(provider, credentials.draftKey)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component OAuthEditModal(provider) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 620
+      padding xl
+      column {
+        gap md
+        title {
+          text "OAuth — " + provider
+          weight semibold
+          size lg
+        }
+        ListRow("Callback URL", credentials.oauth[provider].callbackUrl, true)
+        field "Client ID" {
+          input {
+            value credentials.draftClientId
+            onChange {
+              credentials.draftClientId = value
+            }
+          }
+        }
+        field "Client Secret" {
+          input {
+            type password
+            value credentials.draftSecret
+            onChange {
+              credentials.draftSecret = value
+            }
+          }
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              logic.cancelCredentialEdit()
+            }
+          }
+          button "Zapisz" {
+            style primary
+            action {
+              logic.saveOAuth(provider, credentials.draftClientId, credentials.draftSecret)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component CloudflareEditModal {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 620
+      padding xl
+      column {
+        gap md
+        title {
+          text "Cloudflare"
+          weight semibold
+          size lg
+        }
+        field "Account ID" {
+          input {
+            value credentials.draftAccountId
+            onChange {
+              credentials.draftAccountId = value
+            }
+          }
+        }
+        field "API Token" {
+          input {
+            type password
+            value credentials.draftSecret
+            onChange {
+              credentials.draftSecret = value
+            }
+          }
+        }
+        field "Zone ID (opcjonalnie)" {
+          input {
+            value credentials.draftZoneId
+            onChange {
+              credentials.draftZoneId = value
+            }
+          }
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              logic.cancelCredentialEdit()
+            }
+          }
+          button "Zapisz" {
+            style primary
+            action {
+              logic.saveCloudflare(credentials.draftAccountId, credentials.draftSecret, credentials.draftZoneId, "al2100")
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component EditProjectModal(project) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 520
+      padding xl
+      column {
+        gap md
+        title {
+          text "Edytuj projekt"
+          weight semibold
+          size lg
+        }
+        field "Nazwa" {
+          input {
+            value project.name
+            onChange {
+              project.name = value
+            }
+          }
+        }
+        field "Opis" {
+          textarea {
+            value project.description
+            onChange {
+              project.description = value
+            }
+          }
+        }
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              ui.modal = map { "name": "", "payload": "" }
+            }
+          }
+          button "Zapisz" {
+            style primary
+            action {
+              logic.saveProject(project)
+              ui.modal = map { "name": "", "payload": "" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component ShortcutsModal {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 520
+      padding xl
+      column {
+        gap md
+        title {
+          text "Skróty klawiaturowe"
+          weight semibold
+          size lg
+        }
+        ListRow("Command palette", "Cmd / Ctrl + K", true)
+        ListRow("Nowa rozmowa", "Cmd / Ctrl + N", true)
+        ListRow("Wyślij wiadomość", "Cmd / Ctrl + Enter", true)
+        ListRow("Zwiń sidebar", "Cmd / Ctrl + B", true)
+        ListRow("Ustawienia", "Cmd / Ctrl + Shift + S", true)
+        ListRow("Diagnostyka", "Cmd / Ctrl + Shift + D", true)
+        ListRow("Zamknij okno", "Escape", true)
+        row {
+          right {
+            button "Zamknij" {
+              style primary
+              action {
+                ui.modal = map { "name": "", "payload": "" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component ConfirmModal(payload) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 480
+      padding xl
+      column {
+        gap md
+        title {
+          text "Potwierdź"
+          weight semibold
+          size lg
+        }
+        text payload.message
+        row {
+          justify space-between
+          button "Anuluj" {
+            style ghost
+            action {
+              ui.modal = map { "name": "", "payload": "" }
+            }
+          }
+          button "Potwierdź" {
+            style danger
+            action {
+              if payload.onConfirm != "" {
+                payload.onConfirm()
+              }
+              ui.modal = map { "name": "", "payload": "" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component AgentLogModal(run) {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 720
+      padding xl
+      column {
+        gap md
+        title {
+          text "Log agenta — " + run.agent
+          weight semibold
+          size lg
+        }
+        ListRow("Status", run.status, true)
+        ListRow("Kroki", run.steps, true)
+        ListRow("Tokeny", run.tokens, true)
+        ListRow("Start", run.started_at, true)
+        ListRow("Koniec", run.finished_at || "—", true)
+        CodeBlock(json.stringify(run.log || []), "json")
+        row {
+          right {
+            button "Zamknij" {
+              style primary
+              action {
+                ui.modal = map { "name": "", "payload": "" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component MemoryFiltersModal {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 480
+      padding xl
+      column {
+        gap md
+        title {
+          text "Filtry pamięci"
+          weight semibold
+          size lg
+        }
+        field "Kind" {
+          Select(["all", "fact", "decision", "rejection", "question", "blocker", "summary"], memory.filter, { memory.filter = value })
+        }
+        field "Scope" {
+          Select(["all", "global", "project", "conversation"], memory.filter, { memory.filter = value })
+        }
+        row {
+          right {
+            button "Zamknij" {
+              style primary
+              action {
+                ui.modal = map { "name": "", "payload": "" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+component ModalDispatcher(name, payload) {
+  if name == "Shortcuts" {
+    ShortcutsModal()
+  } else if name == "Confirm" {
+    ConfirmModal(payload)
+  } else if name == "AgentLog" {
+    AgentLogModal(payload)
+  } else if name == "MemoryFilters" {
+    MemoryFiltersModal()
+  } else if name == "EditProject" {
+    EditProjectModal(payload)
+  } else if name == "AddProvider" {
+    AiKeysPanelModalWrapper()
+  }
+}
+
+component AiKeysPanelModalWrapper {
+  overlay {
+    tone overlay
+    dialog {
+      radius lg
+      shadow hard
+      width 620
+      padding xl
+      column {
+        gap md
+        title {
+          text "Dodaj klucz AI"
+          weight semibold
+          size lg
+        }
+        for provider in ["gemini", "groq", "mistral", "openrouter", "cloudflare", "anthropic", "openai"] {
+          row {
+            align center
+            justify space-between
+            text provider
+            button "Dodaj" {
+              style primary
+              action {
+                logic.openEditAiKey(provider)
+                ui.modal = map { "name": "", "payload": "" }
+              }
+            }
+          }
+        }
+        row {
+          right {
+            button "Zamknij" {
+              style ghost
+              action {
+                ui.modal = map { "name": "", "payload": "" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+screen Ustawienia {
+  title "Ustawienia"
+  TopBar("Ustawienia", "Klucze API, dostawcy AI, limity, audyt")
+  tabs {
+    items ["Klucze AI", "Wyszukiwanie", "OAuth", "Cloudflare", "Limity", "Audyt", "Język", "Motyw"]
+    value settings.tab
+    onChange {
+      settings.tab = value
+    }
+    section Klucze AI {
+      AiKeysPanel()
+    }
+    section Wyszukiwanie {
+      SearchKeysPanel()
+    }
+    section OAuth {
+      OAuthPanel()
+    }
+    section Cloudflare {
+      CloudflarePanel()
+    }
+    section Limity {
+      LimitsPanel()
+    }
+    section Audyt {
+      AuditTable(settings.auditLog)
+    }
+    section Język {
+      Select(["pl", "en"], user.locale, { user.locale = value })
+    }
+    section Motyw {
+      Select(["dark", "darker", "system"], user.theme, { user.theme = value })
+    }
+  }
+  if credentials.editMode.kind == "ai" {
+    AddAiKeyModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "search" {
+    AddSearchKeyModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "oauth" {
+    OAuthEditModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "cloudflare" {
+    CloudflareEditModal()
+  }
+  if credentials.rotateKeyOpen {
+    RotateMasterKeyDialog()
+  }
+}
+
+screen UstawieniaMobile {
+  title "Ustawienia"
+  TopBar("Ustawienia", "")
+  tabs {
+    items ["Klucze AI", "Wyszukiwanie", "OAuth", "Cloudflare", "Limity", "Audyt", "Język", "Motyw"]
+    value settings.tab
+    onChange {
+      settings.tab = value
+    }
+    section Klucze AI {
+      AiKeysPanel()
+    }
+    section Wyszukiwanie {
+      SearchKeysPanel()
+    }
+    section OAuth {
+      OAuthPanel()
+    }
+    section Cloudflare {
+      CloudflarePanel()
+    }
+    section Limity {
+      LimitsPanel()
+    }
+    section Audyt {
+      AuditTable(settings.auditLog)
+    }
+    section Język {
+      Select(["pl", "en"], user.locale, { user.locale = value })
+    }
+    section Motyw {
+      Select(["dark", "darker", "system"], user.theme, { user.theme = value })
+    }
+  }
+  if credentials.editMode.kind == "ai" {
+    AddAiKeyModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "search" {
+    AddSearchKeyModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "oauth" {
+    OAuthEditModal(credentials.editMode.provider)
+  }
+  if credentials.editMode.kind == "cloudflare" {
+    CloudflareEditModal()
+  }
+  if credentials.rotateKeyOpen {
+    RotateMasterKeyDialog()
+  }
+}
+
+screen ProjectDetailScreen {
+  title "Projekt"
+  TopBar("Projekt", projects.activeId)
+  if projects.activeId == "" {
+    Empty("Wybierz projekt", "Otwórz projekt z listy")
+  } else {
+    ProjectDetail(projects.items.find(map { "id": projects.activeId }))
+  }
+}
+
+screen TaskDetailScreen {
+  title "Zadanie"
+  TopBar("Zadanie", tasks.filter)
+  if tasks.items.length == 0 {
+    Empty("Brak zadań", "Dodaj pierwsze zadanie")
+  } else {
+    TaskDetail(tasks.items[0])
+  }
+}
+
+screen FilePreviewScreen {
+  title "Plik"
+  TopBar("Plik", files.selectedId)
+  if files.selectedId == "" {
+    Empty("Wybierz plik", "Otwórz plik z listy")
+  } else {
+    FilePreview(files.items.find(map { "id": files.selectedId }))
+  }
+}
+
+screen MusicReleaseDetailScreen {
+  title "Release"
+  TopBar("Release", music.activeReleaseId)
+  if music.activeReleaseId == "" {
+    Empty("Wybierz release", "Otwórz release z listy")
+  } else {
+    MusicReleaseDetail(music.releases.find(map { "id": music.activeReleaseId }))
+  }
+}
+
+screen MusicTrackEditorScreen {
+  title "Track"
+  TopBar("Track", music.activeReleaseId)
+  if music.tracks.length == 0 {
+    Empty("Brak utworów", "Dodaj pierwszy utwór")
+  } else {
+    MusicTrackEditor(music.tracks[0])
+  }
+}
+
+logic {
+  function openProjectDetail(id) {
+    projects.activeId = id
+    nav.current = "ProjectDetailScreen"
+  }
+
+  function openTaskDetail(id) {
+    tasks.filter = id
+    nav.current = "TaskDetailScreen"
+  }
+
+  function openFilePreview(id) {
+    files.selectedId = id
+    nav.current = "FilePreviewScreen"
+  }
+
+  function openMusicReleaseDetail(id) {
+    music.activeReleaseId = id
+    nav.current = "MusicReleaseDetailScreen"
+  }
+
+  function openMusicTrackEditor(id) {
+    music.activeReleaseId = id
+    nav.current = "MusicTrackEditorScreen"
+  }
+
+  function saveProject(project) {
+    fetch("/api/projects/" + project.id, "PATCH", project, map { "X-CSRF-Token": session.csrfToken })
+    logic.loadProjects()
+  }
+
+  function requireAiKey() {
+    if configuredAiCount == 0 {
+      toast("warning", "Dodaj klucz AI w Ustawienia → Klucze AI")
+      nav.current = "Ustawienia"
+      settings.tab = "Klucze AI"
+      return false
+    }
+    return true
+  }
+
+  function sendMessageGuarded() {
+    if !logic.requireAiKey() {
+      return
+    }
+    logic.sendMessage()
+  }
+
+  event settings.tab changed {
+    if settings.tab == "Klucze AI" || settings.tab == "Wyszukiwanie" || settings.tab == "OAuth" || settings.tab == "Cloudflare" {
+      logic.loadCredentials()
+    }
+  }
+}
+
+api {
+  route PATCH /api/projects/:id {
+    auth true
+    csrf true
+    handler {
+      p = db.queryOne("SELECT * FROM Project WHERE id = ? AND user_id = ?", [params.id, user.id])
+      if p == null {
+        return { "ok": false, "status": 404 }
+      }
+      patch = map { "updated_at": nowIso() }
+      if body.name != null {
+        patch.name = body.name
+      }
+      if body.description != null {
+        patch.description = body.description
+      }
+      if body.status != null {
+        patch.status = body.status
+      }
+      if body.color != null {
+        patch.color = body.color
+      }
+      db.update("Project", params.id, patch)
+      audit(user.id, "project.update", "Project", params.id, "success", map {})
+      return { "ok": true, "body": db.queryOne("SELECT * FROM Project WHERE id = ?", [params.id]) }
+    }
+  }
+}
+
+logic {
+  function applyCredentialDelete(kind, provider) {
+    if kind == "ai" || kind == "search" || kind == "oauth" {
+      db.query("UPDATE ProviderKey SET status = 'deleted' WHERE user_id = ? AND provider = ? AND kind = ?", [user.id, provider, kind])
+    } else if kind == "cloudflare" {
+      db.query("UPDATE ProviderKey SET status = 'deleted' WHERE user_id = ? AND kind = 'cloudflare'", [user.id])
+    }
+    audit(user.id, "credential.delete", "ProviderKey", provider, "success", map { "kind": kind })
+    logic.loadCredentials()
+  }
+
+  function applyApprovalExtended(a) {
+    if a.kind == "delete" && a.resource == "Credential" {
+      parts = a.resource_id.split(":")
+      logic.applyCredentialDelete(parts[0], parts[1])
+    }
+  }
+}
+
+flow SetupFlow {
+  start Czat
+  Czat => Ustawienia when configuredAiCount == 0
+  Ustawienia => Czat when configuredAiCount > 0
+}
+
+queue ALQueue {
+  binding "AL_QUEUE"
+  consumer {
+    on message {
+      kind = message.kind
+      if kind == "chat.generate" {
+        logic.runChatGeneration(message.payload)
+      } else if kind == "research.fetch" {
+        logic.runResearchJob(message.payload)
+      } else if kind == "file.index" {
+        logic.runFileIndex(message.payload)
+      } else if kind == "agent.run" {
+        logic.runAgent(message.payload)
+      } else if kind == "deploy.run" {
+        logic.runDeploy(message.payload)
+      } else if kind == "memory.compact" {
+        logic.runMemoryCompaction(message.payload)
+      } else if kind == "audit.flush" {
+        logic.flushAudit(message.payload)
+      } else if kind == "credential.rotate" {
+        logic.rotateMasterKeyAsync(message.payload)
+      }
+    }
+  }
+}
+
+logic {
+  function rotateMasterKeyAsync(payload) {
+    audit(payload.user_id, "credential.master.rotate.async", "ProviderKey", "all", "success", map {})
+  }
+}
+
+cron ALScheduler {
+  schedule "*/5 * * * *" {
+    on tick {
+      db.query("UPDATE Session SET revoked_at = ? WHERE expires_at < ? AND revoked_at IS NULL", [nowIso(), nowIso()])
+      db.query("DELETE FROM Approval WHERE status = 'pending' AND created_at < ?", [date.subDays(nowIso(), 14)])
+    }
+  }
+  schedule "0 3 * * *" {
+    on tick {
+      db.query("DELETE FROM AuditLog WHERE created_at < ?", [date.subDays(nowIso(), 180)])
+    }
+  }
+}
