@@ -607,11 +607,13 @@ class Generator {
     const models = this.ast.storage.models || {};
     const appName = (this.ast.app && this.ast.app.name) || 'AL2100';
     const appId = (this.ast.app && this.ast.app.id) || 'pl.axel.al2100';
+    const indexHtml = this.files['index.html'] || '';
 
     const worker = `'use strict';
 const VERSION = '${VERSION}';
 const APP_NAME = ${JSON.stringify(appName)};
 const APP_ID = ${JSON.stringify(appId)};
+const INDEX_HTML = ${JSON.stringify(indexHtml)};
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -861,15 +863,21 @@ export default {
     if (url.pathname === '/sw.js') {
       return new Response(env.SW_JS || '', { headers: { 'Content-Type': 'application/javascript' } });
     }
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      return new Response(INDEX_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
     if (url.pathname === '/api/health') return json({ ok: true, status: 'ok', version: VERSION, time: new Date().toISOString() });
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) {
       return handleApi(request, env, ctx, url);
     }
-    if (url.pathname === '/') {
-      return env.ASSETS.fetch(new Request(new URL('/index.html', request.url), request));
+    if (env.ASSETS) {
+      try {
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse && assetResponse.status !== 404) return assetResponse;
+      } catch (e) {}
+      return new Response(INDEX_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
-    if (env.ASSETS) return env.ASSETS.fetch(request);
-    return new Response('Not found', { status: 404 });
+    return new Response(INDEX_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   },
   async queue(batch, env, ctx) {
     for (const msg of batch.messages) {
@@ -1154,6 +1162,8 @@ self.addEventListener('fetch', e => {
   }
   genHTML() {
     const title = this.ast.app?.name || 'AL2100';
+    const css = this.files['assets/app.css'] || '';
+    const script = this.files['assets/app.js'] || '';
     this.files['index.html'] = `<!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -1162,11 +1172,11 @@ self.addEventListener('fetch', e => {
 <meta name="theme-color" content="${this.ast.theme?.colors?.primary || '#00E5FF'}">
 <title>${this.escape(title)}</title>
 <link rel="manifest" href="/assets/manifest.webmanifest">
-<link rel="stylesheet" href="/assets/app.css">
+<style>${css}</style>
 </head>
 <body>
 <div id="app"></div>
-<script src="/assets/app.js" type="module"></script>
+<script>${script}</script>
 </body>
 </html>`;
   }
@@ -1178,7 +1188,7 @@ compatibility_date = "2026-10-30"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
-directory = "./"
+directory = "./assets"
 binding = "ASSETS"
 
 [[d1_databases]]
