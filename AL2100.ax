@@ -1021,7 +1021,7 @@ component ContextPanel(conversationId, memoryStatus, contextTokens, sourcesCount
           }
         }
       }
-      section Źródła {
+      section "Źródła" {
         text "Źródła: {sourcesCount}"
         list {
           items research.sources
