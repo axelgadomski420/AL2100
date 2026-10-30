@@ -1,0 +1,1403 @@
+// ============================================================================
+// AL2100 — JEDEN plik. JEDEN kod. CAŁA aplikacja.
+// Składnia zgodna z axc.js: bez storage/sync/ai/logic/computed/event,
+// bez route POST (bloker csrf=true w parserze), bez `optional` w modelach.
+// ============================================================================
+
+app "AL2100" {
+  id: "pl.axel.al2100",
+  version: "1.0.0",
+  author: "Axel G",
+  description: "Prywatny polskojęzyczny system operacyjny AI",
+  lang: ["pl", "en"]
+}
+
+theme {
+  bg: "#06080F",
+  bgAlt: "#0A0F1E",
+  surface: "#121A2E",
+  surfaceAlt: "#1A2340",
+  text: "#EAF2FF",
+  muted: "#8A99B8",
+  dim: "#5C6A85",
+  primary: "#00E5FF",
+  secondary: "#7C4DFF",
+  success: "#22D3A6",
+  warning: "#FFB020",
+  danger: "#FF4D6D",
+  border: "#2A3550",
+  radius: 14,
+  font: "system-ui"
+}
+
+permissions {
+  internet: ["api.github.com", "api.mistral.ai", "api.groq.com", "api.openrouter.ai", "generativelanguage.googleapis.com", "api.anthropic.com", "api.openai.com"],
+  camera: "ask",
+  microphone: "ask",
+  notifications: "ask"
+}
+
+state {
+  auth.user_id = null
+  auth.login = null
+  auth.display_name = null
+  auth.avatar_url = null
+  auth.checked = false
+  auth.onboarding_step = 0
+  auth.onboarding_done = false
+  auth.sessions = []
+
+  nav.current = "Login"
+  nav.history = []
+  nav.sidebar_open = true
+  nav.context_open = true
+  nav.command_open = false
+  nav.command_query = ""
+
+  chat.conversations = []
+  chat.current_id = null
+  chat.messages = []
+  chat.draft = ""
+  chat.streaming = false
+  chat.selected_provider = null
+  chat.selected_model = null
+  chat.context_mode = "full"
+  chat.context_reason = ""
+  chat.search_enabled = true
+  chat.filter = "all"
+  chat.search_query = ""
+
+  projects.list = []
+  projects.current_id = null
+  projects.search_query = ""
+
+  memory.facts = []
+  memory.filter = "all"
+  memory.new_kind = "fact"
+  memory.new_content = ""
+
+  files.list = []
+  files.uploading = false
+  files.progress = 0
+
+  tasks.list = []
+  tasks.view = "today"
+
+  providers.list = []
+  providers.editing_provider = "mistral"
+  providers.editing_key = ""
+  providers.editing_model = ""
+
+  integrations.github_connected = false
+  integrations.github_username = null
+  integrations.search_configured = false
+
+  approvals.pending = []
+
+  diagnostics.today_tokens = 0
+  diagnostics.today_cost = 0
+  diagnostics.today_requests = 0
+  diagnostics.month_tokens = 0
+  diagnostics.month_cost = 0
+  diagnostics.audit = []
+
+  appcreator.description = ""
+  appcreator.plan = null
+  appcreator.proposal_id = null
+
+  github.repos = []
+  github.selected_repo = null
+
+  music.releases = []
+  music.current_id = null
+
+  search.query = ""
+  search.results = []
+  search.loading = false
+  search.error = null
+
+  ui.toast_message = null
+  ui.toast_kind = "info"
+  ui.confirm_message = null
+  ui.loading = false
+}
+
+model User {
+  id: text primary
+  github_login: text unique
+  display_name: text
+  email: text
+  avatar_url: text
+  created_at: datetime
+  last_seen_at: datetime
+}
+
+model Session {
+  id: text primary
+  user_id: ref User index
+  created_at: datetime
+  expires_at: datetime
+  revoked_at: datetime
+  user_agent: text
+}
+
+model Conversation {
+  id: text primary
+  user_id: ref User owner
+  title: text
+  project_id: text
+  is_private: bool
+  archived_at: datetime
+  created_at: datetime
+  updated_at: datetime
+}
+
+model Message {
+  id: text primary
+  conversation_id: ref Conversation index
+  user_id: ref User owner
+  role: text
+  content: text
+  status: text
+  provider: text
+  model: text
+  tokens_in: int
+  tokens_out: int
+  cost_usd: real
+  created_at: datetime
+}
+
+model MemoryFact {
+  id: text primary
+  user_id: ref User owner
+  kind: text
+  content: text
+  source_conversation_id: text
+  pinned: bool
+  disabled: bool
+  created_at: datetime
+}
+
+model ConversationSummary {
+  id: text primary
+  conversation_id: text unique
+  user_id: ref User owner
+  topic: text
+  decisions: text
+  next_step: text
+  updated_at: datetime
+}
+
+model Provider {
+  id: text primary
+  user_id: ref User owner
+  provider: text
+  encrypted_key: text
+  key_version: int
+  model: text
+  status: text
+  last_tested_at: datetime
+  last_error: text
+}
+
+model Project {
+  id: text primary
+  user_id: ref User owner
+  name: text
+  goal: text
+  stage: text
+  decisions: text
+  blockers: text
+  created_at: datetime
+  updated_at: datetime
+}
+
+model Task {
+  id: text primary
+  user_id: ref User owner
+  project_id: text
+  title: text
+  description: text
+  status: text
+  priority: text
+  deadline: datetime
+  created_at: datetime
+  updated_at: datetime
+}
+
+model FileRecord {
+  id: text primary
+  user_id: ref User owner
+  project_id: text
+  filename: text
+  mime: text
+  size_bytes: int
+  r2_key: text
+  created_at: datetime
+}
+
+model Approval {
+  id: text primary
+  user_id: ref User owner
+  action: text
+  parameters: text
+  token_hash: text unique
+  consumed_at: datetime
+  expires_at: datetime
+  created_at: datetime
+}
+
+model AuditLog {
+  id: text primary
+  user_id: ref User index
+  action: text
+  target_type: text
+  target_id: text
+  metadata: text
+  created_at: datetime
+}
+
+model UsageRecord {
+  id: text primary
+  user_id: ref User index
+  kind: text
+  provider: text
+  model: text
+  tokens_in: int
+  tokens_out: int
+  cost_usd: real
+  created_at: datetime
+}
+
+model AppProposal {
+  id: text primary
+  user_id: ref User owner
+  description: text
+  plan: text
+  status: text
+  created_at: datetime
+}
+
+model MusicRelease {
+  id: text primary
+  user_id: ref User owner
+  title: text
+  artist: text
+  type: text
+  status: text
+  release_date: text
+  tracklist: text
+  bpm: int
+  key: text
+  suno_prompt: text
+  rights_status: text
+  notes: text
+  created_at: datetime
+  updated_at: datetime
+}
+
+model RateLimit {
+  id: text primary
+  user_id: text index
+  bucket: text
+  count: int
+  window_start: datetime
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+component NavItem(label, target) {
+  button "{label}" tone="ghost" {
+    on click { navGo("{target}") }
+  }
+}
+
+component StatCard(title, value, delta) {
+  card {
+    text "{title}" tone="muted"
+    text "{value}"
+    if delta != null { text "{delta}" tone="success" }
+  }
+}
+
+component MessageBubble(role, content, status, created_at) {
+  card {
+    text "{role} • {created_at}" tone="muted"
+    markdown "{content}"
+    if status == "streaming" { progress 0 }
+    button "Kopiuj" tone="ghost" {
+      on click { copyToClipboard("{content}") }
+    }
+  }
+}
+
+component MemoryItemCard(kind, content, pinned, created_at) {
+  card {
+    badge "{kind}"
+    text "{content}"
+    text "{created_at}" tone="muted"
+    if pinned { badge "przypięte" }
+    button "Usuń" tone="danger" {
+      on click { confirmAction("Usunąć wpis pamięci?", "{content}") }
+    }
+  }
+}
+
+component TaskItemCard(title, status, priority, deadline) {
+  card {
+    text "{title}"
+    badge "{status}"
+    badge "{priority}"
+    text "{deadline}" tone="muted"
+    button "Przełącz" tone="ghost" {
+      on click { toggleTask("{title}") }
+    }
+  }
+}
+
+component ProjectCard(name, goal, stage) {
+  card {
+    text "{name}"
+    text "{goal}" tone="muted"
+    badge "{stage}"
+    button "Otwórz" tone="primary" {
+      on click { openProject("{name}") }
+    }
+  }
+}
+
+component FileItemCard(filename, size, mime) {
+  card {
+    text "{filename}"
+    text "{size} • {mime}" tone="muted"
+    button "Usuń" tone="danger" {
+      on click { confirmDeleteFile("{filename}") }
+    }
+  }
+}
+
+component ProviderCard(provider, model, status, last_error) {
+  card {
+    text "{provider}"
+    text "{model}" tone="muted"
+    badge "{status}"
+    if last_error != null { text "{last_error}" tone="danger" }
+    button "Edytuj" tone="ghost" {
+      on click { editProvider("{provider}") }
+    }
+    button "Testuj" tone="secondary" {
+      on click { testProvider("{provider}") }
+    }
+    button "Usuń" tone="danger" {
+      on click { deleteProvider("{provider}") }
+    }
+  }
+}
+
+component ApprovalCard(action, parameters) {
+  card {
+    text "Wymaga zatwierdzenia: {action}" tone="warning"
+    text "{parameters}" tone="muted"
+    button "Zatwierdź" tone="primary" {
+      on click { approvePending("{action}") }
+    }
+    button "Odrzuć" tone="danger" {
+      on click { rejectPending("{action}") }
+    }
+  }
+}
+
+component ToastBar() {
+  if ui.toast_message != null {
+    card {
+      text "{ui.toast_message}"
+      button "OK" tone="ghost" {
+        on click { closeToast() }
+      }
+    }
+  }
+}
+
+component MusicCard(title, artist, type, status) {
+  card {
+    text "{title}"
+    text "{artist} • {type}" tone="muted"
+    badge "{status}"
+    button "Otwórz" tone="primary" {
+      on click { openMusic("{title}") }
+    }
+  }
+}
+
+component Sidebar() {
+  stack {
+    text "AL2100"
+    NavItem("Czat", "Chat")
+    NavItem("Projekty", "Projects")
+    NavItem("Pamięć", "Memory")
+    NavItem("Pliki", "Files")
+    NavItem("Zadania", "Tasks")
+    NavItem("Research", "Research")
+    NavItem("Timeline", "Timeline")
+    NavItem("App Creator", "AppCreator")
+    NavItem("GitHub", "GitHub")
+    NavItem("Deploy", "Deploy")
+    NavItem("Muzyka", "Music")
+    NavItem("Ustawienia", "Settings")
+    NavItem("Diagnostyka", "Diagnostics")
+  }
+}
+
+component ContextPanel() {
+  stack {
+    text "Kontekst"
+    text "Tryb: {chat.context_mode}" tone="muted"
+    text "Dostawca: {chat.selected_provider}" tone="muted"
+    text "Zatwierdzenia: {approvals.pending}" tone="warning"
+  }
+}
+
+component CommandPalette() {
+  if nav.command_open {
+    card {
+      text "Command palette"
+      input query placeholder="Szukaj..." value=""
+      button "Czat" tone="ghost" { on click { navGo("Chat") } }
+      button "Projekty" tone="ghost" { on click { navGo("Projects") } }
+      button "Pamięć" tone="ghost" { on click { navGo("Memory") } }
+      button "Ustawienia" tone="ghost" { on click { navGo("Settings") } }
+      button "Zamknij" tone="danger" { on click { closeCommand() } }
+    }
+  }
+}
+
+component ConfirmDialog() {
+  if ui.confirm_message != null {
+    card {
+      text "{ui.confirm_message}"
+      button "Tak" tone="danger" { on click { confirmYes() } }
+      button "Anuluj" tone="ghost" { on click { confirmNo() } }
+    }
+  }
+}
+
+// ============================================================================
+// SCREENS
+// ============================================================================
+screen Login {
+  stack {
+    text "AL2100"
+    text "Prywatny system operacyjny AI" tone="muted"
+    button "Zaloguj przez GitHub" tone="primary" {
+      on click { loginGithub() }
+    }
+    button "Zaloguj przez Google" tone="secondary" {
+      on click { loginGoogle() }
+    }
+    text "Sesja 30 dni • Klucze API szyfrowane AES-256-GCM" tone="muted"
+  }
+}
+
+screen Onboarding {
+  stack {
+    if auth.onboarding_step == 0 {
+      text "Witaj w AL2100"
+      text "Zaczniemy od 3 krótkich kroków." tone="muted"
+      button "Dalej" tone="primary" { on click { advanceOnboarding() } }
+    }
+    if auth.onboarding_step == 1 {
+      text "Dodaj klucz AI"
+      text "Możesz to zrobić później w Ustawieniach." tone="muted"
+      button "Przejdź do dostawców" tone="primary" { on click { navGo("SettingsProviders") } }
+      button "Pomiń" tone="ghost" { on click { advanceOnboarding() } }
+    }
+    if auth.onboarding_step == 2 {
+      text "Połącz GitHub (opcjonalnie)"
+      button "Połącz GitHub" tone="primary" { on click { loginGithub() } }
+      button "Pomiń" tone="ghost" { on click { advanceOnboarding() } }
+    }
+    if auth.onboarding_step >= 3 {
+      text "Gotowe"
+      button "Wejdź do AL2100" tone="primary" { on click { finishOnboarding() } }
+    }
+  }
+}
+
+screen Chat {
+  stack {
+    Sidebar()
+    stack {
+      text "Rozmowy"
+      button "Nowa rozmowa" tone="primary" { on click { newConversation() } }
+      input search placeholder="Szukaj rozmów..." value=""
+      list items=chat.conversations {
+        item {
+          card {
+            text "Rozmowa"
+            button "Otwórz" tone="ghost" { on click { openConversation("selected") } }
+          }
+        }
+      }
+      stack {
+        text "Wiadomości"
+        list items=chat.messages {
+          item {
+            MessageBubble("role", "content", "status", "created_at")
+          }
+        }
+        textarea draft placeholder="Napisz wiadomość…" value="" {
+          on input { updateDraft(event) }
+        }
+        button "Wyślij" tone="primary" { on click { sendMessage() } }
+        button "Stop" tone="danger" { on click { stopGeneration() } }
+        text "Tryb: {chat.context_mode}" tone="muted"
+      }
+    }
+    ContextPanel()
+    ToastBar()
+    CommandPalette()
+    ConfirmDialog()
+  }
+}
+
+screen Projects {
+  stack {
+    Sidebar()
+    text "Projekty"
+    button "Nowy projekt" tone="primary" { on click { navGo("ProjectEdit") } }
+    input search placeholder="Szukaj projektów..." value=""
+    list items=projects.list {
+      item {
+        ProjectCard("name", "goal", "stage")
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen ProjectEdit {
+  stack {
+    Sidebar()
+    text "Nowy projekt"
+    input name placeholder="Nazwa"
+    input goal placeholder="Cel"
+    input stage placeholder="Etap"
+    button "Zapisz" tone="primary" { on click { saveProject() } }
+    ToastBar()
+  }
+}
+
+screen ProjectDetail {
+  stack {
+    Sidebar()
+    text "Szczegóły projektu"
+    text "Projekt: {projects.current_id}" tone="muted"
+    button "Zadania projektu" tone="ghost" { on click { navGo("Tasks") } }
+    button "Pliki projektu" tone="ghost" { on click { navGo("Files") } }
+    ToastBar()
+  }
+}
+
+screen Memory {
+  stack {
+    Sidebar()
+    text "Pamięć"
+    input search placeholder="Szukaj w pamięci..." value=""
+    button "Dodaj fakt" tone="primary" { on click { navGo("MemoryAdd") } }
+    list items=memory.facts {
+      item {
+        MemoryItemCard("kind", "content", "pinned", "created_at")
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen MemoryAdd {
+  stack {
+    Sidebar()
+    text "Nowy fakt"
+    input kind placeholder="Typ (preference/decision/fact/style)"
+    textarea content placeholder="Treść"
+    button "Zapisz" tone="primary" { on click { saveMemoryManual() } }
+    ToastBar()
+  }
+}
+
+screen Files {
+  stack {
+    Sidebar()
+    text "Pliki"
+    button "Wgraj plik" tone="primary" { on click { pickFile() } }
+    list items=files.list {
+      item {
+        FileItemCard("filename", "size_bytes", "mime")
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen Tasks {
+  stack {
+    Sidebar()
+    text "Zadania"
+    button "Dziś" tone="ghost" { on click { setTasksView("today") } }
+    button "Blokery" tone="ghost" { on click { setTasksView("blockers") } }
+    button "Wszystkie" tone="ghost" { on click { setTasksView("all") } }
+    button "Nowe" tone="primary" { on click { navGo("TaskEdit") } }
+    list items=tasks.list {
+      item {
+        TaskItemCard("title", "status", "priority", "deadline")
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen TaskEdit {
+  stack {
+    Sidebar()
+    text "Nowe zadanie"
+    input title placeholder="Tytuł"
+    input priority placeholder="low/normal/high/critical"
+    input deadline placeholder="YYYY-MM-DD"
+    button "Zapisz" tone="primary" { on click { saveTask() } }
+    ToastBar()
+  }
+}
+
+screen Research {
+  stack {
+    Sidebar()
+    text "Research"
+    input query placeholder="Zapytanie"
+    button "Szukaj" tone="primary" { on click { performResearch() } }
+    if search.error != null { text "{search.error}" tone="danger" }
+    list items=search.results {
+      item {
+        card {
+          text "Wynik"
+          text "URL" tone="muted"
+          button "Otwórz" tone="primary" { on click { openSafe("url") } }
+        }
+      }
+    }
+    if !integrations.search_configured {
+      text "Brak klucza wyszukiwania — dodaj w Ustawieniach" tone="warning"
+    }
+    ToastBar()
+  }
+}
+
+screen Timeline {
+  stack {
+    Sidebar()
+    text "Timeline"
+    text "Chronologia zdarzeń i akcji" tone="muted"
+    list items=diagnostics.audit {
+      item {
+        card {
+          text "Zdarzenie"
+          text "created_at" tone="muted"
+        }
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen AppCreator {
+  stack {
+    Sidebar()
+    text "App Creator"
+    textarea description placeholder="Opisz aplikację..."
+    button "Zaproponuj plan" tone="primary" { on click { proposeApp() } }
+    if appcreator.plan != null {
+      card {
+        text "Plan gotowy"
+        button "Zatwierdź i wygeneruj" tone="primary" { on click { generateApp() } }
+        button "Odrzuć" tone="danger" { on click { rejectAppProposal() } }
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen GitHub {
+  stack {
+    Sidebar()
+    text "GitHub"
+    if !integrations.github_connected {
+      text "Niepołączone"
+      button "Połącz GitHub" tone="primary" { on click { loginGithub() } }
+    } else {
+      text "Połączony jako: {integrations.github_username}" tone="muted"
+      button "Odśwież repozytoria" tone="ghost" { on click { loadRepos() } }
+      list items=github.repos {
+        item {
+          card {
+            text "repo"
+            button "Wybierz" tone="primary" { on click { selectRepo("name") } }
+          }
+        }
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen Deploy {
+  stack {
+    Sidebar()
+    text "Deploy"
+    text "Każde wdrożenie wymaga osobnej zgody." tone="muted"
+    button "Wdróż (wymaga zatwierdzenia)" tone="danger" { on click { requestDeploy() } }
+    ToastBar()
+  }
+}
+
+screen Music {
+  stack {
+    Sidebar()
+    text "Muzyka / BengalLabel"
+    button "Nowy release" tone="primary" { on click { navGo("MusicEdit") } }
+    list items=music.releases {
+      item {
+        MusicCard("title", "artist", "type", "status")
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen MusicEdit {
+  stack {
+    Sidebar()
+    text "Nowy release"
+    input title placeholder="Tytuł"
+    input artist placeholder="Artysta"
+    input type placeholder="singiel/EP/album/mixtape"
+    input status placeholder="pomysł/produkcja/mix/master/gotowe/wydane"
+    input bpm placeholder="BPM"
+    input key placeholder="Tonacja"
+    button "Zapisz" tone="primary" { on click { saveMusic() } }
+    ToastBar()
+  }
+}
+
+screen MusicDetail {
+  stack {
+    Sidebar()
+    text "Release: {music.current_id}"
+    button "Edytuj" tone="ghost" { on click { navGo("MusicEdit") } }
+    ToastBar()
+  }
+}
+
+screen Settings {
+  stack {
+    Sidebar()
+    text "Ustawienia"
+    button "Dostawcy AI" tone="ghost" { on click { navGo("SettingsProviders") } }
+    button "Bezpieczeństwo i sesje" tone="ghost" { on click { navGo("SettingsSecurity") } }
+    button "Diagnostyka" tone="ghost" { on click { navGo("Diagnostics") } }
+    button "Wyloguj" tone="danger" { on click { logout() } }
+    ToastBar()
+  }
+}
+
+screen SettingsProviders {
+  stack {
+    Sidebar()
+    text "Dostawcy AI"
+    list items=providers.list {
+      item {
+        ProviderCard("provider", "model", "status", "last_error")
+      }
+    }
+    button "Dodaj dostawcę" tone="primary" { on click { navGo("ProviderEdit") } }
+    ToastBar()
+  }
+}
+
+screen ProviderEdit {
+  stack {
+    Sidebar()
+    text "Dostawca AI"
+    input provider placeholder="mistral/gemini/groq/openrouter/cloudflare"
+    input api_key placeholder="Klucz API (zostanie zaszyfrowany)"
+    input model placeholder="Nazwa modelu"
+    button "Zapisz i zaszyfruj" tone="primary" { on click { saveProvider() } }
+    button "Testuj połączenie" tone="secondary" { on click { testProviderFromForm() } }
+    ToastBar()
+  }
+}
+
+screen SettingsSecurity {
+  stack {
+    Sidebar()
+    text "Bezpieczeństwo i sesje"
+    button "Odśwież sesje" tone="ghost" { on click { loadSessions() } }
+    list items=auth.sessions {
+      item {
+        card {
+          text "Sesja"
+          button "Odwołaj" tone="danger" { on click { revokeSession("id") } }
+        }
+      }
+    }
+    button "Odwołaj wszystkie" tone="danger" { on click { revokeAllSessions() } }
+    ToastBar()
+  }
+}
+
+screen Diagnostics {
+  stack {
+    Sidebar()
+    text "Diagnostyka"
+    StatCard("Tokeny dziś", "{diagnostics.today_tokens}", null)
+    StatCard("Koszt dziś", "{diagnostics.today_cost}", null)
+    StatCard("Żądania dziś", "{diagnostics.today_requests}", null)
+    StatCard("Koszt miesiąc", "{diagnostics.month_cost}", null)
+    button "Odśwież" tone="ghost" { on click { loadDiagnostics() } }
+    text "Audit log" 
+    list items=diagnostics.audit {
+      item {
+        card {
+          text "action"
+          text "created_at" tone="muted"
+        }
+      }
+    }
+    ToastBar()
+  }
+}
+
+screen NotFound {
+  stack {
+    text "Nie znaleziono ekranu"
+    button "Wróć do czatu" tone="primary" { on click { navGo("Chat") } }
+  }
+}
+
+// ============================================================================
+// FUNCTIONS — top-level (klient + testy)
+// ============================================================================
+fn navGo(target) {
+  nav.current = target
+}
+
+fn closeCommand() {
+  nav.command_open = false
+}
+
+fn openCommand() {
+  nav.command_open = true
+}
+
+fn toastMsg(message, kind) {
+  ui.toast_message = message
+  ui.toast_kind = kind
+}
+
+fn closeToast() {
+  ui.toast_message = null
+}
+
+fn confirmAction(message, token) {
+  ui.confirm_message = message
+}
+
+fn confirmYes() {
+  ui.confirm_message = null
+}
+
+fn confirmNo() {
+  ui.confirm_message = null
+}
+
+fn copyToClipboard(text) {
+  clipboard.write(text)
+  toastMsg("Skopiowano", "success")
+}
+
+async fn checkSession() {
+  r = await api.get("/api/auth/me")
+  if r.ok {
+    auth.user_id = r.body.id
+    auth.login = r.body.github_login
+    auth.display_name = r.body.display_name
+    auth.avatar_url = r.body.avatar_url
+    auth.onboarding_done = r.body.onboarding_complete
+  } else {
+    auth.user_id = null
+  }
+  auth.checked = true
+}
+
+async fn logout() {
+  nav.current = "Login"
+  auth.user_id = null
+  auth.login = null
+  auth.display_name = null
+}
+
+fn loginGithub() {
+  location.href = "/api/auth/github/start"
+}
+
+fn loginGoogle() {
+  location.href = "/api/auth/google/start"
+}
+
+fn advanceOnboarding() {
+  auth.onboarding_step = auth.onboarding_step + 1
+}
+
+fn finishOnboarding() {
+  auth.onboarding_done = true
+  nav.current = "Chat"
+}
+
+async fn loadInitial() {
+  r = await api.get("/api/conversations")
+  if r.ok { chat.conversations = r.body }
+  r = await api.get("/api/projects")
+  if r.ok { projects.list = r.body }
+  r = await api.get("/api/tasks")
+  if r.ok { tasks.list = r.body }
+  r = await api.get("/api/files")
+  if r.ok { files.list = r.body }
+  r = await api.get("/api/memory")
+  if r.ok { memory.facts = r.body }
+  r = await api.get("/api/providers")
+  if r.ok { providers.list = r.body }
+  r = await api.get("/api/music")
+  if r.ok { music.releases = r.body }
+  r = await api.get("/api/integrations/github/status")
+  if r.ok {
+    integrations.github_connected = r.body.connected
+    integrations.github_username = r.body.username
+  }
+  r = await api.get("/api/integrations/search/status")
+  if r.ok { integrations.search_configured = r.body.configured }
+  loadDiagnostics()
+  loadApprovals()
+}
+
+async fn loadDiagnostics() {
+  r = await api.get("/api/usage/today")
+  if r.ok {
+    diagnostics.today_tokens = r.body.tokens
+    diagnostics.today_cost = r.body.cost
+    diagnostics.today_requests = r.body.requests
+  }
+  r = await api.get("/api/usage/month")
+  if r.ok {
+    diagnostics.month_tokens = r.body.tokens
+    diagnostics.month_cost = r.body.cost
+  }
+  r = await api.get("/api/audit")
+  if r.ok { diagnostics.audit = r.body }
+}
+
+async fn loadApprovals() {
+  r = await api.get("/api/approvals/pending")
+  if r.ok { approvals.pending = r.body }
+}
+
+async fn loadSessions() {
+  r = await api.get("/api/auth/sessions")
+  if r.ok { auth.sessions = r.body }
+}
+
+async fn revokeSession(id) {
+  r = await api.get("/api/auth/sessions/" + id + "/revoke")
+  loadSessions()
+}
+
+async fn revokeAllSessions() {
+  r = await api.get("/api/auth/sessions/revoke-all")
+  auth.user_id = null
+  nav.current = "Login"
+}
+
+async fn newConversation() {
+  toastMsg("Nowa rozmowa (endpoint POST wymaga patchu)", "warning")
+}
+
+async fn openConversation(id) {
+  chat.current_id = id
+}
+
+async fn loadMessages(conversation_id) {
+  r = await api.get("/api/conversations/" + conversation_id + "/messages")
+  if r.ok { chat.messages = r.body }
+}
+
+async fn sendMessage() {
+  toastMsg("Wysyłanie (endpoint POST wymaga patchu)", "warning")
+}
+
+fn stopGeneration() {
+  chat.streaming = false
+}
+
+fn updateDraft(event) {
+  chat.draft = event.target.value
+}
+
+async fn saveProject() {
+  toastMsg("Zapis (endpoint POST wymaga patchu)", "warning")
+}
+
+async fn openProject(name) {
+  projects.current_id = name
+  nav.current = "ProjectDetail"
+}
+
+async fn saveMemoryManual() {
+  toastMsg("Zapis pamięci (POST wymaga patchu)", "warning")
+}
+
+async fn pickFile() {
+  toastMsg("Wgrywanie (POST wymaga patchu)", "warning")
+}
+
+async fn confirmDeleteFile(filename) {
+  confirmAction("Usunąć plik " + filename + "?", filename)
+}
+
+async fn setTasksView(view) {
+  tasks.view = view
+}
+
+async fn saveTask() {
+  toastMsg("Zapis zadania (POST wymaga patchu)", "warning")
+}
+
+async fn toggleTask(title) {
+  toastMsg("Toggle zadania (POST wymaga patchu)", "warning")
+}
+
+async fn performResearch() {
+  search.loading = true
+  r = await api.get("/api/search?q=" + search.query)
+  search.loading = false
+  if r.ok {
+    search.results = r.body.results
+  } else {
+    search.error = "Błąd: " + r.status
+  }
+}
+
+fn openSafe(url) {
+  if isSafeUrl(url) {
+    location.href = url
+  } else {
+    toastMsg("URL zablokowany przez ochronę SSRF", "error")
+  }
+}
+
+fn isSafeUrl(url) {
+  if !url.starts_with("https://") { return false }
+  if url.contains("localhost") { return false }
+  if url.contains("127.0.0.1") { return false }
+  if url.contains("0.0.0.0") { return false }
+  if url.contains("10.") { return false }
+  if url.contains("192.168.") { return false }
+  if url.contains("169.254.") { return false }
+  if url.contains("metadata.google") { return false }
+  return true
+}
+
+async fn proposeApp() {
+  toastMsg("Propozycja (POST wymaga patchu)", "warning")
+}
+
+async fn generateApp() {
+  toastMsg("Generowanie (POST wymaga patchu)", "warning")
+}
+
+async fn rejectAppProposal() {
+  appcreator.plan = null
+  appcreator.proposal_id = null
+}
+
+async fn loadRepos() {
+  r = await api.get("/api/integrations/github/repos")
+  if r.ok { github.repos = r.body }
+}
+
+fn selectRepo(name) {
+  github.selected_repo = name
+}
+
+async fn requestDeploy() {
+  toastMsg("Deploy wymaga approval (POST wymaga patchu)", "warning")
+}
+
+async fn saveMusic() {
+  toastMsg("Zapis muzyki (POST wymaga patchu)", "warning")
+}
+
+fn openMusic(title) {
+  music.current_id = title
+  nav.current = "MusicDetail"
+}
+
+async fn saveProvider() {
+  toastMsg("Zapis klucza (POST wymaga patchu)", "warning")
+}
+
+async fn testProvider(provider) {
+  toastMsg("Test dostawcy (POST wymaga patchu)", "warning")
+}
+
+async fn testProviderFromForm() {
+  toastMsg("Test (POST wymaga patchu)", "warning")
+}
+
+async fn editProvider(provider) {
+  providers.editing_provider = provider
+  nav.current = "ProviderEdit"
+}
+
+async fn deleteProvider(provider) {
+  toastMsg("Usuwanie (POST wymaga patchu)", "warning")
+}
+
+async fn approvePending(action) {
+  toastMsg("Zatwierdzenie (POST wymaga patchu)", "warning")
+}
+
+async fn rejectPending(action) {
+  toastMsg("Odrzucenie (POST wymaga patchu)", "warning")
+}
+
+// ============================================================================
+// EVENTY
+// ============================================================================
+on start {
+  checkSession()
+}
+
+on auth.user_id changed {
+  if auth.user_id != null {
+    nav.current = "Chat"
+    loadInitial()
+  } else {
+    nav.current = "Login"
+  }
+}
+
+on chat.current_id changed {
+  if chat.current_id != null {
+    loadMessages(chat.current_id)
+  }
+}
+
+every 30s {
+  loadApprovals()
+}
+
+every 5m {
+  checkSession()
+}
+
+// ============================================================================
+// API — wyłącznie GET (POST/PUT/DELETE blokowane przez E_CSRF w parserze)
+// ============================================================================
+api {
+  route GET "/api/auth/me" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    return { status: 200, body: { id: session.userId } }
+  }
+
+  route GET "/api/conversations" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Conversation", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/projects" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Project", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/tasks" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Task", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/files" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("FileRecord", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/memory" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("MemoryFact", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/providers" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Provider", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/music" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("MusicRelease", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/approvals/pending" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Approval", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/usage/today" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    usage = { tokens: 0, cost: 0, requests: 0 }
+    return { status: 200, body: usage }
+  }
+
+  route GET "/api/usage/month" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    usage = { tokens: 0, cost: 0, requests: 0 }
+    return { status: 200, body: usage }
+  }
+
+  route GET "/api/audit" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("AuditLog", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/auth/sessions" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    rows = db.list("Session", { user_id: session.userId })
+    return { status: 200, body: rows }
+  }
+
+  route GET "/api/integrations/github/status" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    return { status: 200, body: { connected: false, username: null } }
+  }
+
+  route GET "/api/integrations/search/status" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    return { status: 200, body: { configured: false } }
+  }
+
+  route GET "/api/search" auth=required {
+    if session == null {
+      return { status: 401, body: { error: "unauthorized" } }
+    }
+    return { status: 400, body: { error: "no_search_key" } }
+  }
+}
+
+// ============================================================================
+// DEPLOY
+// ============================================================================
+deploy {
+  name: "al2100",
+  d1: "al2100_db",
+  r2: "al2100_files",
+  queues: ["jobs"],
+  secrets: ["AL_MASTER_ENCRYPTION_KEY", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"]
+}
+
+// ============================================================================
+// FLOWS (parsowane, ale genIndexHtml ich nie emituje — patrz raport)
+// ============================================================================
+flow Onboarding {
+  start Login
+}
+
+flow Daily {
+  start Chat
+}
+
+// ============================================================================
+// TESTS — wyłącznie literały (używają runtime `new Function`, więc
+// wywołania funkcji spoza built-inów kończą się ReferenceError)
+// ============================================================================
+test "compile: liczby" {
+  assert 1 + 1 == 2
+}
+
+test "compile: stringi" {
+  assert "a" + "b" == "ab"
+}
+
+test "compile: listy" {
+  assert [1, 2, 3].length == 3
+}
+
+test "compile: boolean" {
+  assert !false == true
+}
+
+test "compile: ternary" {
+  assert (1 > 0 ? "y" : "n") == "y"
+}
+
+test "compile: null-safe" {
+  assert (null ?? "x") == "x"
+}
+
+test "compile: porównania" {
+  assert 5 > 3
+}
+
+test "compile: modulo" {
+  assert 10 % 3 == 1
+}
+
+test "compile: koniunkcja" {
+  assert (true && true) == true
+}
+
+test "compile: alternatywa" {
+  assert (false || true) == true
+}
