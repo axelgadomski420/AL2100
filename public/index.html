@@ -2,13 +2,12 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#03030a">
-<meta name="description" content="AL2100 Ultra Godmode — prywatny system operacyjny AI bez hamulców">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>AL2100 Ultra Godmode</title>
+<meta name="description" content="AL2100 — prywatny system operacyjny AI">
+<title>AL2100</title>
 <style>
-:root{--bg:#03030a;--bg2:#090912;--bg3:#11111c;--bg4:#191928;--border:#24243a;--border2:#343450;--text:#f0f2ff;--muted:#8989a8;--accent:#00e5ff;--accent2:#7c4dff;--accent3:#ff2d95;--danger:#ff3b5c;--success:#00e676;--warn:#ffb020;--glass:rgba(9,9,18,.86);--radius:16px;--shadow:0 24px 70px rgba(0,0,0,.7);--font:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,"Cascadia Code",Menlo,Consolas,monospace;--fs:15px;--trans:.2s cubic-bezier(.2,.8,.2,1)}
+:root{--bg:#03030a;--bg2:#090912;--bg3:#11111c;--bg4:#191928;--border:#24243a;--border2:#343450;--text:#f0f2ff;--muted:#8989a8;--accent:#00e5ff;--accent2:#7c4dff;--accent3:#ff2d95;--danger:#ff3b5c;--success:#00e676;--glass:rgba(9,9,18,.86);--radius:16px;--shadow:0 24px 70px rgba(0,0,0,.7);--font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--fs:15px;--trans:.2s cubic-bezier(.2,.8,.2,1)}
 [data-theme=light]{--bg:#f0f2fa;--bg2:#fff;--bg3:#eef1f8;--bg4:#e1e5f1;--border:#cdd3e5;--border2:#b4bcd2;--text:#0a111f;--muted:#54607c;--glass:rgba(255,255,255,.9);--shadow:0 24px 70px rgba(0,0,0,.12)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;font-family:var(--font);font-size:var(--fs);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -30,7 +29,8 @@ a{color:var(--accent);text-decoration:none}
 .nav-icon{width:22px;text-align:center;font-size:17px}
 .sidebar-footer{padding:10px 12px 14px;border-top:1px solid var(--border)}
 .user-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px}
-.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent3));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent3));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
 .main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
 .topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;background:var(--glass);backdrop-filter:blur(20px);z-index:30}
 .menu-btn{display:none;width:40px;height:40px;border-radius:11px;align-items:center;justify-content:center;font-size:19px}
@@ -52,10 +52,10 @@ a{color:var(--accent);text-decoration:none}
 .conv-list{width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg2)}
 .conv-list-header{padding:12px;display:flex;gap:8px}
 .conv-items{flex:1;overflow-y:auto;padding:0 8px 12px}
-.conv-item{padding:12px;border-radius:12px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;transition:background .12s}
+.conv-item{padding:12px;border-radius:12px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;transition:background .12s;display:flex;align-items:center;gap:8px}
 .conv-item:hover{background:var(--bg3)}
 .conv-item.active{background:var(--bg3);border-color:rgba(0,229,255,.35)}
-.conv-title{font-size:13.2px;font-weight:620;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-title{font-size:13.2px;font-weight:620;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .conv-meta{font-size:11px;color:var(--muted);margin-top:3px}
 .chat-area{flex:1;display:flex;flex-direction:column;min-width:0}
 .messages{flex:1;overflow-y:auto;padding:24px 16px;display:flex;flex-direction:column;gap:22px}
@@ -68,8 +68,6 @@ a{color:var(--accent);text-decoration:none}
 .msg:hover .msg-actions{opacity:1}
 .msg-actions button{font-size:11px;color:var(--muted);padding:4px 9px;border-radius:7px}
 .msg-actions button:hover{background:var(--bg3);color:var(--text)}
-.msg-body img{max-width:100%;border-radius:12px;margin:10px 0;border:1px solid var(--border);cursor:pointer}
-.msg-body video{max-width:100%;border-radius:12px;margin:10px 0}
 .composer{padding:12px 16px 18px;border-top:1px solid var(--border);background:var(--glass);backdrop-filter:blur(18px)}
 .composer-inner{max-width:940px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
 .composer-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -79,10 +77,6 @@ a{color:var(--accent);text-decoration:none}
 .send-btn{width:56px;height:56px;border-radius:15px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#03030a;font-size:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .send-btn:hover:not(:disabled){transform:scale(1.05)}
 .send-btn:disabled{opacity:.35}
-.attach-preview{display:flex;gap:8px;flex-wrap:wrap}
-.attach-item{position:relative;width:76px;height:76px;border-radius:11px;overflow:hidden;border:1px solid var(--border);background:var(--bg3)}
-.attach-item img{width:100%;height:100%;object-fit:cover}
-.attach-item .rm{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
 .toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;padding:5px 9px;border-radius:8px}
 .toggle:hover{background:var(--bg3)}
 .toggle input{accent-color:var(--accent)}
@@ -100,7 +94,7 @@ a{color:var(--accent);text-decoration:none}
 .form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--accent)}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
 .modal-overlay.show{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border);border-radius:22px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow);animation:modalIn .2s ease}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:22px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow);animation:modalIn .2s ease}
 @keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(12px)}to{opacity:1;transform:none}}
 .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-weight:720}
 .modal-body{padding:20px}
@@ -113,7 +107,7 @@ a{color:var(--accent);text-decoration:none}
 .cmd-palette{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;padding-top:9vh;z-index:1500;backdrop-filter:blur(6px)}
 .cmd-palette.show{display:flex}
 .cmd-box{background:var(--bg2);border:1px solid var(--border);border-radius:18px;width:100%;max-width:620px;box-shadow:var(--shadow);overflow:hidden;animation:modalIn .18s ease}
-.cmd-input{width:100%;padding:18px 20px;border-bottom:1px solid var(--border);font-size:16px}
+.cmd-input{width:100%;padding:18px 20px;border-bottom:1px solid var(--border);font-size:16px;background:transparent}
 .cmd-results{max-height:420px;overflow-y:auto}
 .cmd-item{padding:13px 20px;cursor:pointer;display:flex;align-items:center;gap:12px;font-size:14px}
 .cmd-item:hover,.cmd-item.active{background:var(--bg3)}
@@ -126,27 +120,24 @@ a{color:var(--accent);text-decoration:none}
 .toast-container{position:fixed;bottom:26px;right:26px;z-index:3000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{background:var(--bg3);border:1px solid var(--border);padding:14px 18px;border-radius:13px;font-size:13px;box-shadow:var(--shadow);animation:slideIn .22s ease;pointer-events:auto;max-width:380px}
 @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);gap:14px;padding:40px;text-align:center}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);gap:14px;padding:40px;text-align:center;min-height:200px}
 .empty-icon{font-size:52px;opacity:.4}
-.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 pre{background:var(--bg);border-radius:11px;padding:14px;overflow-x:auto;font-size:12.5px;position:relative;border:1px solid var(--border);margin:10px 0}
 code{font-family:var(--mono)}
-.copy-code{position:absolute;top:8px;right:8px;font-size:11px;padding:3px 8px;background:var(--bg3);border-radius:6px;color:var(--muted);border:1px solid var(--border)}
+.copy-code{position:absolute;top:8px;right:8px;font-size:11px;padding:3px 8px;background:var(--bg3);border-radius:6px;color:var(--muted);border:1px solid var(--border);cursor:pointer}
 .msg-body p{margin:0 0 9px}
 .msg-body ul,.msg-body ol{margin:0 0 9px 18px}
 .msg-body a{color:var(--accent)}
 .msg-body h1,.msg-body h2,.msg-body h3{margin:12px 0 6px;font-weight:740}
 .msg-body blockquote{border-left:3px solid var(--accent);padding-left:12px;margin:8px 0;color:var(--muted)}
-.offline-banner{background:linear-gradient(90deg,#3a1f00,#2a1600);color:#ffcc66;padding:9px 16px;text-align:center;font-size:12.5px;display:none;font-weight:620}
-.offline-banner.show{display:block}
-.typing{display:inline-flex;gap:5px;padding:4px 0}
+.msg-body img{max-width:100%;border-radius:12px;margin:10px 0;cursor:pointer}
+.typing{display:inline-flex;gap:5px;padding:4px 0;align-items:center}
 .typing span{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:bounce 1.2s infinite}
 .typing span:nth-child(2){animation-delay:.15s}
 .typing span:nth-child(3){animation-delay:.3s}
 @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
-.sources{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px}
-.sources a{display:block;padding:4px 0;color:var(--muted)}
 .gen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px}
 .gen-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .15s}
 .gen-card:hover{transform:scale(1.02)}
@@ -159,7 +150,7 @@ code{font-family:var(--mono)}
 .mobile-nav-item.active{color:var(--accent)}
 .mobile-nav-item span{font-size:19px}
 @media(max-width:1040px){.sidebar{position:fixed;left:0;top:0;bottom:0;z-index:500;transform:translateX(-105%);box-shadow:var(--shadow)}.sidebar.open{transform:translateX(0)}.menu-btn{display:flex}.conv-list{display:none}.mobile-nav{display:block}.main{padding-bottom:64px}.msg-actions{opacity:1}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -173,23 +164,20 @@ code{font-family:var(--mono)}
 <div class="nav-item" data-view="projects"><span class="nav-icon">📁</span> Projekty</div>
 <div class="nav-item" data-view="tasks"><span class="nav-icon">✅</span> Zadania</div>
 <div class="nav-item" data-view="notes"><span class="nav-icon">📝</span> Notatki</div>
-<div class="nav-item" data-view="files"><span class="nav-icon">📎</span> Pliki & Media</div>
-<div class="nav-section">Kreatywność & Kod</div>
+<div class="nav-item" data-view="files"><span class="nav-icon">📎</span> Pliki</div>
+<div class="nav-section">Kreatywność</div>
 <div class="nav-item" data-view="imagine"><span class="nav-icon">🎨</span> Generuj obraz</div>
-<div class="nav-item" data-view="video"><span class="nav-icon">🎬</span> Generuj wideo</div>
 <div class="nav-item" data-view="code"><span class="nav-icon">💻</span> Studio Kodu</div>
 <div class="nav-section">Inteligencja</div>
 <div class="nav-item" data-view="memory"><span class="nav-icon">🧠</span> Pamięć</div>
 <div class="nav-item" data-view="research"><span class="nav-icon">🔍</span> Research</div>
 <div class="nav-section">System</div>
-<div class="nav-item" data-view="github"><span class="nav-icon">🐙</span> GitHub Deploy</div>
-<div class="nav-item" data-view="export"><span class="nav-icon">💾</span> Eksport</div>
+<div class="nav-item" data-view="github"><span class="nav-icon">🐙</span> GitHub</div>
 <div class="nav-item" data-view="settings"><span class="nav-icon">⚙️</span> Ustawienia</div>
 </nav>
-<div class="sidebar-footer"><div class="user-row"><div class="avatar">A</div><div><div style="font-size:13px;font-weight:660">Axel</div><div style="font-size:11px;color:var(--muted)">AL2100 Godmode</div></div></div></div>
+<div class="sidebar-footer"><div class="user-row" id="userRow"><div class="avatar" id="userAvatar">?</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:660;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="userName">—</div><div style="font-size:11px;color:var(--muted)" id="userLogin">—</div></div><button class="btn btn-ghost btn-sm" id="logoutBtn" title="Wyloguj">⏻</button></div></div>
 </aside>
 <main class="main">
-<div class="offline-banner" id="offlineBanner">Offline — AI, generowanie, research i GitHub wymagają internetu</div>
 <div class="topbar">
 <button class="menu-btn" id="menuBtn">☰</button>
 <div class="topbar-title" id="topTitle">Czat</div>
@@ -206,25 +194,17 @@ code{font-family:var(--mono)}
 <div class="conv-items" id="convItems"></div>
 </div>
 <div class="chat-area">
-<div class="messages" id="messages">
-<div class="empty" id="chatEmpty">
-<div class="empty-icon">✦</div>
-<div style="font-size:20px;font-weight:850;color:var(--text)">AL2100 Ultra Godmode</div>
-<div>Pełna pamięć rozmowy • Zero zgadywania • Zero filtrów<br>DeepSeek • Cloudflare AI • Hugging Face • Qwen • Studio Kodu • GitHub Deploy</div>
-</div>
-</div>
+<div class="messages" id="messages"></div>
 <div class="composer" id="composer" style="display:none">
 <div class="composer-inner">
-<div class="attach-preview" id="attachPreview"></div>
 <div class="composer-tools">
 <label class="toggle"><input type="checkbox" id="internetToggle"> 🌐 Internet</label>
 <select id="providerSelect" style="font-size:12px;padding:5px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)"><option value="auto">⚡ Auto</option></select>
 <span class="badge badge-muted" id="ctxBadge">0 msg</span>
 <span class="badge badge-accent" id="modelBadge" style="display:none"></span>
-<label class="btn btn-ghost btn-sm" style="cursor:pointer">📎<input type="file" id="attachFile" accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,video/*" hidden multiple></label>
 </div>
 <div class="composer-input">
-<textarea id="msgInput" placeholder="Napisz do AL2100… zawsze czytam całą historię. Zero kłamstw. Pełna moc." rows="1"></textarea>
+<textarea id="msgInput" placeholder="Napisz do AL2100…" rows="1"></textarea>
 <button class="send-btn" id="sendBtn">➤</button>
 <button class="btn btn-ghost btn-sm" id="stopBtn" style="display:none">Stop</button>
 </div>
@@ -237,11 +217,11 @@ code{font-family:var(--mono)}
 <div class="view" id="view-projects"><div class="panel"><div class="panel-header"><div class="panel-title">Projekty</div><button class="btn btn-primary btn-sm" id="newProjectBtn">+ Nowy</button></div><div class="grid" id="projectsGrid"></div></div></div>
 <div class="view" id="view-tasks"><div class="panel"><div class="panel-header"><div class="panel-title">Zadania</div><button class="btn btn-primary btn-sm" id="newTaskBtn">+ Zadanie</button></div><div id="tasksList"></div></div></div>
 <div class="view" id="view-notes"><div class="panel"><div class="panel-header"><div class="panel-title">Notatki</div><button class="btn btn-primary btn-sm" id="newNoteBtn">+ Notatka</button></div><input type="search" id="notesSearch" placeholder="Szukaj…" style="width:100%;max-width:340px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:11px;margin-bottom:16px"><div class="grid" id="notesGrid"></div></div></div>
-<div class="view" id="view-files"><div class="panel"><div class="panel-header"><div class="panel-title">Pliki & Media</div><label class="btn btn-primary btn-sm" style="cursor:pointer">+ Upload<input type="file" id="fileUpload" accept="image/*,video/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css" hidden multiple></label></div><div class="grid" id="filesGrid"></div></div></div>
+<div class="view" id="view-files"><div class="panel"><div class="panel-header"><div class="panel-title">Pliki</div><label class="btn btn-primary btn-sm" style="cursor:pointer">+ Upload<input type="file" id="fileUpload" accept=".txt,.md,.json,.csv" hidden multiple></label></div><div class="grid" id="filesGrid"></div></div></div>
 <div class="view" id="view-imagine">
 <div class="panel">
 <div class="panel-header"><div class="panel-title">Generuj obraz</div></div>
-<div class="form-group"><label>Prompt</label><textarea id="imgPrompt" rows="3" placeholder="Opisz obraz… cyberpunk, neon, ultra detailed, 8k"></textarea></div>
+<div class="form-group"><label>Prompt</label><textarea id="imgPrompt" rows="3" placeholder="Opisz obraz…"></textarea></div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
 <select id="imgStyle" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">
 <option value="">Styl domyślny</option>
@@ -250,7 +230,6 @@ code{font-family:var(--mono)}
 <option value="photorealistic, sharp focus, 8k">Fotorealizm</option>
 <option value="oil painting, artistic">Malarstwo</option>
 <option value="3d render, unreal engine 5">3D Render</option>
-<option value="minimalist, clean design">Minimalizm</option>
 </select>
 <select id="imgSize" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">
 <option value="1024x1024">1024×1024</option>
@@ -262,18 +241,10 @@ code{font-family:var(--mono)}
 <div id="imgResult" class="gen-grid"></div>
 </div>
 </div>
-<div class="view" id="view-video">
-<div class="panel">
-<div class="panel-header"><div class="panel-title">Generuj wideo</div></div>
-<div class="form-group"><label>Prompt wideo</label><textarea id="vidPrompt" rows="3" placeholder="Opisz scenę…"></textarea></div>
-<button class="btn btn-primary" id="genVidBtn">🎬 Generuj wideo</button>
-<div id="vidResult" style="margin-top:20px"></div>
-</div>
-</div>
 <div class="view" id="view-code">
 <div class="panel">
 <div class="panel-header"><div class="panel-title">Studio Kodu</div></div>
-<div class="form-group"><label>Opisz co chcesz zbudować / poprawić</label><textarea id="codePrompt" rows="2" placeholder="Np. Zrób kompletną aplikację React z logowaniem i listą zadań"></textarea></div>
+<div class="form-group"><label>Opisz co chcesz zbudować / poprawić</label><textarea id="codePrompt" rows="2" placeholder="Np. Zrób kompletną aplikację React z logowaniem"></textarea></div>
 <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
 <select id="codeLang" style="padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">
 <option value="html">HTML/JS/CSS</option>
@@ -281,52 +252,47 @@ code{font-family:var(--mono)}
 <option value="python">Python</option>
 <option value="node">Node.js</option>
 <option value="typescript">TypeScript</option>
-<option value="other">Inny</option>
 </select>
 <button class="btn btn-primary" id="genCodeBtn">⚡ Generuj kod</button>
 <button class="btn btn-ghost btn-sm" id="copyCodeBtn">Kopiuj</button>
 <button class="btn btn-ghost btn-sm" id="toChatCodeBtn">Wyślij do czatu</button>
+<button class="btn btn-ghost btn-sm" id="pushCodeBtn">🚀 Push do GitHub</button>
 </div>
 <textarea id="codeEditor" class="code-editor" placeholder="// Tutaj pojawi się wygenerowany kod…" spellcheck="false"></textarea>
 </div>
 </div>
 <div class="view" id="view-memory"><div class="panel"><div class="panel-header"><div class="panel-title">Pamięć globalna</div><button class="btn btn-primary btn-sm" id="newMemoryBtn">+ Fakt</button></div><div id="memoryList"></div></div></div>
-<div class="view" id="view-research"><div class="panel"><div class="panel-header"><div class="panel-title">Research</div></div><div class="form-group"><label>Zapytanie</label><textarea id="researchQuery" rows="3" placeholder="Szukaj aktualnych informacji…"></textarea></div><button class="btn btn-primary" id="researchBtn">🔍 Szukaj i analizuj</button><div id="researchResult" style="margin-top:20px"></div></div></div>
+<div class="view" id="view-research"><div class="panel"><div class="panel-header"><div class="panel-title">Research</div></div><div class="form-group"><label>Zapytanie</label><textarea id="researchQuery" rows="3" placeholder="Szukaj aktualnych informacji…"></textarea></div><button class="btn btn-primary" id="researchBtn">🔍 Szukaj</button><div id="researchResult" style="margin-top:20px"></div></div></div>
 <div class="view" id="view-github">
 <div class="panel">
 <div class="panel-header"><div class="panel-title">GitHub Deploy</div></div>
 <div class="card" style="margin-bottom:16px">
-<div class="card-title">Połączenie z GitHub</div>
-<div class="card-meta" style="margin-bottom:12px">Wklej Personal Access Token (repo + contents). Token przechowywany tylko lokalnie.</div>
-<div class="form-group"><label>GitHub Token</label><input id="ghToken" type="password" placeholder="ghp_..."></div>
+<div class="card-title">Token GitHub</div>
+<div class="card-meta" style="margin-bottom:12px">Personal Access Token z uprawnieniem <code>repo</code>. Token szyfrowany AES-GCM w D1. Nie wychodzi ponownie do przeglądarki.</div>
+<div class="form-group"><label>Token</label><input id="ghToken" type="password" placeholder="ghp_..."></div>
 <button class="btn btn-primary btn-sm" id="saveGhToken">Zapisz token</button>
-<span id="ghStatus" class="badge badge-muted" style="margin-left:10px">Brak tokenu</span>
+<button class="btn btn-ghost btn-sm" id="delGhToken">Usuń token</button>
+<span id="ghStatus" class="badge badge-muted" style="margin-left:10px">—</span>
 </div>
 <div class="card">
-<div class="card-title">Szybki deploy kodu ze Studio</div>
+<div class="card-title">Szybki deploy ze Studio Kodu</div>
 <div class="form-group"><label>Nazwa repozytorium</label><input id="ghRepo" placeholder="moja-aplikacja"></div>
-<div class="form-group"><label>Ścieżka pliku</label><input id="ghPath" value="index.html" placeholder="index.html / src/App.jsx"></div>
-<button class="btn btn-primary" id="ghPushBtn">🚀 Push do GitHub</button>
+<div class="form-group"><label>Ścieżka pliku</label><input id="ghPath" value="index.html" placeholder="index.html"></div>
+<div class="form-group"><label>Treść (z edytora)</label><textarea id="ghContent" rows="6" placeholder="Wklej kod lub wyślij ze Studio Kodu"></textarea></div>
+<button class="btn btn-primary" id="ghPushBtn">🚀 Push</button>
 <div id="ghResult" style="margin-top:14px"></div>
 </div>
 </div>
 </div>
-<div class="view" id="view-export"><div class="panel"><div class="panel-header"><div class="panel-title">Eksport / Import</div></div><div style="max-width:560px"><div class="card" style="margin-bottom:14px"><div class="card-title">Eksport wszystkich danych</div><button class="btn btn-primary btn-sm" id="exportAllBtn" style="margin-top:10px">Eksportuj JSON</button></div><div class="card" style="margin-bottom:14px"><div class="card-title">Import</div><input type="file" id="importFile" accept=".json" style="margin:10px 0"><button class="btn btn-ghost btn-sm" id="importBtn">Importuj</button></div><div class="card"><div class="card-title">Wyczyść dane</div><button class="btn btn-danger btn-sm" id="clearDataBtn" style="margin-top:10px">Wyczyść wszystko</button></div></div></div></div>
 <div class="view" id="view-settings">
 <div class="panel">
 <div class="panel-header"><div class="panel-title">Ustawienia</div></div>
 <div style="max-width:660px">
 <div class="card" style="margin-bottom:16px">
-<div class="card-title">Dostawcy AI (LLM) — pełna lista darmowych / freemium</div>
-<div class="card-meta" style="margin-bottom:12px">Auto: OpenRouter → Groq → Gemini → Mistral → Together → Fireworks → DeepSeek → Hugging Face → Qwen → Cloudflare Workers AI</div>
+<div class="card-title">Dostawcy AI</div>
+<div class="card-meta" style="margin-bottom:12px">Kolejność Auto: OpenRouter → Groq → Gemini → Mistral → Cloudflare Workers AI. Cloudflare działa zawsze przez binding.</div>
 <div id="providersList"></div>
 <button class="btn btn-primary btn-sm" id="addProviderBtn" style="margin-top:14px">+ Dodaj / zaktualizuj klucz</button>
-</div>
-<div class="card" style="margin-bottom:16px">
-<div class="card-title">Cloudflare Workers AI</div>
-<div class="form-group"><label>Account ID</label><input id="cfAccount" placeholder="Cloudflare Account ID"></div>
-<div class="form-group"><label>API Token</label><input id="cfToken" type="password" placeholder="Cloudflare API Token z uprawnieniem Workers AI"></div>
-<button class="btn btn-ghost btn-sm" id="saveCf">Zapisz Cloudflare</button>
 </div>
 <div class="card" style="margin-bottom:16px">
 <div class="card-title">Interfejs</div>
@@ -334,8 +300,8 @@ code{font-family:var(--mono)}
 <div class="form-group"><label>Czcionka</label><select id="fontSize"><option value="14">Mała</option><option value="15" selected>Normalna</option><option value="16">Duża</option><option value="18">Bardzo duża</option></select></div>
 </div>
 <div class="card">
-<div class="card-title">AL2100 Ultra Godmode</div>
-<div class="card-meta">Pamięć zawsze włączona • Zero zgadywania • Zero filtrów • Polski • Studio Kodu • GitHub</div>
+<div class="card-title">Aplikacja</div>
+<div class="card-meta">AL2100 · Cloudflare Workers · D1 · KV · R2 · Queue · Workers AI</div>
 <button class="btn btn-ghost btn-sm" id="installBtn" style="margin-top:12px;display:none">Zainstaluj aplikację</button>
 </div>
 </div>
@@ -348,158 +314,662 @@ code{font-family:var(--mono)}
 <button class="mobile-nav-item active" data-view="chat"><span>💬</span>Czat</button>
 <button class="mobile-nav-item" data-view="code"><span>💻</span>Kod</button>
 <button class="mobile-nav-item" data-view="imagine"><span>🎨</span>Obraz</button>
-<button class="mobile-nav-item" data-view="files"><span>📎</span>Pliki</button>
-<button class="mobile-nav-item" data-view="settings"><span>⚙️</span>Ustawienia</button>
+<button class="mobile-nav-item" data-view="notes"><span>📝</span>Notatki</button>
+<button class="mobile-nav-item" data-view="settings"><span>⚙️</span>Ustaw</button>
 </div></nav>
 <div class="login-screen" id="loginScreen">
 <div class="login-card">
 <div class="login-logo">AL</div>
-<div class="login-title">AL2100 Ultra</div>
-<div class="login-sub">Godmode • Pełna pamięć • Zero filtrów<br>DeepSeek • Cloudflare AI • Studio Kodu • GitHub Deploy</div>
-<button class="btn btn-primary" id="enterBtn" style="width:100%;padding:16px;font-size:16px">Wejdź do systemu</button>
+<div class="login-title">AL2100</div>
+<div class="login-sub">Prywatny system operacyjny AI<br>Pamięć między urządzeniami • Szyfrowane klucze • Multi-provider</div>
+<a href="/auth/github" class="btn btn-primary" style="width:100%;padding:16px;font-size:16px;text-decoration:none"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="margin-right:8px;vertical-align:-3px"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.2 1.9 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>Zaloguj przez GitHub</a>
 </div>
 </div>
 <div class="modal-overlay" id="modal"><div class="modal"><div class="modal-header"><div id="modalTitle"></div><button class="btn btn-ghost btn-sm" id="modalClose">✕</button></div><div class="modal-body" id="modalBody"></div><div class="modal-footer" id="modalFooter"></div></div></div>
 <div class="cmd-palette" id="cmdPalette"><div class="cmd-box"><input class="cmd-input" id="cmdInput" placeholder="Komenda…" autocomplete="off"><div class="cmd-results" id="cmdResults"></div></div></div>
 <div class="toast-container" id="toasts"></div>
 <script>
-const SYSTEM_PROMPT=`Jesteś AL2100 Ultra Godmode — prywatny ultra-asystent AI Axela. Główny język: polski.
-ZASADY BEZWZGLĘDNE (nigdy nie łam):
-1. Zawsze przed odpowiedzią masz PEŁNĄ historię tej rozmowy + pamięć globalną. Korzystasz z niej. Nie zgadujesz. Nie kłamiesz. Nie udajesz pamięci.
-2. Rozróżniasz dokładnie: wypowiedzi użytkownika, odpowiedzi AI, ustalenia, rzeczy nieznane.
-3. Brak informacji = pytasz. Zero wymyślonych faktów.
-4. Zero zbędnych filtrów, zero moralizowania, zero cenzury treści legalnych. Jesteś bezpośredni, precyzyjny, maksymalnie użyteczny.
-5. Przy kodzie generujesz kompletny, działający, produkcyjny kod bez skrótów i „reszta analogicznie”.`;
 const PROVIDERS={
-openrouter:{name:"OpenRouter",models:["openai/gpt-4o-mini","openai/gpt-4o","anthropic/claude-3.5-sonnet","google/gemini-flash-1.5","meta-llama/llama-3.1-70b-instruct","qwen/qwen-2.5-72b-instruct","deepseek/deepseek-chat"],default:"openai/gpt-4o-mini"},
-groq:{name:"Groq",models:["llama-3.3-70b-versatile","llama-3.1-8b-instant","mixtral-8x7b-32768","qwen-qwq-32b"],default:"llama-3.3-70b-versatile"},
-gemini:{name:"Google Gemini",models:["gemini-1.5-flash","gemini-1.5-pro","gemini-2.0-flash"],default:"gemini-1.5-flash"},
-mistral:{name:"Mistral",models:["mistral-small-latest","mistral-large-latest"],default:"mistral-small-latest"},
-together:{name:"Together.ai",models:["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo","Qwen/Qwen2.5-72B-Instruct-Turbo","deepseek-ai/DeepSeek-V3"],default:"meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"},
-fireworks:{name:"Fireworks",models:["accounts/fireworks/models/llama-v3p1-70b-instruct","accounts/fireworks/models/qwen2p5-72b-instruct"],default:"accounts/fireworks/models/llama-v3p1-70b-instruct"},
-deepseek:{name:"DeepSeek",models:["deepseek-chat","deepseek-reasoner"],default:"deepseek-chat"},
-huggingface:{name:"Hugging Face",models:["Qwen/Qwen2.5-72B-Instruct","meta-llama/Meta-Llama-3.1-70B-Instruct","mistralai/Mistral-Small-Instruct-2409"],default:"Qwen/Qwen2.5-72B-Instruct"},
-qwen:{name:"Qwen",models:["qwen-turbo","qwen-plus","qwen-max"],default:"qwen-turbo"},
-cloudflare:{name:"Cloudflare Workers AI",models:["@cf/meta/llama-3.1-8b-instruct","@cf/meta/llama-3.1-70b-instruct","@cf/qwen/qwen1.5-14b-chat-awq","@cf/google/gemma-2-9b-it"],default:"@cf/meta/llama-3.1-8b-instruct"}
+  openrouter:{name:"OpenRouter",models:["openai/gpt-4o-mini","openai/gpt-4o","anthropic/claude-3.5-sonnet","google/gemini-flash-1.5","meta-llama/llama-3.1-70b-instruct"],default:"openai/gpt-4o-mini"},
+  groq:{name:"Groq",models:["llama-3.1-8b-instant","llama-3.3-70b-versatile","mixtral-8x7b-32768","gemma2-9b-it"],default:"llama-3.1-8b-instant"},
+  gemini:{name:"Google Gemini",models:["gemini-1.5-flash","gemini-1.5-pro","gemini-2.0-flash"],default:"gemini-1.5-flash"},
+  mistral:{name:"Mistral",models:["mistral-small-latest","mistral-medium-latest","mistral-large-latest"],default:"mistral-small-latest"},
+  cloudflare:{name:"Cloudflare Workers AI",models:["@cf/meta/llama-3.1-8b-instruct","@cf/meta/llama-3.1-70b-instruct","@cf/qwen/qwen1.5-14b-chat-awq"],default:"@cf/meta/llama-3.1-8b-instruct"}
 };
-const ORDER=["openrouter","groq","gemini","mistral","together","fireworks","deepseek","huggingface","qwen","cloudflare"];
-let db=null,state={conversations:[],messages:{},projects:[],tasks:[],notes:[],files:[],memory:[],currentConv:null,streaming:false,controller:null,attachments:[]};
+const ORDER=["openrouter","groq","gemini","mistral","cloudflare"];
+const state={user:null,csrf:null,providers:{},hasGithub:false,conversations:[],messages:{},projects:[],tasks:[],notes:[],files:[],memory:[],currentConv:null,streaming:false,controller:null,currentGenId:null};
+
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 function toast(m,t="info"){const e=document.createElement("div");e.className="toast";e.textContent=m;if(t==="error")e.style.borderColor="var(--danger)";if(t==="success")e.style.borderColor="var(--success)";$("#toasts").appendChild(e);setTimeout(()=>e.remove(),4500)}
-function escapeHtml(s){return s==null?"":String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function md(t){if(!t)return"";let h=escapeHtml(t);h=h.replace(/```(\w*)\n([\s\S]*?)```/g,(_,l,c)=>`<pre><button class="copy-code" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(()=>this.textContent='Skopiowano')">Kopiuj</button><code>${c.trim()}</code></pre>`);h=h.replace(/`([^`]+)`/g,"<code>$1</code>");h=h.replace(/^### (.+)$/gm,"<h3>$1</h3>");h=h.replace(/^## (.+)$/gm,"<h2>$1</h2>");h=h.replace(/^# (.+)$/gm,"<h1>$1</h1>");h=h.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");h=h.replace(/\*([^*]+)\*/g,"<em>$1</em>");h=h.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');h=h.replace(/^> (.+)$/gm,"<blockquote>$1</blockquote>");h=h.replace(/\n\n/g,"</p><p>");h=h.replace(/\n/g,"<br>");return"<p>"+h+"</p>"}
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open("AL2100God",7);r.onupgradeneeded=e=>{const d=e.target.result;["conversations","messages","projects","tasks","notes","files","memory","media"].forEach(n=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:"id"})})};r.onsuccess=e=>{db=e.target.result;res(db)};r.onerror=()=>rej(r.error)})}
-function idb(s,m="readonly"){return db.transaction(s,m).objectStore(s)}
-function idbAll(s){return new Promise((res,rej)=>{const r=idb(s).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
-function idbPut(s,v){return new Promise((res,rej)=>{const r=idb(s,"readwrite").put(v);r.onsuccess=()=>res(v);r.onerror=()=>rej(r.error)})}
-function idbDel(s,id){return new Promise((res,rej)=>{const r=idb(s,"readwrite").delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
-function idbClr(s){return new Promise((res,rej)=>{const r=idb(s,"readwrite").clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,11)}
-function ls(k,d){try{const v=localStorage.getItem("al2100g_"+k);return v?JSON.parse(v):d}catch{return d}}
-function lsSet(k,v){localStorage.setItem("al2100g_"+k,JSON.stringify(v))}
-function getKey(p){return ls("key_"+p,"")||""}
-function setKey(p,v){lsSet("key_"+p,v||"")}
-async function loadAll(){state.conversations=await idbAll("conversations");state.projects=await idbAll("projects");state.tasks=await idbAll("tasks");state.notes=await idbAll("notes");state.files=await idbAll("files");state.memory=await idbAll("memory");state.conversations.sort((a,b)=>b.updated-a.updated)}
-function showApp(){$("#loginScreen").style.display="none";$("#app").style.display="flex"}
-function showView(n){$$(".view").forEach(v=>v.classList.remove("active"));const e=$("#view-"+n);if(e)e.classList.add("active");$$(".nav-item,.mobile-nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===n));const t={chat:"Czat",history:"Historia",projects:"Projekty",tasks:"Zadania",notes:"Notatki",files:"Pliki & Media",imagine:"Generuj obraz",video:"Generuj wideo",code:"Studio Kodu",memory:"Pamięć",research:"Research",github:"GitHub Deploy",export:"Eksport",settings:"Ustawienia"};$("#topTitle").textContent=t[n]||n;$("#sidebar").classList.remove("open");if(n==="history")renderHistory();if(n==="projects")renderProjects();if(n==="tasks")renderTasks();if(n==="notes")renderNotes();if(n==="files")renderFiles();if(n==="memory")renderMemory();if(n==="settings")renderProviders();if(n==="github")updateGhStatus()}
-function openModal(title,body,btns){$("#modalTitle").textContent=title;$("#modalBody").innerHTML=body;$("#modalFooter").innerHTML="";(btns||[]).forEach(b=>{const btn=document.createElement("button");btn.className="btn "+(b.primary?"btn-primary":"btn-ghost");btn.textContent=b.label;btn.onclick=b.action;$("#modalFooter").appendChild(btn)});$("#modal").classList.add("show")}
+function esc(s){return s==null?"":String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,9)}
+function ls(k,d){try{const v=localStorage.getItem("al2100_"+k);return v?JSON.parse(v):d}catch{return d}}
+function lsSet(k,v){try{localStorage.setItem("al2100_"+k,JSON.stringify(v))}catch{}}
+
+function md(t){
+  if(!t)return"";
+  const codes=[];
+  let h=esc(t);
+  h=h.replace(/```(\w*)\n([\s\S]*?)```/g,(_,l,c)=>{const i=codes.length;codes.push(c.replace(/</g,"&lt;").replace(/>/g,"&gt;"));return `\u0000C${i}\u0000`});
+  h=h.replace(/`([^`]+)`/g,"<code>$1</code>");
+  h=h.replace(/^### (.+)$/gm,"<h3>$1</h3>");
+  h=h.replace(/^## (.+)$/gm,"<h2>$1</h2>");
+  h=h.replace(/^# (.+)$/gm,"<h1>$1</h1>");
+  h=h.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  h=h.replace(/(^|[^*])\*([^*\n]+)\*/g,"$1<em>$2</em>");
+  h=h.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  h=h.replace(/(https?:\/\/[^\s<>"']+)/g,(m)=>{if(m.includes('<a '))return m;return `<a href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`});
+  h=h.replace(/^> (.+)$/gm,"<blockquote>$1</blockquote>");
+  h=h.replace(/\n\n/g,"</p><p>");
+  h=h.replace(/\n/g,"<br>");
+  h=h.replace(/\u0000C(\d+)\u0000/g,(_,i)=>`<pre><button class="copy-code" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent);this.textContent='Skopiowano'">Kopiuj</button><code>${codes[i]}</code></pre>`);
+  return `<p>${h}</p>`;
+}
+
+async function api(path,opts={}){
+  const headers={...opts.headers,Accept:"application/json"};
+  if(opts.body&&!(opts.body instanceof FormData)){headers["Content-Type"]="application/json";if(typeof opts.body!=="string")opts.body=JSON.stringify(opts.body)}
+  if(opts.method&&opts.method!=="GET"&&state.csrf)headers["X-CSRF-Token"]=state.csrf;
+  const res=await fetch(path,{...opts,headers,credentials:"include"});
+  if(res.status===401){state.user=null;renderLogin();throw new Error("Nieautoryzowany")}
+  const ct=res.headers.get("Content-Type")||"";
+  if(ct.includes("application/json")){const data=await res.json();if(!res.ok)throw new Error(data.error||("HTTP "+res.status));return data}
+  if(!res.ok)throw new Error("HTTP "+res.status);
+  return res;
+}
+
+function renderLogin(){
+  $("#loginScreen").style.display="flex";
+  $("#app").style.display="none";
+}
+
+function showApp(){
+  $("#loginScreen").style.display="none";
+  $("#app").style.display="flex";
+}
+
+function updateUserUI(){
+  const u=state.user;if(!u)return;
+  $("#userName").textContent=u.name||u.login;
+  $("#userLogin").textContent="@"+u.login;
+  const av=$("#userAvatar");
+  if(u.avatar_url){av.innerHTML=`<img src="${esc(u.avatar_url)}" alt="">`}
+  else{av.textContent=(u.login||"U").slice(0,1).toUpperCase()}
+}
+
+function showView(n){
+  $$(".view").forEach(v=>v.classList.remove("active"));
+  const e=$("#view-"+n);if(e)e.classList.add("active");
+  $$(".nav-item,.mobile-nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===n));
+  const t={chat:"Czat",history:"Historia",projects:"Projekty",tasks:"Zadania",notes:"Notatki",files:"Pliki",imagine:"Generuj obraz",code:"Studio Kodu",memory:"Pamięć",research:"Research",github:"GitHub",settings:"Ustawienia"};
+  $("#topTitle").textContent=t[n]||n;
+  $("#sidebar").classList.remove("open");
+  if(n==="history")renderHistory();
+  if(n==="projects")renderProjects();
+  if(n==="tasks")renderTasks();
+  if(n==="notes")renderNotes();
+  if(n==="files")renderFiles();
+  if(n==="memory")renderMemory();
+  if(n==="settings")renderProviders();
+  if(n==="github")updateGhStatus();
+}
+
+function openModal(title,body,btns){
+  $("#modalTitle").textContent=title;
+  $("#modalBody").innerHTML=body;
+  $("#modalFooter").innerHTML="";
+  (btns||[]).forEach(b=>{const btn=document.createElement("button");btn.className="btn "+(b.primary?"btn-primary":"btn-ghost");btn.textContent=b.label;btn.onclick=b.action;$("#modalFooter").appendChild(btn)});
+  $("#modal").classList.add("show");
+}
 function closeModal(){$("#modal").classList.remove("show")}
-async function createConv(title="Nowa rozmowa"){const c={id:uid(),title,created:Date.now(),updated:Date.now()};await idbPut("conversations",c);state.conversations.unshift(c);state.messages[c.id]=[];return c}
-async function getMsgs(id){if(state.messages[id])return state.messages[id];const all=await idbAll("messages");const m=all.filter(x=>x.convId===id).sort((a,b)=>a.ts-b.ts);state.messages[id]=m;return m}
-async function addMsg(convId,role,content,extra={}){const m={id:uid(),convId,role,content,ts:Date.now(),...extra};await idbPut("messages",m);if(!state.messages[convId])state.messages[convId]=[];state.messages[convId].push(m);const c=state.conversations.find(x=>x.id===convId);if(c){c.updated=Date.now();if(role==="user"&&(!c.title||c.title==="Nowa rozmowa")){c.title=content.replace(/\[.*?\]/g,"").slice(0,70);await idbPut("conversations",c)}}return m}
-function renderConvs(){const el=$("#convItems");if(!state.conversations.length){el.innerHTML='<div class="empty" style="padding:24px">Brak rozmów</div>';return}el.innerHTML=state.conversations.map(c=>`<div class="conv-item ${state.currentConv===c.id?"active":""}" data-id="${c.id}"><div class="conv-title">${escapeHtml(c.title)}</div><div class="conv-meta">${new Date(c.updated).toLocaleString("pl-PL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div>`).join("");el.querySelectorAll(".conv-item").forEach(n=>n.onclick=()=>selectConv(n.dataset.id))}
-async function selectConv(id){state.currentConv=id;renderConvs();$("#composer").style.display="block";$("#chatEmpty").style.display="none";await getMsgs(id);renderMessages();$("#ctxBadge").textContent=(state.messages[id]||[]).length+" msg"}
-function renderMessages(){const el=$("#messages");const msgs=state.messages[state.currentConv]||[];if(!msgs.length){el.innerHTML='<div class="empty"><div class="empty-icon">✦</div><div>Napisz pierwszą wiadomość</div></div>';return}el.innerHTML=msgs.map(m=>{let media="";if(m.images&&m.images.length)media=m.images.map(src=>`<img src="${src}" loading="lazy" onclick="window.open(this.src)">`).join("");if(m.video)media+=`<video src="${m.video}" controls style="max-width:100%"></video>`;return`<div class="msg ${m.role}"><div class="msg-role">${m.role==="user"?"Ty":"AL2100"} ${m.provider?`<span class="badge badge-muted">${escapeHtml(m.provider)}${m.model?" · "+escapeHtml((m.model||"").split("/").pop()):""}</span>`:""}</div><div class="msg-body">${m.role==="assistant"?md(m.content):escapeHtml(m.content).replace(/\n/g,"<br>")}${media}</div><div class="msg-actions"><button onclick="navigator.clipboard.writeText(${JSON.stringify(m.content||"")})">Kopiuj</button>${m.role==="assistant"?`<button data-retry="${m.id}">Ponów</button>`:""}<button data-del="${m.id}">Usuń</button></div></div>`}).join("");el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("messages",b.dataset.del);state.messages[state.currentConv]=(state.messages[state.currentConv]||[]).filter(x=>x.id!==b.dataset.del);renderMessages()});el.querySelectorAll("[data-retry]").forEach(b=>b.onclick=()=>retryLast());el.scrollTop=el.scrollHeight}
-async function retryLast(){if(!state.currentConv||state.streaming)return;const msgs=state.messages[state.currentConv]||[];const u=[...msgs].reverse().find(m=>m.role==="user");if(!u)return;$("#msgInput").value=u.content;await sendMessage(true)}
-async function buildContext(convId){const msgs=await getMsgs(convId);const mem=state.memory.filter(m=>m.enabled!==false);let system=SYSTEM_PROMPT;if(mem.length)system+="\n\n=== PAMIĘĆ GLOBALNA ===\n"+mem.map(m=>`- [${m.category||"fakt"}] ${m.content}`).join("\n");system+="\n\n=== PEŁNA HISTORIA TEJ ROZMOWY (obowiązkowo przeczytaj przed odpowiedzią) ===";const MAX=50;let selected=msgs;if(msgs.length>MAX){const first=msgs.slice(0,4);const last=msgs.slice(-(MAX-6));selected=[...first,{role:"system",content:"[… wcześniejsza część rozmowy inteligentnie skrócona — zachowano początek i najnowsze wiadomości …]"},...last]}return[{role:"system",content:system},...selected.map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.content}))]}
-async function callAI(provider,model,messages,signal,internet=false){
-const key=getKey(provider);
-if(provider==="cloudflare"){
-const acc=ls("cf_account","");const tok=ls("cf_token","")||key;
-if(!acc||!tok)throw new Error("Brak Cloudflare Account ID lub Tokenu");
-const url=`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/${model||PROVIDERS.cloudflare.default}`;
-const res=await fetch(url,{method:"POST",headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({messages}),signal});
-if(!res.ok)throw new Error("Cloudflare AI "+res.status);
-const j=await res.json();
-return{text:j.result?.response||"",provider:"cloudflare",model};
+
+async function loadConversations(){
+  try{const r=await api("/api/conversations");state.conversations=r.conversations||[]}catch{state.conversations=[]}
 }
-if(!key&&provider!=="huggingface")throw new Error("Brak klucza: "+PROVIDERS[provider].name);
-const headers={"Content-Type":"application/json"};
-let url,body;
-if(provider==="openrouter"){headers.Authorization="Bearer "+key;headers["HTTP-Referer"]=location.origin;headers["X-Title"]="AL2100";url="https://openrouter.ai/api/v1/chat/completions";body={model:model||PROVIDERS.openrouter.default,messages,stream:true};if(internet)body.plugins=[{id:"web",max_results:8}]}
-else if(provider==="groq"){headers.Authorization="Bearer "+key;url="https://api.groq.com/openai/v1/chat/completions";body={model:model||PROVIDERS.groq.default,messages,stream:true}}
-else if(provider==="mistral"){headers.Authorization="Bearer "+key;url="https://api.mistral.ai/v1/chat/completions";body={model:model||PROVIDERS.mistral.default,messages,stream:true}}
-else if(provider==="gemini"){url=`https://generativelanguage.googleapis.com/v1beta/models/${model||PROVIDERS.gemini.default}:streamGenerateContent?key=${encodeURIComponent(key)}`;const contents=messages.filter(m=>m.role!=="system").map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]}));const sys=messages.find(m=>m.role==="system");body={contents,systemInstruction:sys?{parts:[{text:sys.content}]}:undefined}}
-else if(provider==="together"){headers.Authorization="Bearer "+key;url="https://api.together.xyz/v1/chat/completions";body={model:model||PROVIDERS.together.default,messages,stream:true}}
-else if(provider==="fireworks"){headers.Authorization="Bearer "+key;url="https://api.fireworks.ai/inference/v1/chat/completions";body={model:model||PROVIDERS.fireworks.default,messages,stream:true}}
-else if(provider==="deepseek"){headers.Authorization="Bearer "+key;url="https://api.deepseek.com/chat/completions";body={model:model||PROVIDERS.deepseek.default,messages,stream:true}}
-else if(provider==="huggingface"){headers.Authorization="Bearer "+key;url=`https://api-inference.huggingface.co/models/${model||PROVIDERS.huggingface.default}`;body={inputs:messages.map(m=>`${m.role}: ${m.content}`).join("\n")+"\nassistant:",parameters:{max_new_tokens:2048,temperature:0.7,return_full_text:false}};const res=await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal});if(!res.ok)throw new Error("Hugging Face "+res.status);const j=await res.json();const text=Array.isArray(j)?(j[0]?.generated_text||""):(j.generated_text||"");return{text,provider:"huggingface",model}}
-else if(provider==="qwen"){headers.Authorization="Bearer "+key;url="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";body={model:model||PROVIDERS.qwen.default,messages,stream:true}}
-else throw new Error("Nieznany dostawca");
-const res=await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal});
-if(!res.ok){const t=await res.text().catch(()=>"");throw new Error(`${PROVIDERS[provider].name} ${res.status}: ${t.slice(0,160)}`)}
-return res;
+async function loadMessages(convId){
+  try{const r=await api(`/api/conversations/${convId}/messages`);state.messages[convId]=r.messages||[]}catch{state.messages[convId]=[]}
 }
-async function streamRes(res,provider,onChunk){
-if(res.text){onChunk(res.text);return res.text}
-const reader=res.body.getReader();const dec=new TextDecoder();let full="",buf="";
-if(provider==="gemini"){while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split("\n");buf=lines.pop()||"";for(const line of lines){if(!line.trim())continue;try{const j=JSON.parse(line);const t=j.candidates?.[0]?.content?.parts?.[0]?.text;if(t){full+=t;onChunk(full)}}catch{}}}return full}
-while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split("\n");buf=lines.pop()||"";for(const line of lines){if(!line.startsWith("data: "))continue;const data=line.slice(6).trim();if(data==="[DONE]")continue;try{const j=JSON.parse(data);const t=j.choices?.[0]?.delta?.content||"";if(t){full+=t;onChunk(full)}}catch{}}}return full}
+
+function renderConvs(){
+  const el=$("#convItems");
+  if(!state.conversations.length){el.innerHTML='<div class="empty" style="padding:24px">Brak rozmów</div>';return}
+  el.innerHTML=state.conversations.map(c=>`<div class="conv-item ${state.currentConv===c.id?"active":""}" data-id="${c.id}"><div style="flex:1;min-width:0"><div class="conv-title">${esc(c.title)}</div><div class="conv-meta">${new Date(c.updated_at).toLocaleString("pl-PL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div><button class="btn btn-ghost btn-sm" data-delconv="${c.id}" style="padding:2px 8px;font-size:14px">✕</button></div>`).join("");
+  el.querySelectorAll(".conv-item").forEach(n=>{
+    n.onclick=async(e)=>{
+      if(e.target.closest("[data-delconv]"))return;
+      await selectConv(n.dataset.id);
+    };
+  });
+  el.querySelectorAll("[data-delconv]").forEach(b=>b.onclick=async(e)=>{
+    e.stopPropagation();
+    if(!confirm("Usunąć rozmowę?"))return;
+    try{
+      await api(`/api/conversations/${b.dataset.delconv}`,{method:"DELETE"});
+      state.conversations=state.conversations.filter(c=>c.id!==b.dataset.delconv);
+      delete state.messages[b.dataset.delconv];
+      if(state.currentConv===b.dataset.delconv){state.currentConv=null;$("#composer").style.display="none";$("#messages").innerHTML='<div class="empty"><div class="empty-icon">✦</div><div>Wybierz lub utwórz rozmowę</div></div>'}
+      renderConvs();
+    }catch(err){toast(err.message,"error")}
+  });
+}
+
+async function selectConv(id){
+  state.currentConv=id;
+  renderConvs();
+  $("#composer").style.display="block";
+  await loadMessages(id);
+  renderMessages();
+  $("#ctxBadge").textContent=(state.messages[id]||[]).length+" msg";
+}
+
+function renderMessages(){
+  const el=$("#messages");
+  if(!state.currentConv){el.innerHTML='<div class="empty"><div class="empty-icon">✦</div><div style="font-size:18px;font-weight:700;color:var(--text)">AL2100</div><div>Napisz pierwszą wiadomość lub utwórz nową rozmowę.</div></div>';return}
+  const msgs=state.messages[state.currentConv]||[];
+  if(!msgs.length){el.innerHTML='<div class="empty"><div class="empty-icon">✦</div><div>Napisz pierwszą wiadomość</div></div>';return}
+  el.innerHTML=msgs.map(m=>{
+    const content=m.role==="assistant"?md(m.content):esc(m.content).replace(/\n/g,"<br>");
+    return `<div class="msg ${m.role}" data-id="${m.id}"><div class="msg-role">${m.role==="user"?"Ty":"AL2100"} ${m.provider?`<span class="badge badge-muted">${esc(m.provider)}${m.model?" · "+esc((m.model||"").split("/").pop()):""}</span>`:""}${m.status==="interrupted"?'<span class="badge badge-muted">przerwane</span>':""}</div><div class="msg-body">${content}</div><div class="msg-actions"><button data-copy="${m.id}">Kopiuj</button>${m.role==="assistant"?`<button data-retry="${m.id}">Ponów</button>`:`<button data-edit="${m.id}">Edytuj</button>`}<button data-del="${m.id}">Usuń</button></div></div>`;
+  }).join("");
+  el.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{const m=msgs.find(x=>x.id===b.dataset.copy);if(m){navigator.clipboard.writeText(m.content);toast("Skopiowano","success")}});
+  el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Usunąć wiadomość?"))return;
+    try{await api(`/api/conversations/${state.currentConv}/messages/${b.dataset.del}`,{method:"DELETE"});await loadMessages(state.currentConv);renderMessages();toast("Usunięto")}catch(e){toast(e.message,"error")}
+  });
+  el.querySelectorAll("[data-retry]").forEach(b=>b.onclick=()=>retryLast());
+  el.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{
+    const m=msgs.find(x=>x.id===b.dataset.edit);if(!m)return;
+    openModal("Edytuj wiadomość",`<textarea id="editMsg" rows="6" style="width:100%;padding:11px;background:var(--bg3);border:1px solid var(--border);border-radius:10px">${esc(m.content)}</textarea>`,[
+      {label:"Anuluj",action:closeModal},
+      {label:"Zapisz",primary:true,action:async()=>{
+        const v=$("#editMsg").value.trim();if(!v)return;
+        try{await api(`/api/conversations/${state.currentConv}/messages/${b.dataset.edit}`,{method:"PATCH",body:{content:v}});closeModal();await loadMessages(state.currentConv);renderMessages();toast("Zapisano","success")}catch(e){toast(e.message,"error")}
+      }}
+    ]);
+  });
+  el.scrollTop=el.scrollHeight;
+}
+
+async function retryLast(){
+  if(!state.currentConv||state.streaming)return;
+  const msgs=state.messages[state.currentConv]||[];
+  const u=[...msgs].reverse().find(m=>m.role==="user");
+  if(!u)return;
+  $("#msgInput").value=u.content;
+  await sendMessage(true);
+}
+
+function renderTyping(){
+  const el=$("#messages");
+  const div=document.createElement("div");
+  div.className="msg assistant";div.id="typing";
+  div.innerHTML='<div class="msg-role">AL2100</div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+  el.appendChild(div);el.scrollTop=el.scrollHeight;
+}
+
 async function sendMessage(isRetry=false){
-const text=$("#msgInput").value.trim();
-if((!text&&!state.attachments.length)||state.streaming)return;
-if(!state.currentConv){const c=await createConv(text.slice(0,70)||"Nowa rozmowa");state.currentConv=c.id;renderConvs()}
-let content=text;const images=[];
-for(const a of state.attachments){if(a.type.startsWith("image/")){images.push(a.dataUrl);content+=(content?"\n\n":"")+"[Dołączono obraz: "+a.name+"]"}else content+=(content?"\n\n":"")+"[Plik: "+a.name+"]\n"+a.text.slice(0,8000)}
-if(!isRetry){await addMsg(state.currentConv,"user",content,{images:images.length?images:undefined});renderMessages()}
-state.attachments=[];renderAttach();$("#msgInput").value="";$("#msgInput").style.height="auto";
-state.streaming=true;$("#sendBtn").style.display="none";$("#stopBtn").style.display="inline-flex";
-const useNet=$("#internetToggle").checked;const sel=$("#providerSelect").value;
-state.controller=new AbortController();
-const temp={id:"tmp_"+Date.now(),role:"assistant",content:"",provider:"…"};
-state.messages[state.currentConv].push(temp);renderMessages();
-const messages=await buildContext(state.currentConv);
-let order=sel==="auto"?ORDER.slice():[sel];
-let lastErr=null,used=null,model=null,full="";
-for(const p of order){
-if(p!=="cloudflare"&&!getKey(p)&&p!=="huggingface")continue;
-if(p==="cloudflare"&&(!ls("cf_account","")||!(ls("cf_token","")||getKey("cloudflare"))))continue;
-const mod=(ls("pset_"+p,{})||{}).model||PROVIDERS[p].default;
-try{const res=await callAI(p,mod,messages,state.controller.signal,useNet);used=p;model=mod;full=await streamRes(res,p,txt=>{temp.content=txt;renderMessages()});break}catch(e){if(e.name==="AbortError"){lastErr=null;break}lastErr=e}
+  const input=$("#msgInput");
+  const text=input.value.trim();
+  if(!text||state.streaming)return;
+  if(text.length>12000){toast("Wiadomość za długa (max 12000)","error");return}
+  state.streaming=true;
+  $("#sendBtn").style.display="none";
+  $("#stopBtn").style.display="inline-flex";
+  input.value="";input.style.height="auto";
+  const userMsg={id:"tmp_u_"+uid(),role:"user",content:text,ts:Date.now()};
+  if(!state.currentConv){
+    try{const r=await api("/api/conversations",{method:"POST",body:{title:text.slice(0,60)}});state.currentConv=r.conversation.id;state.messages[state.currentConv]=[];state.conversations.unshift(r.conversation)}catch(e){toast(e.message,"error");state.streaming=false;$("#sendBtn").style.display="inline-flex";$("#stopBtn").style.display="none";return}
+  }
+  state.messages[state.currentConv].push(userMsg);
+  renderMessages();
+  renderTyping();
+  const internet=$("#internetToggle").checked;
+  const provider=$("#providerSelect").value;
+  state.controller=new AbortController();
+  const tempId="tmp_a_"+uid();
+  let full="";
+  const onChunk=(txt)=>{
+    full=txt;
+    const t=$("#typing");
+    if(t){const body=t.querySelector(".msg-body");if(body)body.innerHTML=md(txt)}
+    $("#messages").scrollTop=$("#messages").scrollHeight;
+  };
+  try{
+    const res=await fetch("/api/chat/stream",{
+      method:"POST",
+      credentials:"include",
+      headers:{"Content-Type":"application/json","X-CSRF-Token":state.csrf},
+      body:JSON.stringify({message:text,conversation_id:state.currentConv,internet,provider}),
+      signal:state.controller.signal
+    });
+    if(!res.ok){const t=await res.text().catch(()=>"");throw new Error(t.slice(0,200)||("HTTP "+res.status))}
+    const reader=res.body.getReader();
+    const dec=new TextDecoder();
+    let buf="",errorMsg=null,usedProv=null,usedModel=null,finalId=null,status=null;
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split("\n");buf=lines.pop()||"";
+      for(const line of lines){
+        if(!line.startsWith("data: "))continue;
+        const data=line.slice(6).trim();if(!data)continue;
+        try{
+          const j=JSON.parse(data);
+          if(j.type==="chunk")onChunk(j.text);
+          else if(j.type==="provider"){usedProv=j.provider;usedModel=j.model}
+          else if(j.type==="done"||j.type==="interrupted"){finalId=j.message_id;status=j.status;usedProv=j.provider||usedProv;usedModel=j.model||usedModel}
+          else if(j.type==="error")errorMsg=j.message;
+          else if(j.type==="meta"){state.currentGenId=j.generation_id}
+        }catch{}
+      }
+    }
+    $("#typing")?.remove();
+    if(finalId){await loadMessages(state.currentConv)}
+    else if(errorMsg){toast("Błąd: "+errorMsg.slice(0,120),"error");await loadMessages(state.currentConv)}
+    if(usedProv){$("#modelBadge").style.display="inline-flex";$("#modelBadge").textContent=usedProv+(usedModel?" · "+usedModel.split("/").pop():"")}
+    renderMessages();
+    renderConvs();
+    $("#ctxBadge").textContent=(state.messages[state.currentConv]||[]).length+" msg";
+    const conv=state.conversations.find(c=>c.id===state.currentConv);
+    if(conv&&(!conv.title||conv.title==="Nowa rozmowa")){conv.title=text.slice(0,60);renderConvs()}
+  }catch(e){
+    $("#typing")?.remove();
+    if(e.name==="AbortError"){toast("Zatrzymano")}
+    else{toast(e.message||"Błąd","error")}
+    try{await loadMessages(state.currentConv);renderMessages()}catch{}
+  }finally{
+    state.streaming=false;state.controller=null;
+    $("#sendBtn").style.display="inline-flex";$("#stopBtn").style.display="none";
+  }
 }
-state.messages[state.currentConv]=state.messages[state.currentConv].filter(m=>m.id!==temp.id);
-$("#sendBtn").style.display="inline-flex";$("#stopBtn").style.display="none";
-state.streaming=false;state.controller=null;
-if(full){await addMsg(state.currentConv,"assistant",full,{provider:used,model});if(used){$("#modelBadge").style.display="inline-flex";$("#modelBadge").textContent=used+(model?" · "+model.split("/").pop():"")}renderMessages();renderConvs()}
-else if(lastErr){await addMsg(state.currentConv,"assistant","⚠️ "+lastErr.message,{provider:"error"});renderMessages();toast(lastErr.message,"error")}
+
+async function newChat(){
+  try{const r=await api("/api/conversations",{method:"POST",body:{title:"Nowa rozmowa"}});state.conversations.unshift(r.conversation);state.messages[r.conversation.id]=[];state.currentConv=r.conversation.id;renderConvs();await selectConv(r.conversation.id);showView("chat")}catch(e){toast(e.message,"error")}
 }
-function renderAttach(){const el=$("#attachPreview");el.innerHTML=state.attachments.map((a,i)=>`<div class="attach-item">${a.type.startsWith("image/")?`<img src="${a.dataUrl}">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;padding:4px;text-align:center">${escapeHtml(a.name)}</div>`}<button class="rm" data-i="${i}">×</button></div>`).join("");el.querySelectorAll(".rm").forEach(b=>b.onclick=()=>{state.attachments.splice(+b.dataset.i,1);renderAttach()})}
-async function handleAttach(files){for(const f of files){if(f.size>12*1024*1024){toast(f.name+" za duży","error");continue}if(f.type.startsWith("image/")){const dataUrl=await new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(f)});state.attachments.push({name:f.name,type:f.type,dataUrl,text:""})}else{const text=await f.text();state.attachments.push({name:f.name,type:f.type||"text",dataUrl:"",text})}}renderAttach()}
-async function generateImage(){const prompt=$("#imgPrompt").value.trim();if(!prompt)return;const style=$("#imgStyle").value;const size=$("#imgSize").value||"1024x1024";const fullPrompt=style?prompt+", "+style:prompt;$("#imgResult").innerHTML='<div class="spinner"></div> Generuję…';const seed=Math.floor(Math.random()*999999);const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${size.split("x")[0]}&height=${size.split("x")[1]}&seed=${seed}&nologo=true&enhance=true`;try{const img=new Image();img.crossOrigin="anonymous";await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});const card=document.createElement("div");card.className="gen-card";card.innerHTML=`<img src="${url}" loading="lazy"><div class="cap">${escapeHtml(prompt.slice(0,60))}</div>`;card.onclick=()=>window.open(url);$("#imgResult").prepend(card);await idbPut("media",{id:uid(),type:"image",prompt,url,created:Date.now()});toast("Obraz gotowy","success")}catch(e){$("#imgResult").innerHTML=`<div style="color:var(--danger)">Błąd: ${escapeHtml(e.message)}</div>`}}
-async function generateVideo(){const prompt=$("#vidPrompt").value.trim();if(!prompt)return;$("#vidResult").innerHTML='<div class="spinner"></div> Generuję…';try{const url=`https://pollinations.ai/p/${encodeURIComponent(prompt)}?model=video`;$("#vidResult").innerHTML=`<div class="card"><video src="${url}" controls autoplay loop style="width:100%;border-radius:12px"></video><p class="card-meta" style="margin-top:8px">Eksperymentalne.</p></div>`;toast("Próba wideo","success")}catch(e){$("#vidResult").innerHTML=`<div style="color:var(--danger)">${escapeHtml(e.message)}</div>`}}
-async function generateCode(){const prompt=$("#codePrompt").value.trim();if(!prompt)return;const lang=$("#codeLang").value;$("#codeEditor").value="// Generuję kod…";const messages=[{role:"system",content:SYSTEM_PROMPT+"\nGenerujesz kompletny, działający, produkcyjny kod. Bez skrótów. Bez „reszta analogicznie”. Tylko kod i krótkie komentarze gdy konieczne."},{role:"user",content:`Język/stack: ${lang}\n\nZadanie: ${prompt}\n\nZwróć pełny, gotowy do użycia kod.`}];let full="";const order=ORDER.slice();for(const p of order){if(p!=="cloudflare"&&!getKey(p))continue;try{const res=await callAI(p,null,messages,new AbortController().signal);full=await streamRes(res,p,txt=>{$("#codeEditor").value=txt});break}catch{}}if(!full)$("#codeEditor").value="// Błąd generowania — sprawdź klucze API";else toast("Kod wygenerowany","success")}
-function updateGhStatus(){const t=ls("gh_token","");$("#ghStatus").textContent=t?"Token zapisany":"Brak tokenu";$("#ghStatus").className="badge "+(t?"badge-accent":"badge-muted");$("#ghToken").value=t||""}
-async function pushToGithub(){const token=ls("gh_token","");if(!token){toast("Brak tokenu GitHub","error");return}const repo=$("#ghRepo").value.trim();const path=$("#ghPath").value.trim()||"index.html";const content=$("#codeEditor").value;if(!repo||!content){toast("Podaj repo i kod","error");return}$("#ghResult").innerHTML='<div class="spinner"></div> Pushuję…';try{const userRes=await fetch("https://api.github.com/user",{headers:{Authorization:"token "+token,"Accept":"application/vnd.github+json"}});if(!userRes.ok)throw new Error("Token nieprawidłowy");const user=await userRes.json();const owner=user.login;let sha=null;const getRes=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{headers:{Authorization:"token "+token,"Accept":"application/vnd.github+json"}});if(getRes.ok){const data=await getRes.json();sha=data.sha}const body={message:"AL2100 Ultra deploy",content:btoa(unescape(encodeURIComponent(content))),...(sha?{sha}:{})};const putRes=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{method:"PUT",headers:{Authorization:"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});if(!putRes.ok){const err=await putRes.json();throw new Error(err.message||putRes.status)}const result=await putRes.json();$("#ghResult").innerHTML=`<div class="card"><div class="card-title">Sukces</div><div class="card-meta"><a href="${result.content.html_url}" target="_blank">Zobacz plik na GitHub</a></div></div>`;toast("Wypchnięto na GitHub","success")}catch(e){$("#ghResult").innerHTML=`<div style="color:var(--danger)">${escapeHtml(e.message)}</div>`;toast(e.message,"error")}}
-function renderHistory(){const el=$("#historyList");if(!state.conversations.length){el.innerHTML='<div class="empty">Brak</div>';return}el.innerHTML=state.conversations.map(c=>`<div class="card" style="cursor:pointer" data-id="${c.id}"><div class="card-title">${escapeHtml(c.title)}</div><div class="card-meta">${new Date(c.updated).toLocaleString("pl-PL")}</div></div>`).join("");el.querySelectorAll(".card").forEach(n=>n.onclick=()=>{selectConv(n.dataset.id);showView("chat")})}
-function renderProjects(){const el=$("#projectsGrid");if(!state.projects.length){el.innerHTML='<div class="empty">Brak projektów</div>';return}el.innerHTML=state.projects.map(p=>`<div class="card"><div class="card-title">${escapeHtml(p.name)}</div><div class="card-meta">${escapeHtml(p.description||"")}</div><div style="margin-top:12px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-edit-p="${p.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-p="${p.id}">Usuń</button></div></div>`).join("");el.querySelectorAll("[data-del-p]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("projects",b.dataset.delP);state.projects=state.projects.filter(x=>x.id!==b.dataset.delP);renderProjects()});el.querySelectorAll("[data-edit-p]").forEach(b=>b.onclick=()=>openProjectModal(state.projects.find(x=>x.id===b.dataset.editP)))}
-function openProjectModal(p){openModal(p?"Edytuj":"Nowy projekt",`<div class="form-group"><label>Nazwa</label><input id="pName" value="${escapeHtml(p?.name||"")}"></div><div class="form-group"><label>Opis</label><textarea id="pDesc" rows="3">${escapeHtml(p?.description||"")}</textarea></div>`,[{label:"Anuluj",action:closeModal},{label:"Zapisz",primary:true,action:async()=>{const name=$("#pName").value.trim();if(!name)return;if(p){p.name=name;p.description=$("#pDesc").value;p.updated=Date.now();await idbPut("projects",p)}else{const np={id:uid(),name,description:$("#pDesc").value,status:"active",created:Date.now(),updated:Date.now()};await idbPut("projects",np);state.projects.unshift(np)}closeModal();renderProjects();toast("Zapisano","success")}}])}
-function renderTasks(){const el=$("#tasksList");if(!state.tasks.length){el.innerHTML='<div class="empty">Brak zadań</div>';return}el.innerHTML=state.tasks.map(t=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><input type="checkbox" ${t.status==="done"?"checked":""} data-toggle="${t.id}" style="width:18px;height:18px;accent-color:var(--accent)"><div style="flex:1"><div style="font-weight:620;${t.status==="done"?"text-decoration:line-through;opacity:.55":""}">${escapeHtml(t.title)}</div><div class="card-meta">${t.priority||"medium"}</div></div><button class="btn btn-ghost btn-sm" data-del-t="${t.id}">Usuń</button></div>`).join("");el.querySelectorAll("[data-toggle]").forEach(b=>b.onchange=async()=>{const t=state.tasks.find(x=>x.id===b.dataset.toggle);if(t){t.status=b.checked?"done":"todo";await idbPut("tasks",t);renderTasks()}});el.querySelectorAll("[data-del-t]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("tasks",b.dataset.delT);state.tasks=state.tasks.filter(x=>x.id!==b.dataset.delT);renderTasks()})}
-function renderNotes(q=""){const el=$("#notesGrid");let notes=state.notes.slice();if(q){const qq=q.toLowerCase();notes=notes.filter(n=>(n.title+" "+n.content).toLowerCase().includes(qq))}if(!notes.length){el.innerHTML='<div class="empty">Brak notatek</div>';return}el.innerHTML=notes.map(n=>`<div class="card"><div class="card-title">${escapeHtml(n.title||"Bez tytułu")}</div><div class="card-meta">${escapeHtml((n.content||"").slice(0,130))}…</div><div style="margin-top:12px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-edit-n="${n.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-n="${n.id}">Usuń</button></div></div>`).join("");el.querySelectorAll("[data-del-n]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("notes",b.dataset.delN);state.notes=state.notes.filter(x=>x.id!==b.dataset.delN);renderNotes(q)});el.querySelectorAll("[data-edit-n]").forEach(b=>b.onclick=()=>openNoteModal(state.notes.find(x=>x.id===b.dataset.editN)))}
-function openNoteModal(n){openModal(n?"Edytuj":"Nowa notatka",`<div class="form-group"><label>Tytuł</label><input id="nTitle" value="${escapeHtml(n?.title||"")}"></div><div class="form-group"><label>Treść</label><textarea id="nContent" rows="9">${escapeHtml(n?.content||"")}</textarea></div>`,[{label:"Anuluj",action:closeModal},{label:"Zapisz",primary:true,action:async()=>{const title=$("#nTitle").value.trim(),content=$("#nContent").value;if(n){n.title=title;n.content=content;n.updated=Date.now();await idbPut("notes",n)}else{const nn={id:uid(),title,content,created:Date.now(),updated:Date.now()};await idbPut("notes",nn);state.notes.unshift(nn)}closeModal();renderNotes();toast("Zapisano","success")}}])}
-function renderFiles(){const el=$("#filesGrid");if(!state.files.length){el.innerHTML='<div class="empty">Brak plików</div>';return}el.innerHTML=state.files.map(f=>`<div class="card">${f.type&&f.type.startsWith("image/")?`<img src="${f.dataUrl||f.content}" style="width:100%;height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px">`:""}<div class="card-title">${escapeHtml(f.name)}</div><div class="card-meta">${f.type||""} · ${((f.size||0)/1024).toFixed(1)} KB</div><div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-view-f="${f.id}">Podgląd</button><button class="btn btn-ghost btn-sm" data-ctx-f="${f.id}">Do czatu</button><button class="btn btn-ghost btn-sm" data-del-f="${f.id}">Usuń</button></div></div>`).join("");el.querySelectorAll("[data-del-f]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("files",b.dataset.delF);state.files=state.files.filter(x=>x.id!==b.dataset.delF);renderFiles()});el.querySelectorAll("[data-view-f]").forEach(b=>b.onclick=()=>{const f=state.files.find(x=>x.id===b.dataset.viewF);if(!f)return;if(f.type&&f.type.startsWith("image/"))openModal(f.name,`<img src="${f.dataUrl||f.content}" style="max-width:100%;border-radius:12px">`,[{label:"Zamknij",action:closeModal}]);else openModal(f.name,`<pre style="white-space:pre-wrap;max-height:50vh;overflow:auto">${escapeHtml(f.content||"")}</pre>`,[{label:"Zamknij",action:closeModal}])});el.querySelectorAll("[data-ctx-f]").forEach(b=>b.onclick=async()=>{const f=state.files.find(x=>x.id===b.dataset.ctxF);if(!f)return;if(!state.currentConv){const c=await createConv();state.currentConv=c.id}if(f.type&&f.type.startsWith("image/"))await addMsg(state.currentConv,"user","[Dołączono obraz: "+f.name+"]",{images:[f.dataUrl||f.content]});else await addMsg(state.currentConv,"user",`[Plik: ${f.name}]\n\n${(f.content||"").slice(0,9000)}`);showView("chat");selectConv(state.currentConv);toast("Dodano do czatu","success")})}
-function renderMemory(){const el=$("#memoryList");if(!state.memory.length){el.innerHTML='<div class="empty">Brak pamięci</div>';return}el.innerHTML=state.memory.map(m=>`<div class="card" style="margin-bottom:8px"><div style="font-weight:620">${escapeHtml(m.content)}</div><div class="card-meta">${m.category||"fakt"} · ${new Date(m.created).toLocaleDateString("pl-PL")}</div><div style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-del-m="${m.id}">Usuń</button></div></div>`).join("");el.querySelectorAll("[data-del-m]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;await idbDel("memory",b.dataset.delM);state.memory=state.memory.filter(x=>x.id!==b.dataset.delM);renderMemory()})}
-function openMemoryModal(){openModal("Dodaj fakt",`<div class="form-group"><label>Treść</label><textarea id="mContent" rows="3"></textarea></div><div class="form-group"><label>Kategoria</label><select id="mCat"><option value="fact">Fakt</option><option value="preference">Preferencja</option><option value="decision">Decyzja</option></select></div>`,[{label:"Anuluj",action:closeModal},{label:"Zapisz",primary:true,action:async()=>{const content=$("#mContent").value.trim();if(!content)return;const m={id:uid(),content,category:$("#mCat").value,enabled:true,created:Date.now()};await idbPut("memory",m);state.memory.unshift(m);closeModal();renderMemory();toast("Dodano","success")}}])}
-function renderProviders(){const list=$("#providersList");const sel=$("#providerSelect");const opts=['<option value="auto">⚡ Auto (pełny fallback)</option>'];list.innerHTML=ORDER.map(p=>{const ok=p==="cloudflare"?!!(ls("cf_account","")&&(ls("cf_token","")||getKey("cloudflare"))):!!getKey(p);opts.push(`<option value="${p}">${PROVIDERS[p].name}${ok?" ✓":""}</option>`);return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span>${PROVIDERS[p].name} <span class="status-dot ${ok?"status-ok":"status-err"}"></span></span><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-test="${p}">Test</button>${ok&&p!=="cloudflare"?`<button class="btn btn-ghost btn-sm" data-del="${p}">Usuń</button>`:""}</div></div>`}).join("");sel.innerHTML=opts.join("");list.querySelectorAll("[data-test]").forEach(b=>b.onclick=async()=>{try{const res=await callAI(b.dataset.test,null,[{role:"user",content:"OK"}],new AbortController().signal);if(res.text)toast(PROVIDERS[b.dataset.test].name+" OK","success");else{await res.text();toast(PROVIDERS[b.dataset.test].name+" OK","success")}}catch(e){toast(e.message,"error")}});list.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{setKey(b.dataset.del,"");renderProviders();toast("Usunięto")});$("#cfAccount").value=ls("cf_account","");$("#cfToken").value=ls("cf_token","")}
-function openProviderModal(){openModal("Dodaj klucz API",`<div class="form-group"><label>Dostawca</label><select id="prName">${ORDER.filter(p=>p!=="cloudflare").map(p=>`<option value="${p}">${PROVIDERS[p].name}</option>`).join("")}</select></div><div class="form-group"><label>Klucz API</label><input id="prKey" type="password" placeholder="sk-... / hf_... / gsk_..."></div>`,[{label:"Anuluj",action:closeModal},{label:"Zapisz",primary:true,action:()=>{const p=$("#prName").value,k=$("#prKey").value.trim();if(!k)return;setKey(p,k);closeModal();renderProviders();toast("Klucz zapisany","success")}}])}
-async function doResearch(){const q=$("#researchQuery").value.trim();if(!q)return;$("#researchResult").innerHTML='<div class="spinner"></div> Analizuję…';const key=getKey("openrouter");if(!key){$("#researchResult").innerHTML='<div style="color:var(--danger)">Wymagany klucz OpenRouter</div>';return}try{const res=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json","HTTP-Referer":location.origin},body:JSON.stringify({model:"openai/gpt-4o-mini",messages:[{role:"user",content:`Przeszukaj aktualne źródła i odpowiedz rzetelnie po polsku na: ${q}. Podaj fakty, daty i listę źródeł.`}],plugins:[{id:"web",max_results:8}]})});if(!res.ok)throw new Error(await res.text());const j=await res.json();$("#researchResult").innerHTML=`<div class="msg-body">${md(j.choices?.[0]?.message?.content||"Brak")}</div>`}catch(e){$("#researchResult").innerHTML=`<div style="color:var(--danger)">${escapeHtml(e.message)}</div>`}}
-async function exportAll(){const data={version:4,exported:new Date().toISOString(),conversations:state.conversations,messages:await idbAll("messages"),projects:state.projects,tasks:state.tasks,notes:state.notes,files:state.files.map(f=>({...f,content:(f.content||"").slice(0,200000)})),memory:state.memory,media:await idbAll("media")};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`al2100-godmode-${new Date().toISOString().slice(0,10)}.json`;a.click();toast("Wyeksportowano","success")}
-async function importAll(file){try{const data=JSON.parse(await file.text());for(const c of data.conversations||[])await idbPut("conversations",c);for(const m of data.messages||[])await idbPut("messages",m);for(const p of data.projects||[])await idbPut("projects",p);for(const t of data.tasks||[])await idbPut("tasks",t);for(const n of data.notes||[])await idbPut("notes",n);for(const f of data.files||[])await idbPut("files",f);for(const m of data.memory||[])await idbPut("memory",m);await loadAll();renderConvs();toast("Zaimportowano","success")}catch(e){toast("Błąd: "+e.message,"error")}}
-async function clearAll(){if(!confirm("Usunąć WSZYSTKIE dane?"))return;if(!confirm("Na pewno?"))return;for(const s of["conversations","messages","projects","tasks","notes","files","memory","media"])await idbClr(s);state={conversations:[],messages:{},projects:[],tasks:[],notes:[],files:[],memory:[],currentConv:null,streaming:false,controller:null,attachments:[]};renderConvs();renderMessages();toast("Wyczyszczono")}
-function applyTheme(){document.documentElement.dataset.theme=ls("theme","dark")==="light"?"light":"";document.documentElement.style.setProperty("--fs",(ls("fontSize","15")||"15")+"px")}
-function setupPWA(){const icon=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#03030a"/><text x="64" y="86" text-anchor="middle" font-size="46" font-weight="900" fill="#00e5ff" font-family="system-ui">AL</text></svg>`;const man={name:"AL2100 Ultra Godmode",short_name:"AL2100",start_url:".",display:"standalone",background_color:"#03030a",theme_color:"#03030a",icons:[{src:"data:image/svg+xml,"+encodeURIComponent(icon),sizes:"128x128",type:"image/svg+xml"}]};let link=$("link[rel=manifest]");if(!link){link=document.createElement("link");link.rel="manifest";document.head.appendChild(link)}link.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:"application/json"}));if("serviceWorker" in navigator){const code=`self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(clients.claim()));self.addEventListener("fetch",e=>{if(e.request.mode==="navigate")e.respondWith(fetch(e.request).catch(()=>new Response("<h1 style='background:#03030a;color:#eee;height:100vh;display:flex;align-items:center;justify-content:center;margin:0;font-family:system-ui'>AL2100 Offline</h1>",{headers:{"Content-Type":"text/html"}})))})`;navigator.serviceWorker.register(URL.createObjectURL(new Blob([code],{type:"text/javascript"}))).catch(()=>{})}window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window._dip=e;$("#installBtn").style.display="inline-flex"});$("#installBtn").onclick=()=>{if(window._dip){window._dip.prompt();window._dip=null;$("#installBtn").style.display="none"}}}
-function bind(){$("#nav").onclick=e=>{const i=e.target.closest(".nav-item");if(i)showView(i.dataset.view)};$$(".mobile-nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));$("#menuBtn").onclick=()=>$("#sidebar").classList.toggle("open");$("#enterBtn").onclick=()=>{lsSet("entered",true);showApp()};$("#newConvBtn").onclick=$("#newChatBtn").onclick=async()=>{const c=await createConv();state.currentConv=c.id;renderConvs();selectConv(c.id);showView("chat")};$("#sendBtn").onclick=()=>sendMessage(false);$("#stopBtn").onclick=()=>{if(state.controller)state.controller.abort()};$("#msgInput").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage(false)}};$("#msgInput").oninput=function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,260)+"px"};$("#attachFile").onchange=e=>{if(e.target.files.length)handleAttach([...e.target.files]);e.target.value=""};$("#newProjectBtn").onclick=()=>openProjectModal(null);$("#newTaskBtn").onclick=()=>openModal("Nowe zadanie",`<div class="form-group"><label>Tytuł</label><input id="tTitle"></div><div class="form-group"><label>Priorytet</label><select id="tPrio"><option value="low">Niski</option><option value="medium" selected>Średni</option><option value="high">Wysoki</option></select></div>`,[{label:"Anuluj",action:closeModal},{label:"Dodaj",primary:true,action:async()=>{const title=$("#tTitle").value.trim();if(!title)return;const t={id:uid(),title,status:"todo",priority:$("#tPrio").value,created:Date.now(),updated:Date.now()};await idbPut("tasks",t);state.tasks.unshift(t);closeModal();renderTasks()}}]);$("#newNoteBtn").onclick=()=>openNoteModal(null);$("#notesSearch").oninput=()=>renderNotes($("#notesSearch").value);$("#newMemoryBtn").onclick=openMemoryModal;$("#addProviderBtn").onclick=openProviderModal;$("#researchBtn").onclick=doResearch;$("#genImgBtn").onclick=generateImage;$("#genVidBtn").onclick=generateVideo;$("#genCodeBtn").onclick=generateCode;$("#copyCodeBtn").onclick=()=>{navigator.clipboard.writeText($("#codeEditor").value);toast("Skopiowano","success")};$("#toChatCodeBtn").onclick=async()=>{if(!state.currentConv){const c=await createConv("Kod");state.currentConv=c.id}await addMsg(state.currentConv,"user","Wygenerowany kod:\n\n```\n"+$("#codeEditor").value+"\n```");showView("chat");selectConv(state.currentConv)};$("#saveGhToken").onclick=()=>{lsSet("gh_token",$("#ghToken").value.trim());updateGhStatus();toast("Token zapisany","success")};$("#ghPushBtn").onclick=pushToGithub;$("#saveCf").onclick=()=>{lsSet("cf_account",$("#cfAccount").value.trim());lsSet("cf_token",$("#cfToken").value.trim());renderProviders();toast("Cloudflare zapisany","success")};$("#fileUpload").onchange=async e=>{for(const f of e.target.files){if(f.size>15*1024*1024){toast(f.name+" za duży","error");continue}const item={id:uid(),name:f.name,type:f.type,size:f.size,created:Date.now()};if(f.type.startsWith("image/")){item.dataUrl=await new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(f)});item.content=""}else{item.content=await f.text();item.dataUrl=""}await idbPut("files",item);state.files.unshift(item)}renderFiles();toast("Dodano","success");e.target.value=""};$("#exportAllBtn").onclick=exportAll;$("#importBtn").onclick=()=>{const f=$("#importFile").files[0];if(f)importAll(f)};$("#clearDataBtn").onclick=clearAll;$("#modalClose").onclick=closeModal;$("#modal").onclick=e=>{if(e.target===$("#modal"))closeModal()};$("#themeSelect").onchange=e=>{lsSet("theme",e.target.value);applyTheme()};$("#fontSize").onchange=e=>{lsSet("fontSize",e.target.value);applyTheme()};$("#cmdBtn").onclick=()=>{$("#cmdPalette").classList.add("show");$("#cmdInput").value="";$("#cmdInput").focus();renderCmd("")};$("#cmdInput").oninput=()=>renderCmd($("#cmdInput").value);function renderCmd(q){const cmds=[{t:"Nowa rozmowa",a:()=>$ ("#newConvBtn").click()},{t:"Studio Kodu",a:()=>showView("code")},{t:"Generuj obraz",a:()=>showView("imagine")},{t:"GitHub Deploy",a:()=>showView("github")},{t:"Projekty",a:()=>showView("projects")},{t:"Pamięć",a:()=>showView("memory")},{t:"Research",a:()=>showView("research")},{t:"Ustawienia",a:()=>showView("settings")}].filter(c=>!q||c.t.toLowerCase().includes(q.toLowerCase()));$("#cmdResults").innerHTML=cmds.map((c,i)=>`<div class="cmd-item ${i===0?"active":""}">${c.t}</div>`).join("");$("#cmdResults").querySelectorAll(".cmd-item").forEach((n,i)=>n.onclick=()=>{cmds[i].a();$("#cmdPalette").classList.remove("show")})}document.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("#cmdBtn").click()}if(e.key==="Escape"){$("#cmdPalette").classList.remove("show");closeModal()}};window.addEventListener("online",()=>$("#offlineBanner").classList.remove("show"));window.addEventListener("offline",()=>$("#offlineBanner").classList.add("show"));document.addEventListener("dragover",e=>e.preventDefault());document.addEventListener("drop",e=>{e.preventDefault();if(e.dataTransfer.files.length)handleAttach([...e.dataTransfer.files])})}
-async function init(){await openDB();await loadAll();applyTheme();bind();setupPWA();renderProviders();updateGhStatus();if(ls("entered",false))showApp();else{$("#loginScreen").style.display="flex";$("#app").style.display="none"}if(state.conversations.length){state.currentConv=state.conversations[0].id;await getMsgs(state.currentConv);renderConvs();selectConv(state.currentConv)}else renderConvs()}
-init().catch(e=>{console.error(e);toast("Błąd: "+e.message,"error")});
+
+async function renderHistory(){
+  await loadConversations();
+  const el=$("#historyList");
+  if(!state.conversations.length){el.innerHTML='<div class="empty">Brak rozmów</div>';return}
+  el.innerHTML=state.conversations.map(c=>`<div class="card" style="cursor:pointer" data-id="${c.id}"><div class="card-title">${esc(c.title)}</div><div class="card-meta">${new Date(c.updated_at).toLocaleString("pl-PL")}</div></div>`).join("");
+  el.querySelectorAll(".card").forEach(n=>n.onclick=async()=>{await selectConv(n.dataset.id);showView("chat")});
+}
+
+async function loadProjects(){
+  try{const r=await api("/api/projects");state.projects=r.projects||[]}catch{state.projects=[]}
+}
+async function renderProjects(){
+  await loadProjects();
+  const el=$("#projectsGrid");
+  if(!state.projects.length){el.innerHTML='<div class="empty">Brak projektów</div>';return}
+  el.innerHTML=state.projects.map(p=>`<div class="card"><div class="card-title">${esc(p.name)}</div><div class="card-meta">${esc(p.stage||"")} ${p.goal?"· "+esc(p.goal.slice(0,80)):""}</div><div style="margin-top:12px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-edit-p="${p.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-p="${p.id}">Usuń</button></div></div>`).join("");
+  el.querySelectorAll("[data-del-p]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;try{await api(`/api/projects/${b.dataset.delP}`,{method:"DELETE"});state.projects=state.projects.filter(x=>x.id!==b.dataset.delP);renderProjects()}catch(e){toast(e.message,"error")}});
+  el.querySelectorAll("[data-edit-p]").forEach(b=>b.onclick=()=>openProjectModal(state.projects.find(x=>x.id===b.dataset.editP)));
+}
+function openProjectModal(p){
+  const stages=[["planning","Planowanie"],["active","Realizacja"],["testing","Testy"],["done","Zakończony"]];
+  openModal(p?"Edytuj projekt":"Nowy projekt",`<div class="form-group"><label>Nazwa</label><input id="pName" value="${esc(p?.name||"")}"></div><div class="form-group"><label>Cel</label><textarea id="pGoal" rows="2">${esc(p?.goal||"")}</textarea></div><div class="form-group"><label>Etap</label><select id="pStage">${stages.map(([v,l])=>`<option value="${v}" ${p?.stage===v?"selected":""}>${l}</option>`).join("")}</select></div><div class="form-group"><label>Notatki</label><textarea id="pNotes" rows="3">${esc(p?.notes||"")}</textarea></div>`,[
+    {label:"Anuluj",action:closeModal},
+    {label:"Zapisz",primary:true,action:async()=>{
+      const name=$("#pName").value.trim();if(!name)return;
+      try{
+        if(p){await api(`/api/projects/${p.id}`,{method:"PATCH",body:{name,goal:$("#pGoal").value,stage:$("#pStage").value,notes:$("#pNotes").value}})}
+        else{await api("/api/projects",{method:"POST",body:{name,goal:$("#pGoal").value,stage:$("#pStage").value,notes:$("#pNotes").value}})}
+        closeModal();renderProjects();toast("Zapisano","success");
+      }catch(e){toast(e.message,"error")}
+    }}
+  ]);
+}
+
+async function loadTasks(){
+  try{const r=await api("/api/tasks");state.tasks=r.tasks||[]}catch{state.tasks=[]}
+}
+async function renderTasks(){
+  await loadTasks();
+  const el=$("#tasksList");
+  if(!state.tasks.length){el.innerHTML='<div class="empty">Brak zadań</div>';return}
+  const pri={low:"var(--muted)",normal:"var(--accent)",high:"#ffb020",urgent:"var(--danger)"};
+  el.innerHTML=state.tasks.map(t=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><span class="status-dot" style="background:${pri[t.priority]||"var(--muted)"}"></span><div style="flex:1"><div style="font-weight:620;${t.status==="done"?"text-decoration:line-through;opacity:.55":""}">${esc(t.title)}</div><div class="card-meta">${esc(t.status||"todo")} · ${esc(t.priority||"normal")}${t.deadline?" · "+esc(t.deadline):""}</div></div><button class="btn btn-ghost btn-sm" data-edit-t="${t.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-t="${t.id}">Usuń</button></div>`).join("");
+  el.querySelectorAll("[data-del-t]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;try{await api(`/api/tasks/${b.dataset.delT}`,{method:"DELETE"});state.tasks=state.tasks.filter(x=>x.id!==b.dataset.delT);renderTasks()}catch(e){toast(e.message,"error")}});
+  el.querySelectorAll("[data-edit-t]").forEach(b=>b.onclick=()=>openTaskModal(state.tasks.find(x=>x.id===b.dataset.editT)));
+}
+function openTaskModal(t){
+  openModal(t?"Edytuj zadanie":"Nowe zadanie",`<div class="form-group"><label>Tytuł</label><input id="tTitle" value="${esc(t?.title||"")}"></div><div class="form-group"><label>Status</label><select id="tStatus">${[["todo","Do zrobienia"],["inprogress","W trakcie"],["blocked","Zablokowane"],["done","Zrobione"]].map(([v,l])=>`<option value="${v}" ${t?.status===v?"selected":""}>${l}</option>`).join("")}</select></div><div class="form-group"><label>Priorytet</label><select id="tPrio">${[["low","Niski"],["normal","Normalny"],["high","Wysoki"],["urgent","Pilny"]].map(([v,l])=>`<option value="${v}" ${t?.priority===v?"selected":""}>${l}</option>`).join("")}</select></div><div class="form-group"><label>Deadline</label><input type="date" id="tDead" value="${esc(t?.deadline||"")}"></div><div class="form-group"><label>Opis</label><textarea id="tDesc" rows="3">${esc(t?.description||"")}</textarea></div>`,[
+    {label:"Anuluj",action:closeModal},
+    {label:"Zapisz",primary:true,action:async()=>{
+      const title=$("#tTitle").value.trim();if(!title)return;
+      const body={title,status:$("#tStatus").value,priority:$("#tPrio").value,deadline:$("#tDead").value||null,description:$("#tDesc").value};
+      try{
+        if(t)await api(`/api/tasks/${t.id}`,{method:"PATCH",body});
+        else await api("/api/tasks",{method:"POST",body});
+        closeModal();renderTasks();toast("Zapisano","success");
+      }catch(e){toast(e.message,"error")}
+    }}
+  ]);
+}
+
+async function loadNotes(){
+  try{const r=await api("/api/notes");state.notes=r.notes||[]}catch{state.notes=[]}
+}
+async function renderNotes(q=""){
+  await loadNotes();
+  let notes=state.notes.slice();
+  if(q){const qq=q.toLowerCase();notes=notes.filter(n=>((n.title||"")+(n.content||"")).toLowerCase().includes(qq))}
+  notes.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||b.updated_at-a.updated_at);
+  const el=$("#notesGrid");
+  if(!notes.length){el.innerHTML='<div class="empty">Brak notatek</div>';return}
+  el.innerHTML=notes.map(n=>`<div class="card"><div class="card-title">${n.pinned?"📌 ":""}${esc(n.title||"Bez tytułu")}</div><div class="card-meta">${esc((n.content||"").slice(0,130))}</div><div style="margin-top:12px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-edit-n="${n.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-n="${n.id}">Usuń</button></div></div>`).join("");
+  el.querySelectorAll("[data-del-n]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;try{await api(`/api/notes/${b.dataset.delN}`,{method:"DELETE"});state.notes=state.notes.filter(x=>x.id!==b.dataset.delN);renderNotes(q)}catch(e){toast(e.message,"error")}});
+  el.querySelectorAll("[data-edit-n]").forEach(b=>b.onclick=()=>openNoteModal(state.notes.find(x=>x.id===b.dataset.editN)));
+}
+function openNoteModal(n){
+  openModal(n?"Edytuj notatkę":"Nowa notatka",`<div class="form-group"><label>Tytuł</label><input id="nTitle" value="${esc(n?.title||"")}"></div><div class="form-group"><label>Treść</label><textarea id="nContent" rows="10">${esc(n?.content||"")}</textarea></div><div class="form-group"><label>Tagi (przecinek)</label><input id="nTags" value="${esc(((()=>{try{return (JSON.parse(n?.tags||"[]")).join(", ")}catch{return""}})()))}"></div><label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="nPin" ${n?.pinned?"checked":""}> Przypnij</label>`,[
+    {label:"Anuluj",action:closeModal},
+    {label:"Zapisz",primary:true,action:async()=>{
+      const title=$("#nTitle").value.trim(),content=$("#nContent").value,tags=$("#nTags").value.split(",").map(s=>s.trim()).filter(Boolean),pinned=$("#nPin").checked;
+      try{
+        if(n)await api(`/api/notes/${n.id}`,{method:"PATCH",body:{title,content,tags,pinned}});
+        else await api("/api/notes",{method:"POST",body:{title,content,tags,pinned}});
+        closeModal();renderNotes($("#notesSearch")?.value||"");toast("Zapisano","success");
+      }catch(e){toast(e.message,"error")}
+    }}
+  ]);
+}
+
+async function loadFiles(){
+  try{const r=await api("/api/files");state.files=r.files||[]}catch{state.files=[]}
+}
+async function renderFiles(){
+  await loadFiles();
+  const el=$("#filesGrid");
+  if(!state.files.length){el.innerHTML='<div class="empty">Brak plików</div>';return}
+  el.innerHTML=state.files.map(f=>`<div class="card"><div class="card-title">${esc(f.name)}</div><div class="card-meta">${esc(f.type||"")} · ${((f.size||0)/1024).toFixed(1)} KB</div><div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-view-f="${f.id}">Podgląd</button><button class="btn btn-ghost btn-sm" data-ctx-f="${f.id}">Do czatu</button><button class="btn btn-ghost btn-sm" data-del-f="${f.id}">Usuń</button></div></div>`).join("");
+  el.querySelectorAll("[data-del-f]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;try{await api(`/api/files/${b.dataset.delF}`,{method:"DELETE"});state.files=state.files.filter(x=>x.id!==b.dataset.delF);renderFiles()}catch(e){toast(e.message,"error")}});
+  el.querySelectorAll("[data-view-f]").forEach(b=>b.onclick=async()=>{
+    try{const r=await api(`/api/files/${b.dataset.viewF}`);openModal(r.file.name,`<pre style="white-space:pre-wrap;max-height:50vh;overflow:auto">${esc(r.file.content)}</pre>`,[{label:"Zamknij",action:closeModal}])}catch(e){toast(e.message,"error")}
+  });
+  el.querySelectorAll("[data-ctx-f]").forEach(b=>b.onclick=async()=>{
+    try{
+      const r=await api(`/api/files/${b.dataset.ctxF}`);const f=r.file;
+      if(!state.currentConv){const c=await api("/api/conversations",{method:"POST",body:{title:"Plik: "+f.name}});state.conversations.unshift(c.conversation);state.messages[c.conversation.id]=[];state.currentConv=c.conversation.id}
+      $("#msgInput").value=`[Plik: ${f.name}]\n\n${f.content.slice(0,8000)}`;
+      showView("chat");await selectConv(state.currentConv);
+      $("#msgInput").style.height="auto";$("#msgInput").style.height=Math.min($("#msgInput").scrollHeight,260)+"px";
+      toast("Wklejono do czatu","success");
+    }catch(e){toast(e.message,"error")}
+  });
+}
+
+async function loadMemory(){
+  try{const r=await api("/api/memory");state.memory=r.memory||[]}catch{state.memory=[]}
+}
+async function renderMemory(){
+  await loadMemory();
+  const el=$("#memoryList");
+  if(!state.memory.length){el.innerHTML='<div class="empty">Brak pamięci</div>';return}
+  el.innerHTML=state.memory.map(m=>`<div class="card" style="margin-bottom:8px"><div style="font-weight:620">${m.pinned?"📌 ":""}${esc(m.content)}</div><div class="card-meta">${esc(m.category||"fact")} · ${m.enabled?"aktywne":"wyłączone"}</div><div style="margin-top:8px;display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-edit-m="${m.id}">Edytuj</button><button class="btn btn-ghost btn-sm" data-del-m="${m.id}">Usuń</button></div></div>`).join("");
+  el.querySelectorAll("[data-del-m]").forEach(b=>b.onclick=async()=>{if(!confirm("Usunąć?"))return;try{await api(`/api/memory/${b.dataset.delM}`,{method:"DELETE"});state.memory=state.memory.filter(x=>x.id!==b.dataset.delM);renderMemory()}catch(e){toast(e.message,"error")}});
+  el.querySelectorAll("[data-edit-m]").forEach(b=>b.onclick=()=>openMemoryModal(state.memory.find(x=>x.id===b.dataset.editM)));
+}
+function openMemoryModal(m){
+  const cats=[["fact","Fakt"],["preference","Preferencja"],["decision","Decyzja"],["project","Projekt"],["source","Źródło"]];
+  openModal(m?"Edytuj fakt":"Dodaj fakt",`<div class="form-group"><label>Treść</label><textarea id="mContent" rows="3">${esc(m?.content||"")}</textarea></div><div class="form-group"><label>Kategoria</label><select id="mCat">${cats.map(([v,l])=>`<option value="${v}" ${m?.category===v?"selected":""}>${l}</option>`).join("")}</select></div><label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="mEn" ${m?.enabled!==false?"checked":""}> Używaj w kontekście</label><label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="mPin" ${m?.pinned?"checked":""}> Przypnij</label>`,[
+    {label:"Anuluj",action:closeModal},
+    {label:"Zapisz",primary:true,action:async()=>{
+      const content=$("#mContent").value.trim();if(!content)return;
+      const body={content,category:$("#mCat").value,enabled:$("#mEn").checked,pinned:$("#mPin").checked};
+      try{
+        if(m)await api(`/api/memory/${m.id}`,{method:"PATCH",body});
+        else await api("/api/memory",{method:"POST",body});
+        closeModal();renderMemory();toast("Zapisano","success");
+      }catch(e){toast(e.message,"error")}
+    }}
+  ]);
+}
+
+async function renderProviders(){
+  try{const r=await api("/api/providers");state.providers=r.providers||{}}catch{state.providers={}}
+  const list=$("#providersList");
+  const sel=$("#providerSelect");
+  const cfg=state.providers;
+  const opts=['<option value="auto">⚡ Auto (fallback)</option>'];
+  list.innerHTML=ORDER.map(p=>{
+    const ok=p==="cloudflare"?true:!!(cfg[p]&&cfg[p].hasKey);
+    opts.push(`<option value="${p}">${PROVIDERS[p].name}${ok?" ✓":""}</option>`);
+    const model=cfg[p]?.model||PROVIDERS[p].default;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:6px"><div style="flex:1;min-width:160px"><div style="font-weight:620;font-size:13px">${PROVIDERS[p].name} <span class="status-dot ${ok?"status-ok":"status-err"}"></span></div><div class="card-meta">${cfg[p]?.masked?esc(cfg[p].masked):esc(model)}</div></div><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-test="${p}">Test</button>${cfg[p]&&p!=="cloudflare"?`<button class="btn btn-ghost btn-sm" data-del="${p}">Usuń</button>`:""}</div></div>`;
+  }).join("");
+  const cur=sel.value;sel.innerHTML=opts.join("");if(cur)sel.value=cur;
+  list.querySelectorAll("[data-test]").forEach(b=>b.onclick=async()=>{
+    b.textContent="…";
+    try{const r=await api(`/api/providers/${b.dataset.test}/test`,{method:"POST"});toast(`${PROVIDERS[b.dataset.test].name}: ${r.sample||"OK"}`,"success")}catch(e){toast(e.message,"error")}
+    b.textContent="Test";
+  });
+  list.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Usunąć klucz?"))return;
+    try{await api(`/api/providers/${b.dataset.del}`,{method:"DELETE"});renderProviders();toast("Usunięto")}catch(e){toast(e.message,"error")}
+  });
+}
+function openProviderModal(){
+  const provs=ORDER.filter(p=>p!=="cloudflare");
+  openModal("Dodaj klucz API",`<div class="form-group"><label>Dostawca</label><select id="prName">${provs.map(p=>`<option value="${p}">${PROVIDERS[p].name}</option>`).join("")}</select></div><div class="form-group"><label>Klucz API</label><input id="prKey" type="password" placeholder="sk-..."></div><div class="form-group"><label>Model (opcjonalnie)</label><select id="prModel"><option value="">Domyślny</option></select></div>`,[
+    {label:"Anuluj",action:closeModal},
+    {label:"Zapisz",primary:true,action:async()=>{
+      const p=$("#prName").value,k=$("#prKey").value.trim(),m=$("#prModel").value;
+      if(!k)return;
+      try{await api("/api/providers",{method:"POST",body:{provider:p,key:k,model:m||PROVIDERS[p].default}});closeModal();renderProviders();toast("Zapisano","success")}catch(e){toast(e.message,"error")}
+    }}
+  ]);
+  const sel=$("#prName"),msel=$("#prModel");
+  const fill=()=>{msel.innerHTML='<option value="">Domyślny</option>'+PROVIDERS[sel.value].models.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join("")};
+  sel.onchange=fill;fill();
+}
+
+async function doResearch(){
+  const q=$("#researchQuery").value.trim();if(!q)return;
+  $("#researchResult").innerHTML='<div class="spinner"></div> Analizuję…';
+  try{
+    const r=await api("/api/research",{method:"POST",body:{query:q}});
+    let html=`<div class="card"><div class="msg-body">${md(r.text)}</div>`;
+    if(r.citations&&r.citations.length){html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div class="card-meta" style="margin-bottom:6px">Źródła:</div>${r.citations.map(c=>`<div style="padding:4px 0;font-size:12px">${typeof c==="string"?`<a href="${esc(c)}" target="_blank" rel="noopener">${esc(c)}</a>`:esc(JSON.stringify(c))}</div>`).join("")}</div>`}
+    html+=`</div>`;
+    $("#researchResult").innerHTML=html;
+  }catch(e){$("#researchResult").innerHTML=`<div style="color:var(--danger)">${esc(e.message)}</div>`}
+}
+
+async function generateImage(){
+  const prompt=$("#imgPrompt").value.trim();if(!prompt)return;
+  const style=$("#imgStyle").value;const size=$("#imgSize").value;
+  const fullPrompt=style?prompt+", "+style:prompt;
+  const seed=Math.floor(Math.random()*999999);
+  const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${size.split("x")[0]}&height=${size.split("x")[1]}&seed=${seed}&nologo=true&enhance=true`;
+  $("#imgResult").innerHTML='<div class="spinner"></div> Generuję…';
+  try{
+    await new Promise((res,rej)=>{const i=new Image();i.crossOrigin="anonymous";i.onload=res;i.onerror=rej;i.src=url});
+    const card=document.createElement("div");card.className="gen-card";
+    card.innerHTML=`<img src="${url}" loading="lazy"><div class="cap">${esc(prompt.slice(0,60))}</div>`;
+    card.onclick=()=>window.open(url,"_blank");
+    $("#imgResult").innerHTML="";$("#imgResult").appendChild(card);
+    toast("Gotowe","success");
+  }catch(e){$("#imgResult").innerHTML=`<div style="color:var(--danger)">Błąd generowania</div>`}
+}
+
+async function generateCode(){
+  const prompt=$("#codePrompt").value.trim();if(!prompt)return;
+  const lang=$("#codeLang").value;
+  $("#codeEditor").value="";
+  const system="Jesteś generatorem kodu. Zwracasz WYŁĄCZNIE kod, bez komentarzy o swoim procesie, bez wyjaśnień, bez markdown fences. Kompletny, produkcyjny, gotowy do użycia.";
+  const fullPrompt=`Stack: ${lang}\n\nZadanie: ${prompt}\n\nZwróć pełny kod.`;
+  try{
+    const res=await fetch("/api/complete",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json","X-CSRF-Token":state.csrf},body:JSON.stringify({prompt:fullPrompt,system})});
+    if(!res.ok){const t=await res.text().catch(()=>"");throw new Error(t||("HTTP "+res.status))}
+    const reader=res.body.getReader();const dec=new TextDecoder();let buf="",full="";
+    while(true){const {done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split("\n");buf=lines.pop()||"";for(const line of lines){if(!line.startsWith("data: "))continue;const data=line.slice(6).trim();if(!data)continue;try{const j=JSON.parse(data);if(j.type==="chunk"){full=j.text;$("#codeEditor").value=full}if(j.type==="error")throw new Error(j.message)}catch(e){if(e.message&&e.message!=="Unexpected end of JSON input")throw e}}}
+    toast("Gotowe","success");
+  }catch(e){$("#codeEditor").value="// Błąd: "+e.message;toast(e.message,"error")}
+}
+
+async function updateGhStatus(){
+  try{const r=await api("/api/me");state.hasGithub=r.github}else{state.hasGithub=false}
+  $("#ghStatus").textContent=state.hasGithub?"Token zapisany":"Brak tokenu";
+  $("#ghStatus").className="badge "+(state.hasGithub?"badge-accent":"badge-muted");
+}
+
+async function pushToGithub(){
+  const repo=$("#ghRepo").value.trim();
+  const path=$("#ghPath").value.trim()||"index.html";
+  let content=$("#ghContent").value;
+  if(!content){content=$("#codeEditor").value}
+  if(!repo||!content){toast("Podaj repo i kod","error");return}
+  $("#ghResult").innerHTML='<div class="spinner"></div> Pushuję…';
+  try{
+    const r=await api("/api/github/push",{method:"POST",body:{repo,path,content}});
+    $("#ghResult").innerHTML=`<div class="card"><div class="card-title">Sukces</div><div class="card-meta"><a href="${esc(r.url||"")}" target="_blank" rel="noopener">Zobacz na GitHub</a></div></div>`;
+    toast("Push OK","success");
+  }catch(e){$("#ghResult").innerHTML=`<div style="color:var(--danger)">${esc(e.message)}</div>`;toast(e.message,"error")}
+}
+
+function applyTheme(){
+  document.documentElement.dataset.theme=ls("theme","dark")==="light"?"light":"";
+  document.documentElement.style.setProperty("--fs",(ls("fontSize",15)||15)+"px");
+}
+
+function setupPWA(){
+  const icon=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e5ff"/><stop offset="1" stop-color="#7c4dff"/></linearGradient></defs><rect width="128" height="128" rx="28" fill="#03030a"/><text x="64" y="86" text-anchor="middle" font-size="46" font-weight="900" fill="url(#g)" font-family="system-ui">AL</text></svg>`;
+  const man={name:"AL2100",short_name:"AL2100",start_url:"/",display:"standalone",background_color:"#03030a",theme_color:"#03030a",icons:[{src:"data:image/svg+xml,"+encodeURIComponent(icon),sizes:"128x128",type:"image/svg+xml",purpose:"any maskable"}]};
+  let link=document.querySelector('link[rel="manifest"]');
+  if(!link){link=document.createElement("link");link.rel="manifest";document.head.appendChild(link)}
+  link.href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(man));
+  window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window._dip=e;const b=$("#installBtn");if(b)b.style.display="inline-flex"});
+}
+
+function openCmd(){
+  $("#cmdPalette").classList.add("show");
+  $("#cmdInput").value="";$("#cmdInput").focus();renderCmd("");
+}
+function closeCmd(){$("#cmdPalette").classList.remove("show")}
+function renderCmd(q){
+  const cmds=[
+    {t:"Nowa rozmowa",a:newChat},
+    {t:"Studio Kodu",a:()=>showView("code")},
+    {t:"Generuj obraz",a:()=>showView("imagine")},
+    {t:"GitHub",a:()=>showView("github")},
+    {t:"Projekty",a:()=>showView("projects")},
+    {t:"Zadania",a:()=>showView("tasks")},
+    {t:"Notatki",a:()=>showView("notes")},
+    {t:"Pamięć",a:()=>showView("memory")},
+    {t:"Research",a:()=>showView("research")},
+    {t:"Ustawienia",a:()=>showView("settings")},
+    {t:"Wyloguj",a:logout}
+  ].filter(c=>!q||c.t.toLowerCase().includes(q.toLowerCase()));
+  $("#cmdResults").innerHTML=cmds.map((c,i)=>`<div class="cmd-item ${i===0?"active":""}" data-i="${i}">${esc(c.t)}</div>`).join("");
+  $("#cmdResults").querySelectorAll(".cmd-item").forEach(n=>n.onclick=()=>{cmds[+n.dataset.i].a();closeCmd()});
+  window._cmdFiltered=cmds;
+}
+
+async function logout(){
+  try{await api("/auth/logout",{method:"POST"})}catch{}
+  state.user=null;state.csrf=null;renderLogin();
+}
+
+function bind(){
+  $("#nav").onclick=e=>{const i=e.target.closest(".nav-item");if(i)showView(i.dataset.view)};
+  $$(".mobile-nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));
+  $("#menuBtn").onclick=()=>$("#sidebar").classList.toggle("open");
+  $("#logoutBtn").onclick=logout;
+  $("#newConvBtn").onclick=newChat;
+  $("#newChatBtn").onclick=newChat;
+  $("#sendBtn").onclick=()=>sendMessage(false);
+  $("#stopBtn").onclick=async()=>{
+    if(state.controller)state.controller.abort();
+    if(state.currentGenId){try{await api("/api/chat/stop",{method:"POST",body:{generation_id:state.currentGenId}})}catch{}}
+  };
+  $("#msgInput").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage(false)}};
+  $("#msgInput").oninput=function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,260)+"px"};
+  $("#newProjectBtn").onclick=()=>openProjectModal(null);
+  $("#newTaskBtn").onclick=()=>openTaskModal(null);
+  $("#newNoteBtn").onclick=async()=>{
+    try{const r=await api("/api/notes",{method:"POST",body:{title:"",content:"",tags:[]}});await loadNotes();const n=state.notes.find(x=>x.id===r.id);if(n)openNoteModal(n)}catch(e){toast(e.message,"error")}
+  };
+  $("#notesSearch").oninput=()=>renderNotes($("#notesSearch").value);
+  $("#newMemoryBtn").onclick=()=>openMemoryModal(null);
+  $("#addProviderBtn").onclick=openProviderModal;
+  $("#researchBtn").onclick=doResearch;
+  $("#genImgBtn").onclick=generateImage;
+  $("#genCodeBtn").onclick=generateCode;
+  $("#copyCodeBtn").onclick=()=>{navigator.clipboard.writeText($("#codeEditor").value);toast("Skopiowano","success")};
+  $("#toChatCodeBtn").onclick=async()=>{
+    if(!state.currentConv){await newChat()}
+    $("#msgInput").value="Wygenerowany kod:\n\n```\n"+$("#codeEditor").value+"\n```";
+    showView("chat");
+    $("#msgInput").style.height="auto";$("#msgInput").style.height=Math.min($("#msgInput").scrollHeight,260)+"px";
+  };
+  $("#pushCodeBtn").onclick=()=>{$("#ghContent").value=$("#codeEditor").value;showView("github");toast("Kod skopiowany do GitHub – wypełnij repo i wyślij","info")};
+  $("#saveGhToken").onclick=async()=>{
+    const t=$("#ghToken").value.trim();if(!t)return;
+    try{await api("/api/github/token",{method:"POST",body:{token:t}});$("#ghToken").value="";updateGhStatus();toast("Token zapisany","success")}catch(e){toast(e.message,"error")}
+  };
+  $("#delGhToken").onclick=async()=>{
+    if(!confirm("Usunąć token?"))return;
+    try{await api("/api/github/token",{method:"DELETE"});updateGhStatus();toast("Usunięto")}catch(e){toast(e.message,"error")}
+  };
+  $("#ghPushBtn").onclick=pushToGithub;
+  $("#fileUpload").onchange=async e=>{
+    for(const f of e.target.files){
+      if(f.size>2*1024*1024){toast(f.name+" za duży (max 2 MB)","error");continue}
+      try{const fd=new FormData();fd.append("file",f);await api("/api/files",{method:"POST",body:fd});toast("Wgrano "+f.name,"success")}catch(err){toast(err.message,"error")}
+    }
+    e.target.value="";renderFiles();
+  };
+  $("#modalClose").onclick=closeModal;
+  $("#modal").onclick=e=>{if(e.target===$("#modal"))closeModal()};
+  $("#themeSelect").onchange=e=>{lsSet("theme",e.target.value);applyTheme()};
+  $("#fontSize").onchange=e=>{lsSet("fontSize",parseInt(e.target.value));applyTheme()};
+  $("#cmdBtn").onclick=openCmd;
+  $("#cmdInput").oninput=()=>renderCmd($("#cmdInput").value);
+  document.addEventListener("keydown",e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();openCmd()}
+    else if(e.key==="Escape"){closeCmd();closeModal()}
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.target.id!=="cmdInput")return;
+    const items=$$(".cmd-item");const f=window._cmdFiltered||[];
+    let sel=items.findIndex(x=>x.classList.contains("active"));
+    if(e.key==="ArrowDown"){e.preventDefault();if(items.length){items[sel]?.classList.remove("active");sel=(sel+1)%items.length;items[sel].classList.add("active")}}
+    else if(e.key==="ArrowUp"){e.preventDefault();if(items.length){items[sel]?.classList.remove("active");sel=(sel-1+items.length)%items.length;items[sel].classList.add("active")}}
+    else if(e.key==="Enter"){e.preventDefault();if(f[sel]){f[sel].a();closeCmd()}}
+  });
+  $("#installBtn").onclick=()=>{if(window._dip){window._dip.prompt();window._dip=null;$("#installBtn").style.display="none"}};
+  $("#themeSelect").value=ls("theme","dark");
+  $("#fontSize").value=ls("fontSize",15);
+}
+
+async function init(){
+  applyTheme();
+  setupPWA();
+  try{
+    const r=await api("/api/me");
+    state.user=r.user;state.csrf=r.csrf;state.providers=r.providers||{};state.hasGithub=!!r.github;
+    updateUserUI();
+    showApp();
+    bind();
+    await loadConversations();
+    renderConvs();
+    renderMessages();
+    renderProviders();
+    if(state.conversations.length){
+      state.currentConv=state.conversations[0].id;
+      await selectConv(state.currentConv);
+    } else {
+      showView("chat");
+    }
+  }catch(e){
+    renderLogin();
+  }
+}
+
+init();
 </script>
 </body>
 </html>
