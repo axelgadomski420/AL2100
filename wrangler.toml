@@ -1,0 +1,35 @@
+name = "al2100"
+main = "worker.js"
+compatibility_date = "2026-10-30"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+routes = []
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "AL_DB"
+database_name = "al2100"
+database_id = "1431274d-c8d8-431b-aa1f-eaff2c466ada"
+
+[[kv_namespaces]]
+binding = "AL_KV"
+id = "87d4fd94c6114923b3ef02ae7069115c"
+
+[[r2_buckets]]
+binding = "AL_BUCKET"
+bucket_name = "al2100"
+
+[[queues.producers]]
+binding = "AL_QUEUE"
+queue = "al2100-jobs"
+
+[[queues.consumers]]
+queue = "al2100-jobs"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[ai]
+binding = "AI"
