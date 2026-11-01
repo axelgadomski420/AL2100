@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
   auth_provider TEXT DEFAULT 'local',
   personality TEXT DEFAULT 'coder',
   personality_custom TEXT,
+  role TEXT DEFAULT 'user',
+  banned INTEGER DEFAULT 0,
   last_login_at INTEGER,
   created_at INTEGER DEFAULT (unixepoch())
 );
@@ -80,35 +82,6 @@ CREATE TABLE IF NOT EXISTS projects (
   description TEXT,
   created_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','done')),
-  created_at INTEGER DEFAULT (unixepoch()),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS notes (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  content TEXT,
-  created_at INTEGER DEFAULT (unixepoch()),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS files (
-  id TEXT PRIMARY KEY,
-  project_id TEXT,
-  name TEXT NOT NULL,
-  mime_type TEXT,
-  size INTEGER,
-  r2_key TEXT NOT NULL,
-  created_at INTEGER DEFAULT (unixepoch()),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS tracks (
