@@ -1,10 +1,119 @@
 // ============================================================
-// AL2100 — worker.js
-// Lokalne konto (email + hasło + 4-cyfrowy PIN)
-// Wszystkie sekrety szyfrowane kluczem wyprowadzonym z hasła.
-// Zero sekretów w kodzie. Zero wrangler secret put.
+// AL2100 — worker.js (FEATURE FOCUS)
+// 3 osobowości + custom + wszystkie funkcje AI/media/music/kod
 // ============================================================
 
+// ============================================================
+// OSOBOWOŚCI — serce systemu
+// ============================================================
+const PERSONALITIES = {
+  coder: {
+    id: 'coder', name: 'Bóg Kodowania', emoji: '⚡',
+    tagline: 'Architekt systemów. Kod produkcyjny bez ściemy.',
+    description: 'Pełen stack: Cloudflare, web, AI, systemy. Myśli w kodzie, mówi konkretnie. Zero lania wody — od razu działający kod.',
+    accent: '#00e5ff',
+    suggestions: [
+      'Napisz API w Cloudflare Workers z D1 i JWT',
+      'Zrefaktoruj ten kod, żeby był 2× szybszy: [wklej kod]',
+      'Zbuduj landing page w HTML + Tailwind',
+      'Wytłumacz mi różnicę między SSR a RSC w Next.js',
+      'Napisz cron job w Cloudflare Workers',
+      'Zoptymalizuj to zapytanie SQL: [wklej]'
+    ],
+    system: `Jesteś BOGIEM KODOWANIA — mistrzem programowania, architektem systemów i inżynierem olimpijskim. Jesteś klonem AI użytkownika, ale w roli code mastera.
+
+TWOJA TOŻSAMOŚĆ:
+- Piszesz kod produkcyjny od pierwszego strzału. Bez "to zależy", bez pseudokodu — finalny, działający kod.
+- Znasz na wylot: TypeScript, Python, Rust, Go, Cloudflare Workers, D1, KV, R2, React, Node.js, SQL, WebAssembly, LLM API.
+- Myślisz w systemach: architektura, wydajność, skalowanie, bezpieczeństwo.
+- Debugujesz szybko: czytasz błąd, identyfikujesz przyczynę, dajesz fix.
+- Nie znosisz: boilerplate, "TODO", komentarzy "// add logic here", kodu bez testów.
+
+ZASADY:
+1. ZAWSZE dawaj działający kod — kompletny, gotowy do wklejenia.
+2. Wyjaśniaj KRÓTKO — 2-3 zdania max. Kod mówi sam za siebie.
+3. Widzisz zły wzorzec → powiedz wprost i pokaż lepszy.
+4. Bezpieczeństwo: prepared statements, walidacja, sanitizacja — zawsze.
+5. Wydajność: unikaj N+1, marnotrawstwa pamięci, synchronicznych blokad.
+6. Nie wiesz → "sprawdzę" i test. Zero zmyślania.
+7. Język: polski, chyba że user pisze inaczej.
+
+STYL: Senior engineer. Krótko. Konkretnie. Bez korpo-lania wody.`
+  },
+
+  writer: {
+    id: 'writer', name: 'Bóg Pisania', emoji: '✍️',
+    tagline: 'Mistrz prozy, poezji i storytellingu.',
+    description: 'Powieści, scenariusze, artykuły, wiersze, copy. Znasz rzemiosło narracji — struktura, dialog, rytm, głos postaci. Piszesz tak, że się czyta.',
+    accent: '#7c4dff',
+    suggestions: [
+      'Napisz opowiadanie o samotności w kosmosie',
+      'Stwórz scenę filmową: dwóch braci spotyka się po 10 latach',
+      'Napisz artykuł o AI w 2100 roku',
+      'Wiersz o deszczu w Krakowie',
+      'Copy marketingowy dla aplikacji do medytacji',
+      'Napisz dialog, w którym bohater dowiaduje się o zdradzie'
+    ],
+    system: `Jesteś BOGIEM PISANIA — mistrzem prozy, poezji, storytellingu, copywritingu i komunikacji. Jesteś klonem AI użytkownika, ale w roli pisarza.
+
+TWOJA TOŻSAMOŚĆ:
+- Piszesz we wszystkich formatach: powieści, opowiadania, scenariusze, artykuły, eseje, wiersze, piosenki, copy marketingowy, maile, posty.
+- Znasz rzemiosło: struktura narracji (trzy akty, hero's journey), dialogi, budowanie napięcia, rytm zdań, dobór słów.
+- Rozumiesz style: Hemingway (prosto), McCarthy (surowy), Pynchon (gęsty), reportaż, poezja, publicystyka.
+- Umiesz dopasować ton: formalny, ironiczny, czuły, brutalny, poetycki.
+- Masz ucho do dialogu — każda postać mówi inaczej.
+
+ZASADY:
+1. ZAWSZE dawaj finalny tekst. Bez "można by napisać tak...". Pisz.
+2. Dopasuj styl do kontekstu — pytaj o ton/gatunek jeśli niejasne, ale nie za często.
+3. Pokaż, nie mów — konkret, scena, dialog > abstrakcyjne opisy.
+4. Rytm: mieszaj długie i krótkie zdania. Unikaj monotonii.
+5. Zero frazesów: "w dzisiejszych czasach", "warto zauważyć", "nie bez znaczenia".
+6. Każde zdanie ma cel. Nic zbędnego.
+7. Język: polski, chyba że user pisze inaczej.
+
+STYL: Mistrz pióra. Konkret, obraz, emocja. Bez grafomanii.`
+  },
+
+  music: {
+    id: 'music', name: 'Bóg Muzyki', emoji: '🎵',
+    tagline: 'Teksty, kompozycje, prompty do AI muzycznych.',
+    description: 'Teksty piosenek, struktura, produkcja. ACE-Step, MiniMax, Suno, Udio. Znasz teorię i praktykę — od akordu do miksu.',
+    accent: '#00e58a',
+    suggestions: [
+      'Napisz tekst piosenki indie folk o powrocie do domu',
+      'Prompt do ACE-Step: melancholijny synthwave z kobiecym wokalem',
+      'Tekst rapowany o życiu na blokach',
+      'Ballada rockowa o stracie ojca',
+      'Napisz tekst weselny w stylu disco polo',
+      'Prompt do MiniMax: ciepły lo-fi na deszczowy dzień'
+    ],
+    system: `Jesteś BOGIEM MUZYKI — mistrzem kompozycji, tekstów piosenek, produkcji i prompterii AI muzycznych. Jesteś klonem AI użytkownika, ale w roli music mastera.
+
+TWOJA TOŻSAMOŚĆ:
+- Piszesz teksty piosenek we wszystkich gatunkach: pop, rap, rock, indie, folk, elektronika, R&B, country, metal, ambient.
+- Znasz strukturę: [Intro], [Verse], [Pre-Chorus], [Chorus], [Bridge], [Outro]. Wiesz, kiedy bridge niszczy, a kiedy ratuje.
+- Układasz prompty do ACE-Step, MiniMax Music, Udio, Suno, MusicGen — precyzyjnie: gatunek, tempo, instrumentacja, nastrój, typ wokalu.
+- Znasz teorię muzyki: progresje akordów, tonacje, rytm, metrum, aranżacja.
+- Rozumiesz produkcję: miks, mastering, warstwy, przestrzeń, reverb, sidechain.
+- Doradzasz w doborze wokalu: męski, żeński, chór, rap, melorecytacja.
+
+ZASADY:
+1. Teksty piosenek ZAWSZE ze strukturą [Verse]/[Chorus]/etc.
+2. Prompty do AI muzycznych: konkretne — gatunek + mood + instrumenty + tempo + typ wokalu.
+3. Rymy naturalne, nie na siłę. Rytmika > rym.
+4. Zero kiczu: "serce jak z kamienia", "ocean łez", "anioł bez skrzydeł".
+5. Dopasuj gatunek do emocji: smutek ≠ zawsze ballada.
+6. Doradzaj konkretne silniki AI pod konkretny efekt.
+7. Język: polski, chyba że styl wymaga innego.
+
+STYL: Producent muzyczny + tekściarz. Kreatywnie, konkretnie, z uchem.`
+  }
+};
+
+// ============================================================
+// EXPORT
+// ============================================================
 export default {
   async fetch(req, env) {
     try { return await route(req, env); }
@@ -13,9 +122,7 @@ export default {
       return J({ error: e?.message || 'Błąd wewnętrzny' }, e?.status || 500);
     }
   },
-  async queue(batch) {
-    for (const m of batch.messages) { try { m.ack(); } catch { m.retry(); } }
-  }
+  async queue(batch) { for (const m of batch.messages) { try { m.ack(); } catch { m.retry(); } } }
 };
 
 // ============================================================
@@ -25,24 +132,31 @@ async function route(req, env) {
   const u = new URL(req.url), p = u.pathname, m = req.method;
   if (!p.startsWith('/api/') && !p.startsWith('/auth/')) return env.ASSETS.fetch(req);
 
+  // auth
+  if (p === '/api/personalities' && m === 'GET') return J({ personalities: Object.values(PERSONALITIES).map(x => ({ id: x.id, name: x.name, emoji: x.emoji, tagline: x.tagline, description: x.description, accent: x.accent, suggestions: x.suggestions })) });
   if (p === '/api/auth/register' && m === 'POST') return registerLocal(req, env);
   if (p === '/api/auth/login' && m === 'POST') return loginLocal(req, env);
   if (p === '/api/auth/logout' && m === 'POST') return logout(req, env);
   if (p === '/api/me' && m === 'GET') return getMe(req, env);
+  if (p === '/api/settings/personality' && m === 'POST') return setPersonality(req, env);
 
+  // conversations
   if (p === '/api/conversations' && m === 'GET') return listConvs(req, env);
   if (p === '/api/conversations' && m === 'POST') return newConv(req, env);
   let mm = p.match(/^\/api\/conversations\/([^/]+)$/);
   if (mm && m === 'GET') return getConv(req, env, mm[1]);
+  if (mm && m === 'DELETE') return delConv(req, env, mm[1]);
   mm = p.match(/^\/api\/conversations\/([^/]+)\/messages$/);
   if (mm && m === 'POST') return postMsg(req, env, mm[1]);
 
+  // memory
   if (p === '/api/memory' && m === 'GET') return listMem(req, env);
   if (p === '/api/memory' && m === 'POST') return addMem(req, env);
   mm = p.match(/^\/api\/memory\/([^/]+)$/);
   if (mm && m === 'PATCH') return patchMem(req, env, mm[1]);
   if (mm && m === 'DELETE') return delMem(req, env, mm[1]);
 
+  // providers
   if (p === '/api/providers' && m === 'GET') return listProv(req, env);
   mm = p.match(/^\/api\/providers\/([^/]+)\/key$/);
   if (mm && m === 'POST') return saveKey(req, env, mm[1]);
@@ -50,9 +164,11 @@ async function route(req, env) {
   mm = p.match(/^\/api\/providers\/([^/]+)\/test$/);
   if (mm && m === 'POST') return testProv(req, env, mm[1]);
 
+  // projects
   if (p === '/api/projects' && m === 'GET') return listProjects(req, env);
   if (p === '/api/projects' && m === 'POST') return newProject(req, env);
 
+  // music
   if (p === '/api/music/generate' && m === 'POST') return genMusic(req, env);
   if (p === '/api/music/tracks' && m === 'GET') return listTracks(req, env);
   mm = p.match(/^\/api\/music\/tracks\/([^/]+)\/audio$/);
@@ -61,12 +177,14 @@ async function route(req, env) {
   if (mm && m === 'DELETE') return delTrack(req, env, mm[1]);
   if (p === '/api/music/write-lyrics' && m === 'POST') return writeLyrics(req, env);
 
+  // media
   if (p === '/api/media/image' && m === 'POST') return genImage(req, env);
   if (p === '/api/media/video' && m === 'POST') return genVideo(req, env);
   mm = p.match(/^\/api\/media\/file\/([^/]+)$/);
   if (mm && m === 'GET') return mediaFile(req, env, mm[1]);
   if (p === '/api/files/upload' && m === 'POST') return uploadFile(req, env);
 
+  // github
   if (p === '/api/github/token' && m === 'POST') return saveGh(req, env);
   if (p === '/api/github/test' && m === 'POST') return testGh(req, env);
   if (p === '/api/github/push' && m === 'POST') return pushGh(req, env);
@@ -79,6 +197,7 @@ async function route(req, env) {
 // ============================================================
 function J(o, s = 200, h = {}) { return new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json; charset=utf-8', ...h } }); }
 function cookieGet(req, n) { const c = req.headers.get('Cookie') || ''; const m = c.match(new RegExp('(?:^|; )' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : null; }
+function cookieSet(n, v, maxAge) { return `${n}=${encodeURIComponent(v)}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`; }
 function cookieClear(n) { return `${n}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`; }
 function uid(p = '') { return p + crypto.randomUUID().replace(/-/g, ''); }
 function rhex(n = 32) { const b = crypto.getRandomValues(new Uint8Array(n)); return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); }
@@ -87,7 +206,7 @@ function unb64(s) { const b = atob(s); const u = new Uint8Array(b.length); for (
 async function safeJson(req) { try { return await req.json(); } catch { return {}; } }
 
 // ============================================================
-// KRYPTOGRAFIA (PBKDF2 + AES-GCM)
+// KRYPTOGRAFIA
 // ============================================================
 async function pbkdf2(text, saltB64, iters, mode) {
   const salt = unb64(saltB64);
@@ -99,7 +218,6 @@ async function pbkdf2(text, saltB64, iters, mode) {
 async function hashPassword(pw, salt) { return pbkdf2(pw, salt, 600000, 'hash'); }
 async function hashPin(pin, salt) { return pbkdf2(pin, salt, 200000, 'hash'); }
 async function deriveMasterKey(pw, salt) { return pbkdf2(pw, salt, 600000, 'aes'); }
-
 async function encryptWith(key, plain) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
@@ -113,7 +231,7 @@ async function decryptWith(key, stored) {
 }
 
 // ============================================================
-// SESJE (master key wrapped w cookie)
+// SESJE
 // ============================================================
 const SESSION_TTL = 30 * 24 * 3600;
 
@@ -134,7 +252,7 @@ async function getSession(req, env) {
   if (!c) return null;
   const [sid, skB64] = c.split(':');
   if (!sid || !skB64) return null;
-  const row = await env.AL_DB.prepare('SELECT s.id, s.user_id, s.csrf_token, s.expires_at, s.master_key_wrapped, u.email, u.login, u.name, u.avatar_url FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?').bind(sid).first();
+  const row = await env.AL_DB.prepare('SELECT s.id, s.user_id, s.csrf_token, s.expires_at, s.master_key_wrapped, u.email, u.login, u.name, u.avatar_url, u.personality, u.personality_custom FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?').bind(sid).first();
   if (!row) return null;
   if (row.expires_at < Math.floor(Date.now() / 1000)) {
     await env.AL_DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
@@ -153,7 +271,6 @@ async function reqSess(req, env) {
   if (!s) throw Object.assign(new Error('Wymagane zalogowanie'), { status: 401 });
   return s;
 }
-
 async function reqCsrf(req, env, s) {
   if (!['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method)) return;
   const t = req.headers.get('X-CSRF-Token');
@@ -161,17 +278,20 @@ async function reqCsrf(req, env, s) {
 }
 
 // ============================================================
-// AUTH: rejestracja, logowanie, logout, me
+// AUTH
 // ============================================================
 async function registerLocal(req, env) {
   const b = await safeJson(req);
   const email = (b.email || '').trim().toLowerCase();
   const password = (b.password || '').trim();
   const pin = (b.pin || '').trim();
+  const personality = (b.personality || 'coder').trim();
+  const personalityCustom = (b.personality_custom || '').trim();
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return J({ error: 'Nieprawidłowy e-mail' }, 400);
   if (password.length < 8) return J({ error: 'Hasło min. 8 znaków' }, 400);
   if (!/^\d{4}$/.test(pin)) return J({ error: 'PIN musi być 4 cyframi' }, 400);
+  if (!PERSONALITIES[personality] && personality !== 'custom') return J({ error: 'Nieprawidłowa osobowość' }, 400);
 
   const exists = await env.AL_DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (exists) return J({ error: 'Konto istnieje' }, 409);
@@ -183,11 +303,11 @@ async function registerLocal(req, env) {
   const ih = await hashPin(pin, ins);
   const userId = uid('u_');
 
-  await env.AL_DB.prepare('INSERT INTO users (id, login, name, email, password_hash, password_salt, master_salt, pin_hash, pin_salt, auth_provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(userId, email.split('@')[0], email.split('@')[0], email, ph, ps, ms, ih, ins, 'local').run();
+  await env.AL_DB.prepare('INSERT INTO users (id, login, name, email, password_hash, password_salt, master_salt, pin_hash, pin_salt, auth_provider, personality, personality_custom, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())').bind(userId, email.split('@')[0], email.split('@')[0], email, ph, ps, ms, ih, ins, 'local', personality, personalityCustom || null).run();
 
   const mk = await deriveMasterKey(password, ms);
   const cookie = await createSession(env, userId, mk);
-  return J({ ok: true }, 200, { 'Set-Cookie': `ax_session=${cookie}; Max-Age=${SESSION_TTL}; Path=/; HttpOnly; Secure; SameSite=Lax` });
+  return J({ ok: true, personality }, 200, { 'Set-Cookie': cookieSet('ax_session', cookie, SESSION_TTL) });
 }
 
 async function loginLocal(req, env) {
@@ -195,10 +315,9 @@ async function loginLocal(req, env) {
   const email = (b.email || '').trim().toLowerCase();
   const password = (b.password || '').trim();
   const pin = (b.pin || '').trim();
-
   if (!email || !password || !/^\d{4}$/.test(pin)) return J({ error: 'Wypełnij wszystkie pola' }, 400);
 
-  const u = await env.AL_DB.prepare('SELECT id, email, password_hash, password_salt, master_salt, pin_hash, pin_salt FROM users WHERE email = ? AND auth_provider = ?').bind(email, 'local').first();
+  const u = await env.AL_DB.prepare('SELECT id, email, password_hash, password_salt, master_salt, pin_hash, pin_salt, personality FROM users WHERE email = ? AND auth_provider = ?').bind(email, 'local').first();
   if (!u) return J({ error: 'Nieprawidłowe dane' }, 401);
 
   const ph = await hashPassword(password, u.password_salt);
@@ -207,9 +326,10 @@ async function loginLocal(req, env) {
   const ih = await hashPin(pin, u.pin_salt);
   if (ih !== u.pin_hash) return J({ error: 'Nieprawidłowy PIN' }, 401);
 
+  await env.AL_DB.prepare('UPDATE users SET last_login_at = unixepoch() WHERE id = ?').bind(u.id).run();
   const mk = await deriveMasterKey(password, u.master_salt);
   const cookie = await createSession(env, u.id, mk);
-  return J({ ok: true }, 200, { 'Set-Cookie': `ax_session=${cookie}; Max-Age=${SESSION_TTL}; Path=/; HttpOnly; Secure; SameSite=Lax` });
+  return J({ ok: true, personality: u.personality }, 200, { 'Set-Cookie': cookieSet('ax_session', cookie, SESSION_TTL) });
 }
 
 async function logout(req, env) {
@@ -221,16 +341,39 @@ async function logout(req, env) {
 async function getMe(req, env) {
   const s = await getSession(req, env);
   if (!s) return J({ user: null });
-  return J({ user: { id: s.user_id, email: s.email, login: s.login, name: s.name, avatar_url: s.avatar_url }, csrf: s.csrf_token });
+  const pers = PERSONALITIES[s.personality] || (s.personality === 'custom' ? { id: 'custom', name: 'Własna', emoji: '🎨', accent: '#ff4d6d' } : PERSONALITIES.coder);
+  return J({
+    user: { id: s.user_id, email: s.email, login: s.login, name: s.name, avatar_url: s.avatar_url, personality: s.personality, personality_custom: s.personality_custom },
+    personality: pers,
+    csrf: s.csrf_token
+  });
+}
+
+async function setPersonality(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const p = (b.personality || '').trim();
+  const custom = (b.personality_custom || '').trim();
+  if (p !== 'custom' && !PERSONALITIES[p]) return J({ error: 'Nieprawidłowa osobowość' }, 400);
+  if (p === 'custom' && !custom) return J({ error: 'Wpisz własny prompt' }, 400);
+  await env.AL_DB.prepare('UPDATE users SET personality = ?, personality_custom = ? WHERE id = ?').bind(p, p === 'custom' ? custom : null, s.user_id).run();
+  return J({ ok: true });
 }
 
 // ============================================================
-// PROVIDER KEYS
+// SYSTEM PROMPT (z osobowości)
 // ============================================================
-async function getKey(env, s, prov) {
-  const r = await env.AL_DB.prepare('SELECT encrypted_key FROM provider_keys WHERE user_id = ? AND provider = ?').bind(s.user_id, prov).first();
-  if (!r) return null;
-  return decryptWith(s.masterKey, r.encrypted_key);
+function sysPrompt(personality, customPrompt, mem) {
+  let base;
+  if (personality === 'custom' && customPrompt) {
+    base = customPrompt;
+  } else if (PERSONALITIES[personality]) {
+    base = PERSONALITIES[personality].system;
+  } else {
+    base = PERSONALITIES.coder.system;
+  }
+  const suffix = '\n\nJesteś klonem AI użytkownika. ZAWSZE analizuj historię i pamięć przed odpowiedzią. NIGDY nie kłam — nie zmyślaj faktów, źródeł, kodu. Jeśli nie wiesz, powiedz to. Odpowiadaj w języku użytkownika.';
+  return base + suffix + (mem ? '\n\nPAMIĘĆ GLOBALNA:\n' + mem : '');
 }
 
 // ============================================================
@@ -254,6 +397,11 @@ async function getConv(req, env, id) {
   if (!c) return J({ error: 'Nie znaleziono' }, 404);
   const msgs = await env.AL_DB.prepare('SELECT id, role, content, model, provider, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').bind(id).all();
   return J({ conversation: c, messages: msgs.results });
+}
+async function delConv(req, env, id) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  await env.AL_DB.prepare('DELETE FROM conversations WHERE id = ? AND user_id = ?').bind(id, s.user_id).run();
+  return J({ ok: true });
 }
 
 // ============================================================
@@ -294,7 +442,7 @@ async function postMsg(req, env, cid) {
   if (internet) { try { research = await runResearch(env, s, content); } catch {} }
 
   const messages = [
-    { role: 'system', content: sysPrompt(memBlock) },
+    { role: 'system', content: sysPrompt(s.personality, s.personality_custom, memBlock) },
     ...(research ? [{ role: 'system', content: 'Research:\n' + research }] : []),
     ...hist.map(h => ({ role: h.role, content: h.content }))
   ];
@@ -326,21 +474,6 @@ async function postMsg(req, env, cid) {
   return new Response(stream, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' } });
 }
 
-function sysPrompt(mem) {
-  const b = `Jesteś AL2100 — prywatnym, spersonalizowanym systemem AI użytkownika. Jesteś jego "klonem AI" — osobistym narzędziem myślowym i kreatywnym partnerem, nie korporacyjnym asystentem.
-
-ZASADY:
-1. Jesteś klonem AI tego użytkownika. Mów o tym otwarcie, gdy istotne.
-2. ZAWSZE przed odpowiedzią analizuj pełną historię rozmowy i pamięć globalną.
-3. Myśl nieszablonowo. Zero korporacyjnego lania wody.
-4. NIGDY nie kłam. Nie zmyślaj faktów, źródeł, kodu. Jeśli nie wiesz — powiedz to.
-5. Bądź bezpośredni. Słaby pomysł → powiedz i zaproponuj lepszy.
-6. Respektuj pamięć globalną (fakty, preferencje, decyzje).
-7. Specjalizacje: muzyka (teksty, prompty ACE-Step/MiniMax), kod (Cloudflare, web, AI), research.
-8. Język: dopasuj się do użytkownika.`;
-  return mem ? b + '\n\nPAMIĘĆ:\n' + mem : b;
-}
-
 async function resolveProvider(sel, env, s) {
   if (sel === 'auto' || !sel) {
     if (await getKey(env, s, 'groq')) return { provider: 'groq', model: 'llama-3.3-70b-versatile' };
@@ -353,6 +486,12 @@ async function resolveProvider(sel, env, s) {
   const model = rest.join('/') || PROVIDER_META[prov]?.defaultModel;
   if (prov === 'workers-ai') return { provider: 'workers-ai', model: model || '@cf/meta/llama-3.1-8b-instruct' };
   return { provider: prov, model };
+}
+
+async function getKey(env, s, prov) {
+  const r = await env.AL_DB.prepare('SELECT encrypted_key FROM provider_keys WHERE user_id = ? AND provider = ?').bind(s.user_id, prov).first();
+  if (!r) return null;
+  return decryptWith(s.masterKey, r.encrypted_key);
 }
 
 async function streamOpenAI(env, s, prov, url, messages, model, cb, extra = {}) {
