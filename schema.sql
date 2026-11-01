@@ -1,6 +1,5 @@
 PRAGMA journal_mode = WAL;
 
--- Użytkownicy (GitHub OAuth)
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   login TEXT NOT NULL UNIQUE,
@@ -9,7 +8,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER DEFAULT (unixepoch())
 );
 
--- Sesje (ciasteczko → user_id + CSRF)
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -20,7 +18,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
--- Rozmowy
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -31,7 +28,6 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id, updated_at DESC);
 
--- Wiadomości
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL,
@@ -44,7 +40,6 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id, created_at);
 
--- Pamięć globalna
 CREATE TABLE IF NOT EXISTS memory (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -57,7 +52,6 @@ CREATE TABLE IF NOT EXISTS memory (
 );
 CREATE INDEX IF NOT EXISTS idx_mem_user ON memory(user_id, enabled);
 
--- Klucze providerów (szyfrowane AES-GCM)
 CREATE TABLE IF NOT EXISTS provider_keys (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -69,7 +63,6 @@ CREATE TABLE IF NOT EXISTS provider_keys (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Projekty
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -99,7 +92,7 @@ CREATE TABLE IF NOT EXISTS notes (
 
 CREATE TABLE IF NOT EXISTS files (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
+  project_id TEXT,
   name TEXT NOT NULL,
   mime_type TEXT,
   size INTEGER,
@@ -108,7 +101,6 @@ CREATE TABLE IF NOT EXISTS files (
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
--- Utwory muzyczne
 CREATE TABLE IF NOT EXISTS tracks (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -122,7 +114,6 @@ CREATE TABLE IF NOT EXISTS tracks (
 );
 CREATE INDEX IF NOT EXISTS idx_tracks_user ON tracks(user_id, created_at DESC);
 
--- Obrazy / wideo
 CREATE TABLE IF NOT EXISTS media (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -135,7 +126,6 @@ CREATE TABLE IF NOT EXISTS media (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- GitHub token
 CREATE TABLE IF NOT EXISTS github_keys (
   user_id TEXT PRIMARY KEY,
   encrypted_token TEXT NOT NULL,
