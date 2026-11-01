@@ -2,7 +2,7 @@
   "name": "al2100",
   "version": "1.0.0",
   "private": true,
-  "description": "AL2100 — prywatny, polskojęzyczny system operacyjny AI",
+  "description": "AX2100 — prywatny system AxL (AI OS 2100)",
   "main": "worker.js",
   "scripts": {
     "dev": "wrangler dev",
