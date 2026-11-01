@@ -24,10 +24,10 @@ bucket_name = "al2100"
 
 [[queues.producers]]
 binding = "AL_QUEUE"
-queue = "al2100"
+queue = "al2100-jobs"
 
 [[queues.consumers]]
-queue = "al2100"
+queue = "al2100-jobs"
 max_batch_size = 10
 max_batch_timeout = 30
 
