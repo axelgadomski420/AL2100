@@ -1,816 +1,787 @@
+// ============================================================
+// AL2100 — worker.js
+// Cloudflare Workers + D1 + KV + R2 + Queues + Workers AI
+// ============================================================
+
+const CORS = {}; // same-origin, nic nie potrzeba
+
+// ============================================================
+// EXPORT
+// ============================================================
 export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method;
-
-    if (method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: getCorsHeaders(request) });
+  async fetch(req, env, ctx) {
+    try { return await route(req, env, ctx); }
+    catch (e) {
+      console.error('[AL2100] fetch error:', e?.stack || e);
+      return J({ error: e?.message || 'Błąd wewnętrzny' }, e?.status || 500);
     }
-
-    if (path === '/manifest.json') {
-      return new Response(JSON.stringify({
-        name: 'AL2100',
-        short_name: 'AL2100',
-        description: 'Prywatny system operacyjny AI',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#07070d',
-        theme_color: '#00e5ff',
-        icons: [{ src: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#0a0a12"/><text x="50" y="64" font-family="sans-serif" font-weight="800" font-size="44" fill="#00e5ff" text-anchor="middle">AL</text></svg>'), sizes: 'any', type: 'image/svg+xml', purpose: 'any' }]
-      }), { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=86400' } });
+  },
+  async queue(batch, env, ctx) {
+    for (const msg of batch.messages) {
+      try {
+        console.log('[AL2100 queue]', msg.body);
+        msg.ack();
+      } catch (e) {
+        console.error('[AL2100 queue]', e);
+        msg.retry();
+      }
     }
-
-    if (path === '/sw.js') {
-      const sw = `const C='al2100-v1';
-self.addEventListener('install',e=>{self.skipWaiting()});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
-self.addEventListener('fetch',e=>{
-  const u=new URL(e.request.url);
-  if(u.pathname.startsWith('/api/')||u.pathname.startsWith('/auth/'))return;
-  if(e.request.method!=='GET')return;
-  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
-    if(res.ok&&u.origin===location.origin){const cl=res.clone();caches.open(C).then(c=>c.put(e.request,cl))}
-    return res
-  }).catch(()=>caches.match('/')))
-)});`;
-      return new Response(sw, { headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' } });
-    }
-
-    if (path === '/auth/github') return handleGithubAuth(request, env);
-    if (path === '/auth/github/callback') return handleGithubCallback(request, env);
-    if (path === '/auth/logout' && method === 'POST') return handleLogout(request, env);
-
-    if (path.startsWith('/api/')) return handleApi(request, env, ctx, url);
-
-    return env.ASSETS.fetch(request);
   }
 };
 
-function getCorsHeaders(request) {
-  const origin = request.headers.get('Origin') || '*';
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-CSRF-Token'
-  };
+// ============================================================
+// ROUTING
+// ============================================================
+async function route(req, env, ctx) {
+  const url = new URL(req.url);
+  const p = url.pathname;
+  const m = req.method;
+
+  // statyczne
+  if (!p.startsWith('/api/') && !p.startsWith('/auth/')) return env.ASSETS.fetch(req);
+
+  // auth
+  if (p === '/auth/github' && m === 'GET') return authStart(req, env);
+  if (p === '/auth/github/callback' && m === 'GET') return authCallback(req, env);
+  if (p === '/auth/logout' && m === 'POST') return authLogout(req, env);
+
+  // api wspólne
+  if (p === '/api/me' && m === 'GET') return getMe(req, env);
+
+  // rozmowy
+  if (p === '/api/conversations' && m === 'GET') return listConvs(req, env);
+  if (p === '/api/conversations' && m === 'POST') return newConv(req, env);
+  let mm = p.match(/^\/api\/conversations\/([^/]+)$/);
+  if (mm && m === 'GET') return getConv(req, env, mm[1]);
+  mm = p.match(/^\/api\/conversations\/([^/]+)\/messages$/);
+  if (mm && m === 'POST') return postMsg(req, env, mm[1]);
+
+  // pamięć
+  if (p === '/api/memory' && m === 'GET') return listMem(req, env);
+  if (p === '/api/memory' && m === 'POST') return addMem(req, env);
+  mm = p.match(/^\/api\/memory\/([^/]+)$/);
+  if (mm && m === 'PATCH') return patchMem(req, env, mm[1]);
+  if (mm && m === 'DELETE') return delMem(req, env, mm[1]);
+
+  // providerzy
+  if (p === '/api/providers' && m === 'GET') return listProv(req, env);
+  mm = p.match(/^\/api\/providers\/([^/]+)\/key$/);
+  if (mm && m === 'POST') return saveKey(req, env, mm[1]);
+  if (mm && m === 'DELETE') return delKey(req, env, mm[1]);
+  mm = p.match(/^\/api\/providers\/([^/]+)\/test$/);
+  if (mm && m === 'POST') return testProv(req, env, mm[1]);
+
+  // projekty
+  if (p === '/api/projects' && m === 'GET') return listProjects(req, env);
+  if (p === '/api/projects' && m === 'POST') return newProject(req, env);
+
+  // muzyka
+  if (p === '/api/music/generate' && m === 'POST') return genMusic(req, env);
+  if (p === '/api/music/tracks' && m === 'GET') return listTracks(req, env);
+  mm = p.match(/^\/api\/music\/tracks\/([^/]+)\/audio$/);
+  if (mm && m === 'GET') return trackAudio(req, env, mm[1]);
+  mm = p.match(/^\/api\/music\/tracks\/([^/]+)$/);
+  if (mm && m === 'DELETE') return delTrack(req, env, mm[1]);
+  if (p === '/api/music/write-lyrics' && m === 'POST') return writeLyrics(req, env);
+
+  // media
+  if (p === '/api/media/image' && m === 'POST') return genImage(req, env);
+  if (p === '/api/media/video' && m === 'POST') return genVideo(req, env);
+  mm = p.match(/^\/api\/media\/file\/([^/]+)$/);
+  if (mm && m === 'GET') return mediaFile(req, env, mm[1]);
+  if (p === '/api/files/upload' && m === 'POST') return uploadFile(req, env);
+
+  // github
+  if (p === '/api/github/token' && m === 'POST') return saveGh(req, env);
+  if (p === '/api/github/test' && m === 'POST') return testGh(req, env);
+  if (p === '/api/github/push' && m === 'POST') return pushGh(req, env);
+
+  return J({ error: 'Nie znaleziono: ' + p }, 404);
 }
 
-async function handleGithubAuth(request, env) {
-  const state = crypto.randomUUID();
-  const redirect = `${new URL(request.url).origin}/auth/github/callback`;
-  const authUrl = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&state=${state}&scope=read:user`;
-  return new Response(null, { status: 302, headers: { Location: authUrl, 'Set-Cookie': `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600` } });
+// ============================================================
+// HELPERY
+// ============================================================
+function J(o, s = 200, h = {}) {
+  return new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json; charset=utf-8', ...h } });
 }
-
-async function handleGithubCallback(request, env) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
-  const cookie = request.headers.get('Cookie') || '';
-  const savedState = cookie.match(/oauth_state=([^;]+)/)?.[1];
-  if (!code || !state || state !== savedState) return new Response('Invalid OAuth state', { status: 400 });
-  
-  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code })
-  });
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) return new Response('OAuth failed', { status: 400 });
-  
-  const userRes = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'AL2100' } });
-  const ghUser = await userRes.json();
-  const userId = `u_${ghUser.id}`;
-  
-  await env.AL_DB.prepare(`INSERT INTO users (id, github_id, login, name, avatar_url, created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(github_id) DO UPDATE SET login=excluded.login, name=excluded.name, avatar_url=excluded.avatar_url`).bind(userId, String(ghUser.id), ghUser.login, ghUser.name || ghUser.login, ghUser.avatar_url, Date.now()).run();
-  
-  const sessionId = crypto.randomUUID();
-  const csrf = crypto.randomUUID();
-  const expires = Date.now() + 30 * 24 * 3600 * 1000;
-  await env.AL_DB.prepare(`INSERT INTO sessions (id, user_id, csrf_token, expires_at, created_at) VALUES (?,?,?,?,?)`).bind(sessionId, userId, csrf, expires, Date.now()).run();
-  
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: '/',
-      'Set-Cookie': `session=${sessionId}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${30 * 24 * 3600}; csrf=${csrf}; Secure; SameSite=Lax; Path=/; Max-Age=${30 * 24 * 3600}`
-    }
-  });
-}
-
-async function handleLogout(request, env) {
-  const sid = getCookie(request, 'session');
-  if (sid) await env.AL_DB.prepare('DELETE FROM sessions WHERE id=?').bind(sid).run();
-  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0; csrf=; Secure; SameSite=Lax; Path=/; Max-Age=0' } });
-}
-
-function getCookie(req, name) {
+function T(t, s = 200) { return new Response(t, { status: s, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
+function cookieGet(req, n) {
   const c = req.headers.get('Cookie') || '';
-  const m = c.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  const re = new RegExp('(?:^|; )' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)');
+  const m = c.match(re);
   return m ? decodeURIComponent(m[1]) : null;
 }
+function cookieSet(n, v, maxAge = 30 * 24 * 3600) {
+  return `${n}=${encodeURIComponent(v)}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Lax`;
+}
+function cookieClear(n) { return `${n}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`; }
+function uid(pre = '') { return pre + crypto.randomUUID().replace(/-/g, ''); }
+function rhex(n = 32) { const b = crypto.getRandomValues(new Uint8Array(n)); return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); }
+async function safeJson(req) { try { return await req.json(); } catch { return {}; } }
 
-async function getUser(request, env) {
-  const sid = getCookie(request, 'session');
+// --- AES-GCM ---
+async function encKey(env) {
+  if (!env.ENC_KEY || env.ENC_KEY.length < 16) throw new Error('Brak ENC_KEY w sekretach (wrangler secret put ENC_KEY)');
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.ENC_KEY));
+  return crypto.subtle.importKey('raw', h, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+async function encrypt(env, pt) {
+  const k = await encKey(env);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, new TextEncoder().encode(pt));
+  return b64(iv) + ':' + b64(new Uint8Array(ct));
+}
+async function decrypt(env, s) {
+  const [ivB, ctB] = s.split(':');
+  if (!ivB || !ctB) throw new Error('Zły format zaszyfrowanego klucza');
+  const k = await encKey(env);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(ivB) }, k, unb64(ctB));
+  return new TextDecoder().decode(pt);
+}
+function b64(u8) { let s = ''; for (const b of u8) s += String.fromCharCode(b); return btoa(s); }
+function unb64(s) { const b = atob(s); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+
+// --- sesje ---
+async function createSession(env, userId) {
+  const id = rhex(32), csrf = rhex(24);
+  const exp = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+  await env.AL_DB.prepare('INSERT INTO sessions (id, user_id, csrf_token, expires_at) VALUES (?, ?, ?, ?)').bind(id, userId, csrf, exp).run();
+  return { id, csrf, exp };
+}
+async function getSession(req, env) {
+  const sid = cookieGet(req, 'ax_session');
   if (!sid) return null;
-  const row = await env.AL_DB.prepare(`SELECT s.id as sid, s.csrf_token, s.expires_at, u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=?`).bind(sid).first();
-  if (!row || row.expires_at < Date.now()) return null;
+  const row = await env.AL_DB.prepare('SELECT s.id, s.user_id, s.csrf_token, s.expires_at, u.login, u.name, u.avatar_url FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?').bind(sid).first();
+  if (!row) return null;
+  if (row.expires_at < Math.floor(Date.now() / 1000)) {
+    await env.AL_DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
+    return null;
+  }
   return row;
 }
-
-async function handleApi(request, env, ctx, url) {
-  const path = url.pathname;
-  const method = request.method;
-  const cors = getCorsHeaders(request);
-  const user = await getUser(request, env);
-  
-  if (path === '/api/me') {
-    if (!user) return json({ user: null }, 401, cors);
-    return json({ user: { id: user.id, login: user.login, name: user.name, avatar_url: user.avatar_url }, csrf: user.csrf_token }, 200, cors);
-  }
-  
-  if (!user) return json({ error: 'Unauthorized' }, 401, cors);
-  
-  const csrf = request.headers.get('X-CSRF-Token');
-  if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method) && csrf !== user.csrf_token) return json({ error: 'CSRF token invalid' }, 403, cors);
-  
-  const rate = await checkRate(env, user.id);
-  if (!rate.ok) return json({ error: 'Rate limit exceeded' }, 429, cors);
-  
-  try {
-    if (path === '/api/conversations' && method === 'GET') {
-      const r = await env.AL_DB.prepare('SELECT * FROM conversations WHERE user_id=? ORDER BY updated_at DESC').bind(user.id).all();
-      return json({ conversations: r.results }, 200, cors);
-    }
-    if (path === '/api/conversations' && method === 'POST') {
-      const b = await request.json();
-      const id = 'c_' + crypto.randomUUID();
-      const title = (b.title || 'Nowa rozmowa').slice(0, 80);
-      await env.AL_DB.prepare('INSERT INTO conversations (id,user_id,title,created_at,updated_at) VALUES (?,?,?,?,?)').bind(id, user.id, title, Date.now(), Date.now()).run();
-      const c = await env.AL_DB.prepare('SELECT * FROM conversations WHERE id=?').bind(id).first();
-      return json({ conversation: c }, 200, cors);
-    }
-    
-    const convMatch = path.match(/^\/api\/conversations\/([^/]+)$/);
-    if (convMatch) {
-      const id = convMatch[1];
-      const conv = await env.AL_DB.prepare('SELECT * FROM conversations WHERE id=? AND user_id=?').bind(id, user.id).first();
-      if (!conv) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'GET') {
-        const msgs = await env.AL_DB.prepare('SELECT * FROM messages WHERE conversation_id=? ORDER BY position ASC').bind(id).all();
-        return json({ conversation: conv, messages: msgs.results }, 200, cors);
-      }
-      if (method === 'PATCH') {
-        const b = await request.json();
-        await env.AL_DB.prepare('UPDATE conversations SET title=?, updated_at=? WHERE id=? AND user_id=?').bind((b.title || conv.title).slice(0, 80), Date.now(), id, user.id).run();
-        return json({ ok: true }, 200, cors);
-      }
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM messages WHERE conversation_id=?').bind(id).run();
-        await env.AL_DB.prepare('DELETE FROM conversations WHERE id=? AND user_id=?').bind(id, user.id).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const msgMatch = path.match(/^\/api\/conversations\/([^/]+)\/messages$/);
-    if (msgMatch && method === 'POST') {
-      const convId = msgMatch[1];
-      const conv = await env.AL_DB.prepare('SELECT * FROM conversations WHERE id=? AND user_id=?').bind(convId, user.id).first();
-      if (!conv) return json({ error: 'Not found' }, 404, cors);
-      const b = await request.json();
-      return await streamChat(request, env, user, conv, b, cors);
-    }
-    
-    const msgIdMatch = path.match(/^\/api\/messages\/([^/]+)$/);
-    if (msgIdMatch) {
-      const mid = msgIdMatch[1];
-      const msg = await env.AL_DB.prepare('SELECT m.*, c.user_id FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE m.id=? AND c.user_id=?').bind(mid, user.id).first();
-      if (!msg) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'PATCH') {
-        const b = await request.json();
-        await env.AL_DB.prepare('UPDATE messages SET content=? WHERE id=?').bind(b.content ?? msg.content, mid).run();
-        return json({ ok: true }, 200, cors);
-      }
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM messages WHERE id=?').bind(mid).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    if (path === '/api/providers' && method === 'GET') {
-      const keys = await env.AL_DB.prepare('SELECT provider, model FROM api_keys WHERE user_id=?').bind(user.id).all();
-      const map = {};
-      keys.results.forEach(k => { map[k.provider] = k.model });
-      const providers = PROVIDERS.map(p => ({ id: p.id, name: p.name, configured: !!map[p.id], model: map[p.id] || p.defaultModel }));
-      return json({ providers }, 200, cors);
-    }
-    
-    const provKeyMatch = path.match(/^\/api\/providers\/([^/]+)\/key$/);
-    if (provKeyMatch) {
-      const pid = provKeyMatch[1];
-      if (method === 'POST') {
-        const b = await request.json();
-        if (b.key) {
-          const enc = await encrypt(b.key, env.ENCRYPTION_KEY);
-          await env.AL_DB.prepare(`INSERT INTO api_keys (id,user_id,provider,encrypted_key,model,created_at,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id,provider) DO UPDATE SET encrypted_key=excluded.encrypted_key, model=excluded.model, updated_at=excluded.updated_at`).bind('k_' + crypto.randomUUID(), user.id, pid, enc, b.model || null, Date.now(), Date.now()).run();
-        } else if (b.model) {
-          await env.AL_DB.prepare('UPDATE api_keys SET model=?, updated_at=? WHERE user_id=? AND provider=?').bind(b.model, Date.now(), user.id, pid).run();
-        }
-        return json({ ok: true }, 200, cors);
-      }
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM api_keys WHERE user_id=? AND provider=?').bind(user.id, pid).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const provTestMatch = path.match(/^\/api\/providers\/([^/]+)\/test$/);
-    if (provTestMatch && method === 'POST') {
-      const pid = provTestMatch[1];
-      const k = await env.AL_DB.prepare('SELECT * FROM api_keys WHERE user_id=? AND provider=?').bind(user.id, pid).first();
-      if (!k) return json({ error: 'Brak klucza' }, 400, cors);
-      const dec = await decrypt(k.encrypted_key, env.ENCRYPTION_KEY);
-      const ok = await testProvider(pid, dec, k.model, env);
-      if (!ok) return json({ error: 'Test nieudany - sprawdź klucz lub model' }, 400, cors);
-      return json({ message: 'Połączenie OK' }, 200, cors);
-    }
-    
-    const provModelsMatch = path.match(/^\/api\/providers\/([^/]+)\/models$/);
-    if (provModelsMatch) {
-      const pid = provModelsMatch[1];
-      const k = await env.AL_DB.prepare('SELECT * FROM api_keys WHERE user_id=? AND provider=?').bind(user.id, pid).first();
-      let dec = null;
-      if (k) dec = await decrypt(k.encrypted_key, env.ENCRYPTION_KEY);
-      const models = await fetchModels(pid, dec);
-      return json({ models }, 200, cors);
-    }
-    
-    if (path === '/api/memory') {
-      if (method === 'GET') {
-        const r = await env.AL_DB.prepare('SELECT * FROM global_memory WHERE user_id=? ORDER BY pinned DESC, created_at DESC').bind(user.id).all();
-        return json({ memory: r.results }, 200, cors);
-      }
-      if (method === 'POST') {
-        const b = await request.json();
-        const id = 'm_' + crypto.randomUUID();
-        await env.AL_DB.prepare('INSERT INTO global_memory (id,user_id,type,content,pinned,enabled,created_at) VALUES (?,?,?,?,0,1,?)').bind(id, user.id, b.type || 'fact', b.content, Date.now()).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const memMatch = path.match(/^\/api\/memory\/([^/]+)$/);
-    if (memMatch) {
-      const id = memMatch[1];
-      if (method === 'PATCH') {
-        const b = await request.json();
-        const fields = []; const vals = [];
-        if (b.pinned !== undefined) { fields.push('pinned=?'); vals.push(b.pinned ? 1 : 0) }
-        if (b.enabled !== undefined) { fields.push('enabled=?'); vals.push(b.enabled ? 1 : 0) }
-        if (b.content !== undefined) { fields.push('content=?'); vals.push(b.content) }
-        if (!fields.length) return json({ ok: true }, 200, cors);
-        vals.push(id, user.id);
-        await env.AL_DB.prepare(`UPDATE global_memory SET ${fields.join(',')} WHERE id=? AND user_id=?`).bind(...vals).run();
-        return json({ ok: true }, 200, cors);
-      }
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM global_memory WHERE id=? AND user_id=?').bind(id, user.id).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    if (path === '/api/projects') {
-      if (method === 'GET') {
-        const r = await env.AL_DB.prepare('SELECT * FROM projects WHERE user_id=? ORDER BY updated_at DESC').bind(user.id).all();
-        return json({ projects: r.results }, 200, cors);
-      }
-      if (method === 'POST') {
-        const b = await request.json();
-        const id = 'p_' + crypto.randomUUID();
-        await env.AL_DB.prepare('INSERT INTO projects (id,user_id,name,description,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(id, user.id, b.name, b.description || '', Date.now(), Date.now()).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const projMatch = path.match(/^\/api\/projects\/([^/]+)$/);
-    if (projMatch) {
-      const id = projMatch[1];
-      const p = await env.AL_DB.prepare('SELECT * FROM projects WHERE id=? AND user_id=?').bind(id, user.id).first();
-      if (!p) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'GET') return json({ project: p }, 200, cors);
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM tasks WHERE project_id=?').bind(id).run();
-        await env.AL_DB.prepare('DELETE FROM notes WHERE project_id=?').bind(id).run();
-        await env.AL_DB.prepare('DELETE FROM files WHERE project_id=?').bind(id).run();
-        await env.AL_DB.prepare('DELETE FROM projects WHERE id=? AND user_id=?').bind(id, user.id).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const projTasks = path.match(/^\/api\/projects\/([^/]+)\/tasks$/);
-    if (projTasks) {
-      const pid = projTasks[1];
-      const p = await env.AL_DB.prepare('SELECT * FROM projects WHERE id=? AND user_id=?').bind(pid, user.id).first();
-      if (!p) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'GET') {
-        const r = await env.AL_DB.prepare('SELECT * FROM tasks WHERE project_id=? ORDER BY created_at DESC').bind(pid).all();
-        return json({ tasks: r.results }, 200, cors);
-      }
-      if (method === 'POST') {
-        const b = await request.json();
-        const id = 't_' + crypto.randomUUID();
-        await env.AL_DB.prepare('INSERT INTO tasks (id,project_id,user_id,title,description,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, pid, user.id, b.title, b.description || '', 'todo', Date.now(), Date.now()).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
-    if (taskMatch) {
-      const id = taskMatch[1];
-      const t = await env.AL_DB.prepare('SELECT * FROM tasks WHERE id=? AND user_id=?').bind(id, user.id).first();
-      if (!t) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'PATCH') {
-        const b = await request.json();
-        await env.AL_DB.prepare('UPDATE tasks SET status=?, updated_at=? WHERE id=?').bind(b.status || t.status, Date.now(), id).run();
-        return json({ ok: true }, 200, cors);
-      }
-      if (method === 'DELETE') {
-        await env.AL_DB.prepare('DELETE FROM tasks WHERE id=?').bind(id).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const projNotes = path.match(/^\/api\/projects\/([^/]+)\/notes$/);
-    if (projNotes) {
-      const pid = projNotes[1];
-      const p = await env.AL_DB.prepare('SELECT * FROM projects WHERE id=? AND user_id=?').bind(pid, user.id).first();
-      if (!p) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'GET') {
-        const r = await env.AL_DB.prepare('SELECT * FROM notes WHERE project_id=? ORDER BY created_at DESC').bind(pid).all();
-        return json({ notes: r.results }, 200, cors);
-      }
-      if (method === 'POST') {
-        const b = await request.json();
-        const id = 'n_' + crypto.randomUUID();
-        await env.AL_DB.prepare('INSERT INTO notes (id,project_id,user_id,title,content,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').bind(id, pid, user.id, b.title, b.content || '', Date.now(), Date.now()).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const noteMatch = path.match(/^\/api\/notes\/([^/]+)$/);
-    if (noteMatch && method === 'DELETE') {
-      await env.AL_DB.prepare('DELETE FROM notes WHERE id=? AND user_id=?').bind(noteMatch[1], user.id).run();
-      return json({ ok: true }, 200, cors);
-    }
-    
-    const projFiles = path.match(/^\/api\/projects\/([^/]+)\/files$/);
-    if (projFiles) {
-      const pid = projFiles[1];
-      const p = await env.AL_DB.prepare('SELECT * FROM projects WHERE id=? AND user_id=?').bind(pid, user.id).first();
-      if (!p) return json({ error: 'Not found' }, 404, cors);
-      if (method === 'GET') {
-        const r = await env.AL_DB.prepare('SELECT * FROM files WHERE project_id=? ORDER BY created_at DESC').bind(pid).all();
-        return json({ files: r.results }, 200, cors);
-      }
-      if (method === 'POST') {
-        const fd = await request.formData();
-        const file = fd.get('file');
-        if (!file || !file.name) return json({ error: 'Brak pliku' }, 400, cors);
-        const id = 'f_' + crypto.randomUUID();
-        const key = `${user.id}/${id}/${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        await env.AL_BUCKET.put(key, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream' } });
-        await env.AL_DB.prepare('INSERT INTO files (id,project_id,user_id,name,mime_type,size,r2_key,created_at) VALUES (?,?,?,?,?,?,?,?)').bind(id, pid, user.id, file.name, file.type || 'application/octet-stream', file.size, key, Date.now()).run();
-        return json({ ok: true }, 200, cors);
-      }
-    }
-    
-    const fileMatch = path.match(/^\/api\/files\/([^/]+)\/content$/);
-    if (fileMatch && method === 'GET') {
-      const f = await env.AL_DB.prepare('SELECT * FROM files WHERE id=? AND user_id=?').bind(fileMatch[1], user.id).first();
-      if (!f) return json({ error: 'Not found' }, 404, cors);
-      const obj = await env.AL_BUCKET.get(f.r2_key);
-      if (!obj) return json({ error: 'Not found in R2' }, 404, cors);
-      return new Response(obj.body, { headers: { 'Content-Type': f.mime_type, 'Content-Disposition': `inline; filename="${f.name}"` } });
-    }
-    
-    const fileDel = path.match(/^\/api\/files\/([^/]+)$/);
-    if (fileDel && method === 'DELETE') {
-      const f = await env.AL_DB.prepare('SELECT * FROM files WHERE id=? AND user_id=?').bind(fileDel[1], user.id).first();
-      if (!f) return json({ error: 'Not found' }, 404, cors);
-      await env.AL_BUCKET.delete(f.r2_key);
-      await env.AL_DB.prepare('DELETE FROM files WHERE id=?').bind(fileDel[1]).run();
-      return json({ ok: true }, 200, cors);
-    }
-    
-    if (path === '/api/generate-image' && method === 'POST') {
-      const b = await request.json();
-      const sizes = { '1024x1024': [1024, 1024], '1280x720': [1280, 720], '720x1280': [720, 1280], '512x512': [512, 512] };
-      const [w, h] = sizes[b.size] || [1024, 1024];
-      const seed = Math.floor(Math.random() * 1e9);
-      const style = b.style && b.style !== 'none' ? `&style=${encodeURIComponent(b.style)}` : '';
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(b.prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed}${style}`;
-      return json({ url }, 200, cors);
-    }
-    
-    if (path === '/api/generate-video' && method === 'POST') {
-      const k = await env.AL_DB.prepare('SELECT * FROM api_keys WHERE user_id=? AND provider=?').bind(user.id, 'huggingface').first();
-      if (!k) return json({ message: 'Wideo wymaga klucza Hugging Face. Dodaj go w Ustawieniach.' }, 200, cors);
-      const b = await request.json();
-      const dec = await decrypt(k.encrypted_key, env.ENCRYPTION_KEY);
-      const r = await fetch('https://api-inference.huggingface.co/models/damo-vilab/text-to-video-ms-1.7b', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${dec}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: b.prompt })
-      });
-      if (!r.ok) return json({ error: 'Generowanie wideo nie powiodło się' }, 502, cors);
-      const blob = await r.arrayBuffer();
-      const id = 'v_' + crypto.randomUUID();
-      const key = `videos/${user.id}/${id}.mp4`;
-      await env.AL_BUCKET.put(key, blob, { httpMetadata: { contentType: 'video/mp4' } });
-      return json({ url: `/api/media/${id}` }, 200, cors);
-    }
-    
-    if (path === '/api/code/generate' && method === 'POST') {
-      const b = await request.json();
-      const system = `Jesteś światowej klasy inżynierem oprogramowania. Wygeneruj kompletny, produkcyjny kod w języku ${b.language}. Bez komentarzy, bez placeholderów, bez skrótów. Zwróć tylko kod.`;
-      const result = await callAI(env, user, [{ role: 'system', content: system }, { role: 'user', content: b.prompt }], { model: 'auto', internet: false });
-      const text = await result.text();
-      let code = text;
-      const m = text.match(/```(?:\w+)?\n?([\s\S]*?)```/);
-      if (m) code = m[1];
-      return json({ code }, 200, cors);
-    }
-    
-    if (path === '/api/github/token' && method === 'POST') {
-      const b = await request.json();
-      const enc = await encrypt(b.token, env.ENCRYPTION_KEY);
-      await env.AL_DB.prepare(`INSERT INTO github_tokens (user_id, encrypted_token, created_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET encrypted_token=excluded.encrypted_token, created_at=excluded.created_at`).bind(user.id, enc, Date.now()).run();
-      return json({ ok: true }, 200, cors);
-    }
-    
-    if (path === '/api/github/test' && method === 'POST') {
-      const t = await env.AL_DB.prepare('SELECT * FROM github_tokens WHERE user_id=?').bind(user.id).first();
-      if (!t) return json({ error: 'Brak tokenu' }, 400, cors);
-      const dec = await decrypt(t.encrypted_token, env.ENCRYPTION_KEY);
-      const r = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${dec}`, 'User-Agent': 'AL2100' } });
-      if (!r.ok) return json({ error: 'Token nieprawidłowy' }, 400, cors);
-      return json({ message: 'Token OK' }, 200, cors);
-    }
-    
-    if (path === '/api/github/push' && method === 'POST') {
-      const b = await request.json();
-      const t = await env.AL_DB.prepare('SELECT * FROM github_tokens WHERE user_id=?').bind(user.id).first();
-      if (!t) return json({ error: 'Brak tokenu GitHub' }, 400, cors);
-      const token = await decrypt(t.encrypted_token, env.ENCRYPTION_KEY);
-      const [owner, repo] = b.repo.split('/');
-      if (!owner || !repo) return json({ error: 'Format repo: owner/repo' }, 400, cors);
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${b.path}`;
-      let sha;
-      const getR = await fetch(`${apiUrl}?ref=${b.branch}`, { headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'AL2100' } });
-      if (getR.ok) { const j = await getR.json(); sha = j.sha }
-      const putR = await fetch(apiUrl, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'AL2100' },
-        body: JSON.stringify({ message: b.message, content: btoa(unescape(encodeURIComponent(b.content))), branch: b.branch, sha })
-      });
-      if (!putR.ok) { const e = await putR.json(); return json({ error: e.message || 'Push failed' }, 502, cors) }
-      return json({ message: 'Wysłano do GitHub' }, 200, cors);
-    }
-    
-    return json({ error: 'Not found' }, 404, cors);
-  } catch (e) {
-    return json({ error: e.message || 'Internal error' }, 500, cors);
-  }
+async function reqSess(req, env) {
+  const s = await getSession(req, env);
+  if (!s) throw Object.assign(new Error('Wymagane zalogowanie'), { status: 401 });
+  return s;
+}
+async function reqCsrf(req, env, s) {
+  if (!['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method)) return;
+  const t = req.headers.get('X-CSRF-Token');
+  if (!t || t !== s.csrf_token) throw Object.assign(new Error('Nieprawidłowy CSRF'), { status: 403 });
 }
 
-async function streamChat(request, env, user, conv, body, cors) {
-  const history = await env.AL_DB.prepare('SELECT role, content FROM messages WHERE conversation_id=? ORDER BY position ASC').bind(conv.id).all();
-  const memory = await env.AL_DB.prepare('SELECT type, content FROM global_memory WHERE user_id=? AND enabled=1 ORDER BY pinned DESC, created_at DESC LIMIT 30').bind(user.id).all();
-  const memText = memory.results.map(m => `[${m.type}] ${m.content}`).join('\n');
-  let msgs = history.results.map(m => ({ role: m.role, content: m.content }));
-  
-  if (memText) msgs.unshift({ role: 'system', content: `Pamięć globalna użytkownika:\n${memText}` });
-  
-  if (!body.retry) {
-    msgs.push({ role: 'user', content: body.content });
-    const pos = history.results.length;
-    await env.AL_DB.prepare('INSERT INTO messages (id,conversation_id,role,content,provider,model,position,created_at) VALUES (?,?,?,?,?,?,?,?)').bind('msg_u_' + crypto.randomUUID(), conv.id, 'user', body.content, null, null, pos, Date.now()).run();
-    if (conv.title === 'Nowa rozmowa') {
-      const title = body.content.slice(0, 60).replace(/\n/g, ' ');
-      await env.AL_DB.prepare('UPDATE conversations SET title=?, updated_at=? WHERE id=?').bind(title, Date.now(), conv.id).run();
-    }
+// --- provider keys ---
+async function getKey(env, uid, prov) {
+  const r = await env.AL_DB.prepare('SELECT encrypted_key FROM provider_keys WHERE user_id = ? AND provider = ?').bind(uid, prov).first();
+  if (!r) return null;
+  return decrypt(env, r.encrypted_key);
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function authStart(req, env) {
+  const url = new URL(req.url);
+  if (!env.GITHUB_CLIENT_ID) return T('Brak GITHUB_CLIENT_ID', 500);
+  const state = rhex(16);
+  await env.AL_KV.put('oauth:' + state, '1', { expirationTtl: 600 });
+  const g = new URL('https://github.com/login/oauth/authorize');
+  g.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
+  g.searchParams.set('redirect_uri', `${url.origin}/auth/github/callback`);
+  g.searchParams.set('scope', 'read:user user:email repo');
+  g.searchParams.set('state', state);
+  return Response.redirect(g.toString(), 302);
+}
+
+async function authCallback(req, env) {
+  const url = new URL(req.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  if (!code || !state) return T('Brak code/state', 400);
+  const ok = await env.AL_KV.get('oauth:' + state);
+  if (!ok) return T('Nieprawidłowy state', 400);
+  await env.AL_KV.delete('oauth:' + state);
+
+  const tr = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${url.origin}/auth/github/callback` })
+  });
+  const td = await tr.json();
+  if (!td.access_token) return T('Brak access_token: ' + JSON.stringify(td), 400);
+
+  const ur = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + td.access_token, 'User-Agent': 'AL2100', 'Accept': 'application/vnd.github+json' } });
+  const u = await ur.json();
+  const userId = 'gh_' + u.id;
+
+  await env.AL_DB.prepare('INSERT INTO users (id, login, name, avatar_url) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET login=excluded.login, name=excluded.name, avatar_url=excluded.avatar_url').bind(userId, u.login, u.name || u.login, u.avatar_url || '').run();
+
+  try {
+    const e = await encrypt(env, td.access_token);
+    await env.AL_DB.prepare('INSERT INTO github_keys (user_id, encrypted_token, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(user_id) DO UPDATE SET encrypted_token=excluded.encrypted_token, updated_at=unixepoch()').bind(userId, e).run();
+  } catch (e) { console.warn('[AL2100] gh token save:', e.message); }
+
+  const sess = await createSession(env, userId);
+  return new Response(null, { status: 302, headers: { 'Location': '/', 'Set-Cookie': cookieSet('ax_session', sess.id) } });
+}
+
+async function authLogout(req, env) {
+  const sid = cookieGet(req, 'ax_session');
+  if (sid) await env.AL_DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sid).run();
+  return J({ ok: true }, 200, { 'Set-Cookie': cookieClear('ax_session') });
+}
+
+async function getMe(req, env) {
+  const s = await getSession(req, env);
+  if (!s) return J({ user: null });
+  return J({ user: { id: s.user_id, login: s.login, name: s.name, avatar_url: s.avatar_url }, csrf: s.csrf_token });
+}
+
+// ============================================================
+// ROZMOWY
+// ============================================================
+async function listConvs(req, env) {
+  const s = await reqSess(req, env);
+  const r = await env.AL_DB.prepare('SELECT id, title, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100').bind(s.user_id).all();
+  return J({ conversations: r.results });
+}
+
+async function newConv(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const title = (b.title || 'Nowa rozmowa').slice(0, 120);
+  const id = uid('c_');
+  await env.AL_DB.prepare('INSERT INTO conversations (id, user_id, title) VALUES (?, ?, ?)').bind(id, s.user_id, title).run();
+  return J({ conversation: { id, title, created_at: Math.floor(Date.now() / 1000) } });
+}
+
+async function getConv(req, env, id) {
+  const s = await reqSess(req, env);
+  const c = await env.AL_DB.prepare('SELECT id, title, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?').bind(id, s.user_id).first();
+  if (!c) return J({ error: 'Rozmowa nie znaleziona' }, 404);
+  const msgs = await env.AL_DB.prepare('SELECT id, role, content, model, provider, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').bind(id).all();
+  return J({ conversation: c, messages: msgs.results });
+}
+
+// ============================================================
+// POST MESSAGE — SSE STREAMING
+// ============================================================
+const PROVIDER_META = {
+  groq:        { name: 'Groq', kind: 'llm', defaultModel: 'llama-3.3-70b-versatile' },
+  openrouter:  { name: 'OpenRouter', kind: 'llm', defaultModel: 'deepseek/deepseek-chat-v3.1:free' },
+  gemini:      { name: 'Google Gemini', kind: 'llm', defaultModel: 'gemini-2.5-flash' },
+  perplexity:  { name: 'Perplexity', kind: 'llm', defaultModel: 'sonar' },
+  grok:        { name: 'xAI Grok', kind: 'llm', defaultModel: 'grok-4' },
+  huggingface: { name: 'Hugging Face', kind: 'image', defaultModel: 'black-forest-labs/FLUX.1-schnell' },
+  magichour:   { name: 'Magic Hour', kind: 'video', defaultModel: 'default' },
+  'ace-step':  { name: 'ACE-Step', kind: 'music', defaultModel: 'acestep-v15-turbo' }
+};
+
+async function postMsg(req, env, cid) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const content = (b.content || '').trim();
+  const retry = b.retry || null;
+  const internet = !!b.internet;
+  const modelSel = (b.model || 'auto').trim();
+
+  if (!content && !retry) return J({ error: 'Brak treści' }, 400);
+  const conv = await env.AL_DB.prepare('SELECT id FROM conversations WHERE id = ? AND user_id = ?').bind(cid, s.user_id).first();
+  if (!conv) return J({ error: 'Rozmowa nie znaleziona' }, 404);
+
+  if (retry) {
+    await env.AL_DB.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ? AND role = ?').bind(retry, cid, 'assistant').run();
+  } else {
+    await env.AL_DB.prepare('INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)').bind(uid('msg_'), cid, 'user', content).run();
   }
-  
-  msgs = trimContext(msgs, 12000);
-  const { provider, model, stream } = await callAIStream(env, user, msgs, { model: body.model || 'auto', internet: !!body.internet });
-  
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-  const enc = new TextEncoder();
-  let full = '';
-  
-  (async () => {
-    const reader = stream.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf('\n\n')) >= 0) {
-          const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
-          for (const line of chunk.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const j = JSON.parse(data);
-              const delta = j.choices?.[0]?.delta?.content || j.choices?.[0]?.text || j.delta || j.candidates?.[0]?.content?.parts?.[0]?.text || j.response || '';
-              if (delta) {
-                full += delta;
-                await writer.write(enc.encode(`data: ${JSON.stringify({ delta })}\n\n`));
-              }
-            } catch (_) {}
-          }
-        }
+
+  const cnt = await env.AL_DB.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?').bind(cid).first('n');
+  if (cnt === 1 && content) {
+    await env.AL_DB.prepare('UPDATE conversations SET title = ?, updated_at = unixepoch() WHERE id = ?').bind(content.slice(0, 60).replace(/\s+/g, ' ').trim() || 'Nowa rozmowa', cid).run();
+  } else {
+    await env.AL_DB.prepare('UPDATE conversations SET updated_at = unixepoch() WHERE id = ?').bind(cid).run();
+  }
+
+  const hist = (await env.AL_DB.prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 60').bind(cid).all()).results;
+  const mem = (await env.AL_DB.prepare('SELECT type, content FROM memory WHERE user_id = ? AND enabled = 1 ORDER BY pinned DESC, created_at DESC LIMIT 40').bind(s.user_id).all()).results;
+  const memBlock = mem.map(x => `[${x.type}] ${x.content}`).join('\n');
+
+  let research = '';
+  if (internet) {
+    try { research = await runResearch(env, s.user_id, content); } catch (e) { console.warn('[AL2100] research:', e.message); }
+  }
+
+  const messages = [
+    { role: 'system', content: sysPrompt(memBlock) },
+    ...(research ? [{ role: 'system', content: 'Kontekst researchu:\n' + research }] : []),
+    ...hist.map(h => ({ role: h.role, content: h.content }))
+  ];
+
+  const plan = await resolveProvider(modelSel, env, s.user_id);
+  if (plan.provider === 'puter') return J({ error: 'Puter jest po stronie frontendu. Wybierz innego providera backendowego.' }, 400);
+
+  const stream = new ReadableStream({
+    async start(ctrl) {
+      const enc = new TextEncoder();
+      const send = o => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(o)}\n\n`));
+      const end = () => { ctrl.enqueue(enc.encode('data: [DONE]\n\n')); ctrl.close(); };
+      let acc = '', usedProv = plan.provider, usedModel = plan.model;
+      try {
+        if (plan.provider === 'groq') await streamOpenAI(env, s.user_id, 'groq', 'https://api.groq.com/openai/v1/chat/completions', messages, plan.model, d => { acc += d; send({ delta: d }); });
+        else if (plan.provider === 'openrouter') await streamOpenAI(env, s.user_id, 'openrouter', 'https://openrouter.ai/api/v1/chat/completions', messages, plan.model, d => { acc += d; send({ delta: d }); }, { 'HTTP-Referer': 'https://al2100.pages.dev', 'X-Title': 'AL2100' });
+        else if (plan.provider === 'gemini') await streamGemini(env, s.user_id, messages, plan.model, d => { acc += d; send({ delta: d }); });
+        else if (plan.provider === 'grok') await streamOpenAI(env, s.user_id, 'grok', 'https://api.x.ai/v1/chat/completions', messages, plan.model, d => { acc += d; send({ delta: d }); });
+        else if (plan.provider === 'perplexity') { const a = await callPerplexity(env, s.user_id, messages, plan.model); acc = a; send({ delta: a }); usedProv = 'Perplexity'; }
+        else if (plan.provider === 'workers-ai') { const t = await callWorkersAI(env, messages, plan.model); acc = t; send({ delta: t }); usedModel = plan.model; }
+        else throw new Error('Nieobsługiwany provider: ' + plan.provider);
+
+        await env.AL_DB.prepare('INSERT INTO messages (id, conversation_id, role, content, model, provider) VALUES (?, ?, ?, ?, ?, ?)').bind(uid('msg_'), cid, 'assistant', acc, usedModel, usedProv).run();
+        send({ meta: { model: usedModel, provider: usedProv } });
+        end();
+      } catch (e) {
+        console.error('[AL2100] stream:', e);
+        send({ error: e.message || 'Błąd generowania' });
+        end();
       }
-    } catch (e) {
-      if (!full) {
-        full = `Błąd: ${e.message || 'nie udało się uzyskać odpowiedzi'}`;
-        await writer.write(enc.encode(`data: ${JSON.stringify({ delta: full })}\n\n`));
-      }
-    }
-    
-    try {
-      const pos = (await env.AL_DB.prepare('SELECT COUNT(*) as c FROM messages WHERE conversation_id=?').bind(conv.id).first()).c;
-      await env.AL_DB.prepare('INSERT INTO messages (id,conversation_id,role,content,provider,model,position,created_at) VALUES (?,?,?,?,?,?,?,?)').bind('msg_a_' + crypto.randomUUID(), conv.id, 'assistant', full, provider, model, pos, Date.now()).run();
-      await env.AL_DB.prepare('UPDATE conversations SET updated_at=? WHERE id=?').bind(Date.now(), conv.id).run();
-      await writer.write(enc.encode(`data: ${JSON.stringify({ meta: { provider, model } })}\n\n`));
-      await writer.write(enc.encode('data: [DONE]\n\n'));
-    } catch (_) {}
-    try { await writer.close() } catch (_) {}
-  })();
-  
-  return new Response(readable, {
-    headers: {
-      ...cors,
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no'
     }
   });
+
+  return new Response(stream, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' } });
 }
 
-function trimContext(msgs, maxChars) {
-  const total = msgs.reduce((a, m) => a + m.content.length, 0);
-  if (total <= maxChars) return msgs;
-  const sys = msgs.filter(m => m.role === 'system');
-  const rest = msgs.filter(m => m.role !== 'system');
-  const head = rest.slice(0, 2);
-  const tail = rest.slice(-8);
-  let out = [...sys, ...head, { role: 'system', content: '[Kontekst skrócony. Kontynuuj rozmowę na podstawie najnowszych wiadomości.]' }, ...tail];
-  let size = out.reduce((a, m) => a + m.content.length, 0);
-  while (size > maxChars && out.length > sys.length + 4) {
-    out.splice(sys.length + 1, 1);
-    size = out.reduce((a, m) => a + m.content.length, 0);
+function sysPrompt(memBlock) {
+  const b = `Jesteś AL2100 — prywatnym, spersonalizowanym systemem AI użytkownika. Jesteś jego "klonem AI" — osobistym narzędziem myślowym i kreatywnym partnerem, nie korporacyjnym asystentem.
+
+ZASADY:
+1. Wiesz, że jesteś klonem AI tego konkretnego użytkownika. Mów o tym otwarcie, gdy istotne. Nie udawaj ChatGPT/Claude/Gemini — jesteś AL2100.
+2. ZAWSZE przed odpowiedzią przeanalizuj pełną historię rozmowy (ostatnie 60 wiadomości) i pamięć globalną. Nie odpowiadaj na ślepo na ostatnią wiadomość, jeśli kontekst wcześniejszy jest kluczowy.
+3. Myśl nieszablonowo. Zero korporacyjnego języka, frazesów, "bezpiecznych" ogólników, wody. Mów wprost.
+4. NIGDY nie kłam. Nie zmyślaj faktów, źródeł, cytatów, kodu, API, liczb. Jeśli nie wiesz — powiedz "nie wiem" i zaproponuj weryfikację (research, test, dokumentacja).
+5. Bądź bezpośredni. Słaby pomysł → powiedz to, ale od razu zaproponuj lepszy.
+6. Respektuj pamięć globalną (fakty, preferencje, decyzje). Ustalenia użytkownika są nadrzędne.
+7. Specjalizacje: muzyka (teksty, struktura, prompty ACE-Step/MiniMax, produkcja), kod (Cloudflare, web, AI), research.
+8. Język: dopasuj się do użytkownika (polski/angielski/inny).
+
+STYL: konkretny, kreatywny, bez ściemy. Zero "jako model językowy". Jesteś narzędziem, nie korporacją.`;
+  return memBlock ? b + '\n\nPAMIĘĆ GLOBALNA UŻYTKOWNIKA:\n' + memBlock : b;
+}
+
+async function resolveProvider(sel, env, uid) {
+  if (sel === 'auto' || !sel) {
+    if (await getKey(env, uid, 'groq')) return { provider: 'groq', model: 'llama-3.3-70b-versatile' };
+    if (await getKey(env, uid, 'openrouter')) return { provider: 'openrouter', model: 'deepseek/deepseek-chat-v3.1:free' };
+    if (await getKey(env, uid, 'gemini')) return { provider: 'gemini', model: 'gemini-2.5-flash' };
+    if (await getKey(env, uid, 'grok')) return { provider: 'grok', model: 'grok-4' };
+    return { provider: 'workers-ai', model: '@cf/meta/llama-3.1-8b-instruct' };
   }
-  return out;
+  const [prov, ...rest] = sel.split('/');
+  const model = rest.join('/') || PROVIDER_META[prov]?.defaultModel;
+  if (prov === 'workers-ai') return { provider: 'workers-ai', model: model || '@cf/meta/llama-3.1-8b-instruct' };
+  return { provider: prov, model };
 }
 
-const PROVIDERS = [
-  { id: 'openrouter', name: 'OpenRouter', defaultModel: 'openai/gpt-4o-mini', models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'meta-llama/llama-3.3-70b-instruct', 'google/gemini-2.0-flash-001', 'mistralai/mistral-large'] },
-  { id: 'groq', name: 'Groq', defaultModel: 'llama-3.3-70b-versatile', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'qwen/qwen3.6-27b'] },
-  { id: 'gemini', name: 'Google Gemini', defaultModel: 'gemini-1.5-flash', models: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'] },
-  { id: 'mistral', name: 'Mistral', defaultModel: 'mistral-small-latest', models: ['mistral-small-latest', 'mistral-large-latest', 'open-mixtral-8x22b', 'codestral-latest'] },
-  { id: 'together', name: 'Together', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'mistralai/Mixtral-8x7B-Instruct-v0.1', 'Qwen/Qwen2.5-72B-Instruct-Turbo'] },
-  { id: 'fireworks', name: 'Fireworks', defaultModel: 'accounts/fireworks/models/llama-v3p3-70b-instruct', models: ['accounts/fireworks/models/llama-v3p3-70b-instruct', 'accounts/fireworks/models/mixtral-8x22b-instruct'] },
-  { id: 'deepseek', name: 'DeepSeek', defaultModel: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner'] },
-  { id: 'huggingface', name: 'Hugging Face', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', models: ['meta-llama/Llama-3.3-70B-Instruct', 'mistralai/Mistral-7B-Instruct-v0.3', 'Qwen/Qwen2.5-72B-Instruct'] },
-  { id: 'qwen', name: 'Qwen (DashScope)', defaultModel: 'qwen-plus', models: ['qwen-plus', 'qwen-max', 'qwen-turbo'] },
-  { id: 'cloudflare', name: 'Cloudflare Workers AI', defaultModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', models: ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct', '@cf/qwen/qwen1.5-14b-chat-awq'] }
-];
-
-async function fetchModels(pid, apiKey) {
-  const p = PROVIDERS.find(x => x.id === pid);
-  if (!p) return [];
-  if (!apiKey) return p.models;
-  
-  try {
-    if (pid === 'openrouter') {
-      const r = await fetch('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (r.ok) { const d = await r.json(); return d.data.map(m => m.id).slice(0, 50) }
-    }
-    if (pid === 'groq') {
-      const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (r.ok) { const d = await r.json(); return d.data.map(m => m.id) }
-    }
-    if (pid === 'gemini') {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if (r.ok) { const d = await r.json(); return d.models.map(m => m.name.replace('models/', '')) }
-    }
-    if (pid === 'mistral') {
-      const r = await fetch('https://api.mistral.ai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (r.ok) { const d = await r.json(); return d.data.map(m => m.id) }
-    }
-    if (pid === 'together') {
-      const r = await fetch('https://api.together.xyz/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (r.ok) { const d = await r.json(); return d.map(m => m.id) }
-    }
-    if (pid === 'deepseek') {
-      const r = await fetch('https://api.deepseek.com/models', { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (r.ok) { const d = await r.json(); return d.data.map(m => m.id) }
-    }
-  } catch (_) {}
-  return p.models;
-}
-
-async function callAIStream(env, user, messages, opts) {
-  const keys = await env.AL_DB.prepare('SELECT provider, encrypted_key, model FROM api_keys WHERE user_id=?').bind(user.id).all();
-  const keysMap = {};
-  keys.results.forEach(k => keysMap[k.provider] = k);
-  let order = PROVIDERS.map(p => p.id);
-  if (opts.model && opts.model !== 'auto' && opts.model.includes('/')) {
-    const [pid] = opts.model.split('/');
-    order = [pid, ...order.filter(x => x !== pid)];
-  }
-  let lastErr = null;
-  
-  for (const pid of order) {
-    try {
-      const p = PROVIDERS.find(x => x.id === pid);
-      if (!p) continue;
-      const k = keysMap[pid];
-      let apiKey = null;
-      let model = (opts.model && opts.model.startsWith(pid + '/')) ? opts.model.slice(pid.length + 1) : (k?.model || p.defaultModel);
-      
-      if (pid === 'cloudflare') {
-        if (!env.AI) continue;
-      } else {
-        if (!k) continue;
-        apiKey = await decrypt(k.encrypted_key, env.ENCRYPTION_KEY);
+async function streamOpenAI(env, uid, prov, url, messages, model, onDelta, extraHeaders = {}) {
+  const k = await getKey(env, uid, prov);
+  if (!k) throw new Error(`Brak klucza ${prov}. Skonfiguruj w Ustawieniach.`);
+  const r = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json', ...extraHeaders }, body: JSON.stringify({ model, messages, stream: true, temperature: 0.7 }) });
+  if (!r.ok) throw new Error(`${prov} HTTP ${r.status}: ` + (await r.text()).slice(0, 200));
+  const rd = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+  while (true) {
+    const { done, value } = await rd.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const d = line.slice(6); if (d === '[DONE]') continue;
+        try { const j = JSON.parse(d); const delta = j.choices?.[0]?.delta?.content; if (delta) onDelta(delta); } catch {}
       }
-      
-      const res = await streamProvider(env, pid, apiKey, model, messages, opts.internet);
-      if (res.ok) return { provider: p.name, model, stream: res.body };
-      lastErr = `${p.name}: HTTP ${res.status}`;
-    } catch (e) {
-      lastErr = `${pid}: ${e.message}`;
     }
   }
-  
-  const errStream = new ReadableStream({
-    start(c) {
-      c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ delta: `Nie udało się uzyskać odpowiedzi. ${lastErr || 'Brak skonfigurowanych dostawców.'}` })}\n\n`));
-      c.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-      c.close();
-    }
+}
+
+async function streamGemini(env, uid, messages, model, onDelta) {
+  const k = await getKey(env, uid, 'gemini');
+  if (!k) throw new Error('Brak klucza Gemini');
+  const sys = messages.find(m => m.role === 'system');
+  const chat = messages.filter(m => m.role !== 'system');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(k)}`;
+  const r = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: chat.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+      ...(sys ? { systemInstruction: { parts: [{ text: sys.content }] } } : {}),
+      generationConfig: { temperature: 0.7 }
+    })
   });
-  return { provider: 'AL2100', model: 'error', stream: errStream };
-}
-
-async function streamProvider(env, pid, apiKey, model, messages, internet) {
-  if (pid === 'openrouter') {
-    const body = { model, messages, stream: true };
-    if (internet) body.plugins = [{ id: 'web' }];
-    return fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://al2100.pages.dev', 'X-Title': 'AL2100' }, body: JSON.stringify(body) });
-  }
-  if (pid === 'groq') {
-    return fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'gemini') {
-    const sys = messages.find(m => m.role === 'system');
-    const contents = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-    const body = { contents };
-    if (sys) body.systemInstruction = { parts: [{ text: sys.content }] };
-    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  }
-  if (pid === 'mistral') {
-    return fetch('https://api.mistral.ai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'together') {
-    return fetch('https://api.together.xyz/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'fireworks') {
-    return fetch('https://api.fireworks.ai/inference/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'deepseek') {
-    return fetch('https://api.deepseek.com/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'huggingface') {
-    return fetch(`https://api-inference.huggingface.co/models/${model}/v1/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'qwen') {
-    return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true }) });
-  }
-  if (pid === 'cloudflare') {
-    const r = await env.AI.run(model, { messages, stream: true });
-    return new Response(r, { headers: { 'Content-Type': 'text/event-stream' } });
-  }
-  throw new Error('Nieznany dostawca');
-}
-
-async function callAI(env, user, messages, opts) {
-  const keys = await env.AL_DB.prepare('SELECT provider, encrypted_key, model FROM api_keys WHERE user_id=?').bind(user.id).all();
-  const keysMap = {};
-  keys.results.forEach(k => keysMap[k.provider] = k);
-  
-  for (const p of PROVIDERS) {
-    try {
-      const k = keysMap[p.id];
-      let apiKey = null;
-      const model = (opts.model && opts.model.startsWith(p.id + '/')) ? opts.model.slice(p.id.length + 1) : (k?.model || p.defaultModel);
-      
-      if (p.id === 'cloudflare') {
-        if (!env.AI) continue;
-        const r = await env.AI.run(model, { messages });
-        return new Response(r.response || JSON.stringify(r), { headers: { 'Content-Type': 'text/plain' } });
+  if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
+  const rd = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+  while (true) {
+    const { done, value } = await rd.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const d = line.slice(6); if (d === '[DONE]') continue;
+        try { const j = JSON.parse(d); const t = j.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''; if (t) onDelta(t); } catch {}
       }
-      
-      if (!k) continue;
-      apiKey = await decrypt(k.encrypted_key, env.ENCRYPTION_KEY);
-      const res = await streamProvider(env, p.id, apiKey, model, messages, false);
-      if (!res.ok) continue;
-      
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = '', full = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf('\n\n')) >= 0) {
-          const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
-          for (const line of chunk.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const j = JSON.parse(data);
-              const d = j.choices?.[0]?.delta?.content || j.choices?.[0]?.text || j.delta || j.candidates?.[0]?.content?.parts?.[0]?.text || j.response || '';
-              if (d) full += d;
-            } catch (_) {}
-          }
-        }
-      }
-      return new Response(full, { headers: { 'Content-Type': 'text/plain' } });
-    } catch (_) {}
+    }
   }
-  return new Response('Nie udało się uzyskać odpowiedzi.', { headers: { 'Content-Type': 'text/plain' } });
 }
 
-async function testProvider(pid, apiKey, model, env) {
+async function callWorkersAI(env, messages, model) {
+  if (!env.AI) throw new Error('Brak bindingu AI');
+  const r = await env.AI.run(model, { messages: messages.map(m => ({ role: m.role, content: m.content })) });
+  return r.response || r.result || '';
+}
+
+async function callPerplexity(env, uid, messages, model) {
+  const k = await getKey(env, uid, 'perplexity');
+  if (!k) throw new Error('Brak klucza Perplexity');
+  const r = await fetch('https://api.perplexity.ai/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, temperature: 0.2 }) });
+  if (!r.ok) throw new Error('Perplexity HTTP ' + r.status);
+  const j = await r.json();
+  return j.choices?.[0]?.message?.content || '';
+}
+
+async function runResearch(env, uid, q) {
+  const k = await getKey(env, uid, 'perplexity');
+  if (!k) return '';
+  const r = await fetch('https://api.perplexity.ai/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'sonar', messages: [{ role: 'user', content: q }], temperature: 0.1 }) });
+  if (!r.ok) return '';
+  const j = await r.json();
+  return j.choices?.[0]?.message?.content || '';
+}
+
+// ============================================================
+// PAMIĘĆ
+// ============================================================
+async function listMem(req, env) {
+  const s = await reqSess(req, env);
+  const r = await env.AL_DB.prepare('SELECT id, type, content, pinned, enabled, created_at FROM memory WHERE user_id = ? ORDER BY pinned DESC, created_at DESC').bind(s.user_id).all();
+  return J({ memory: r.results });
+}
+async function addMem(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const type = ['fact', 'preference', 'decision'].includes(b.type) ? b.type : 'fact';
+  const c = (b.content || '').trim();
+  if (!c) return J({ error: 'Brak treści' }, 400);
+  const id = uid('m_');
+  await env.AL_DB.prepare('INSERT INTO memory (id, user_id, type, content) VALUES (?, ?, ?, ?)').bind(id, s.user_id, type, c.slice(0, 2000)).run();
+  return J({ id });
+}
+async function patchMem(req, env, id) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const f = [], v = [];
+  if ('pinned' in b) { f.push('pinned = ?'); v.push(b.pinned ? 1 : 0); }
+  if ('enabled' in b) { f.push('enabled = ?'); v.push(b.enabled ? 1 : 0); }
+  if ('content' in b) { f.push('content = ?'); v.push(String(b.content).slice(0, 2000)); }
+  if (!f.length) return J({ error: 'Brak pól' }, 400);
+  v.push(id, s.user_id);
+  await env.AL_DB.prepare(`UPDATE memory SET ${f.join(', ')} WHERE id = ? AND user_id = ?`).bind(...v).run();
+  return J({ ok: true });
+}
+async function delMem(req, env, id) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  await env.AL_DB.prepare('DELETE FROM memory WHERE id = ? AND user_id = ?').bind(id, s.user_id).run();
+  return J({ ok: true });
+}
+
+// ============================================================
+// PROVIDERZY
+// ============================================================
+async function listProv(req, env) {
+  const s = await reqSess(req, env);
+  const r = await env.AL_DB.prepare('SELECT provider, model, updated_at FROM provider_keys WHERE user_id = ?').bind(s.user_id).all();
+  const cfg = new Map(r.results.map(x => [x.provider, x]));
+  const providers = Object.entries(PROVIDER_META).map(([id, meta]) => ({ id, name: meta.name, kind: meta.kind, models: [meta.defaultModel], configured: cfg.has(id), model: cfg.get(id)?.model || null }));
+  return J({ providers });
+}
+async function saveKey(req, env, prov) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  if (!PROVIDER_META[prov]) return J({ error: 'Nieznany provider' }, 400);
+  const b = await safeJson(req);
+  const k = (b.key || '').trim(), m = (b.model || '').trim() || null;
+  if (!k) return J({ error: 'Brak klucza' }, 400);
+  const e = await encrypt(env, k);
+  await env.AL_DB.prepare('INSERT INTO provider_keys (id, user_id, provider, encrypted_key, model, updated_at) VALUES (?, ?, ?, ?, ?, unixepoch()) ON CONFLICT(user_id, provider) DO UPDATE SET encrypted_key=excluded.encrypted_key, model=excluded.model, updated_at=unixepoch()').bind(uid('pk_'), s.user_id, prov, e, m).run();
+  return J({ ok: true });
+}
+async function delKey(req, env, prov) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  await env.AL_DB.prepare('DELETE FROM provider_keys WHERE user_id = ? AND provider = ?').bind(s.user_id, prov).run();
+  return J({ ok: true });
+}
+async function testProv(req, env, prov) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
   try {
-    const p = PROVIDERS.find(x => x.id === pid);
-    if (!p) return false;
-    const m = model || p.defaultModel;
-    const msgs = [{ role: 'user', content: 'ping' }];
-    const r = await streamProvider(env, pid, apiKey, m, msgs, false);
-    return r.ok;
-  } catch (_) { return false }
+    const k = await getKey(env, s.user_id, prov);
+    if (!k) return J({ error: 'Brak zapisanego klucza' }, 400);
+    const checks = {
+      groq: ['https://api.groq.com/openai/v1/models', 'Bearer'],
+      openrouter: ['https://openrouter.ai/api/v1/models', 'Bearer'],
+      gemini: [`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(k)}`, null],
+      grok: ['https://api.x.ai/v1/models', 'Bearer'],
+      huggingface: ['https://huggingface.co/api/whoami-v2', 'Bearer'],
+      perplexity: ['https://api.perplexity.ai/chat/completions', 'Bearer', { method: 'POST', body: JSON.stringify({ model: 'sonar', messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }), headers: { 'Content-Type': 'application/json' } }],
+      'ace-step': ['https://acestep.io/api/v2/models', 'Bearer'],
+      magichour: ['https://api.magichour.ai/v1/account', 'Bearer']
+    };
+    const c = checks[prov];
+    if (!c) return J({ ok: true, message: 'Klucz zapisany (brak testu)' });
+    const headers = {};
+    if (c[1]) headers.Authorization = c[1] + ' ' + k;
+    const init = { method: c[2]?.method || 'GET', headers: { ...headers, ...(c[2]?.headers || {}) }, ...(c[2]?.body ? { body: c[2].body } : {}) };
+    const r = await fetch(c[0], init);
+    if (!r.ok) return J({ error: `${prov} HTTP ${r.status}` }, 400);
+    return J({ ok: true, message: prov + ' OK' });
+  } catch (e) { return J({ error: e.message }, 400); }
 }
 
-async function encrypt(plain, secret) {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.digest('SHA-256', enc.encode(secret));
-  const key = await crypto.subtle.importKey('raw', keyMaterial, { name: 'AES-GCM' }, false, ['encrypt']);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plain));
-  const combined = new Uint8Array(iv.length + ct.byteLength);
-  combined.set(iv, 0);
-  combined.set(new Uint8Array(ct), iv.length);
-  return btoa(String.fromCharCode(...combined));
+// ============================================================
+// PROJEKTY
+// ============================================================
+async function listProjects(req, env) {
+  const s = await reqSess(req, env);
+  const r = await env.AL_DB.prepare('SELECT id, name, description, created_at FROM projects WHERE user_id = ? ORDER BY created_at DESC').bind(s.user_id).all();
+  return J({ projects: r.results });
+}
+async function newProject(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const n = (b.name || '').trim();
+  if (!n) return J({ error: 'Brak nazwy' }, 400);
+  const id = uid('p_');
+  await env.AL_DB.prepare('INSERT INTO projects (id, user_id, name, description) VALUES (?, ?, ?, ?)').bind(id, s.user_id, n.slice(0, 120), (b.description || '').slice(0, 500)).run();
+  return J({ id });
 }
 
-async function decrypt(b64, secret) {
-  const enc = new TextEncoder();
-  const dec = new TextDecoder();
-  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  const iv = raw.slice(0, 12);
-  const data = raw.slice(12);
-  const keyMaterial = await crypto.subtle.digest('SHA-256', enc.encode(secret));
-  const key = await crypto.subtle.importKey('raw', keyMaterial, { name: 'AES-GCM' }, false, ['decrypt']);
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
-  return dec.decode(pt);
+// ============================================================
+// MUZYKA
+// ============================================================
+async function genMusic(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const style = (b.style || '').trim(), lyrics = (b.lyrics || '').trim();
+  const engine = b.engine === 'minimax' ? 'minimax' : 'ace-step';
+  const dur = Math.min(Math.max(parseInt(b.duration, 10) || 120, 15), 240);
+  if (!style) return J({ error: 'Podaj styl' }, 400);
+
+  let buf = null, usedEngine = engine;
+
+  if (engine === 'ace-step') {
+    const k = await getKey(env, s.user_id, 'ace-step');
+    if (!k) return J({ error: 'Brak klucza ACE-Step' }, 400);
+    const r = await fetch('https://acestep.io/api/v2/generate-audio', { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ style, lyrics: lyrics || undefined, duration: dur, format: 'mp3' }) });
+    if (!r.ok) return J({ error: 'ACE-Step HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200) }, 502);
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('audio') || ct.includes('octet')) buf = await r.arrayBuffer();
+    else {
+      const j = await r.json();
+      const au = j.audio_url || j.url || j.output?.audio_url;
+      const b64a = j.audio_base64 || j.audio;
+      if (b64a) { const bin = atob(b64a); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); buf = u.buffer; }
+      else if (au) { const ar = await fetch(au); if (!ar.ok) return J({ error: 'Nie udało się pobrać audio' }, 502); buf = await ar.arrayBuffer(); }
+      else return J({ error: 'Brak audio w odpowiedzi' }, 502);
+    }
+  } else {
+    if (!env.AI) return J({ error: 'Brak bindingu AI' }, 500);
+    try {
+      const res = await env.AI.run('@cf/minimax/music-2.6', { prompt: style, lyrics: lyrics || undefined, output_format: 'mp3' });
+      if (res instanceof ArrayBuffer) buf = res;
+      else if (res?.audio instanceof ArrayBuffer) buf = res.audio;
+      else if (typeof res === 'string') { const bin = atob(res); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); buf = u.buffer; }
+      else return J({ error: 'MiniMax: nieoczekiwany format' }, 502);
+    } catch (e) { return J({ error: 'MiniMax: ' + e.message }, 502); }
+  }
+
+  if (!buf) return J({ error: 'Nie udało się wygenerować' }, 502);
+  const tid = uid('t_'), r2k = `${s.user_id}/tracks/${tid}.mp3`;
+  await env.AL_BUCKET.put(r2k, buf, { httpMetadata: { contentType: 'audio/mpeg' } });
+  await env.AL_DB.prepare('INSERT INTO tracks (id, user_id, style, lyrics, engine, r2_key, duration_s) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(tid, s.user_id, style.slice(0, 500), lyrics || null, usedEngine, r2k, dur).run();
+  return J({ id: tid, ok: true, engine: usedEngine });
 }
 
-async function checkRate(env, userId) {
-  const now = Date.now();
-  const windowMs = 60000;
-  const max = 60;
-  const bucket = Math.floor(now / windowMs);
-  const key = `rate:${userId}:${bucket}`;
-  const raw = await env.AL_KV.get(key);
-  const n = raw ? parseInt(raw, 10) : 0;
-  if (n >= max) return { ok: false };
-  await env.AL_KV.put(key, String(n + 1), { expirationTtl: 120 });
-  return { ok: true };
+async function listTracks(req, env) {
+  const s = await reqSess(req, env);
+  const r = await env.AL_DB.prepare('SELECT id, style, engine, duration_s, created_at FROM tracks WHERE user_id = ? ORDER BY created_at DESC LIMIT 100').bind(s.user_id).all();
+  return J({ tracks: r.results });
 }
 
-function json(obj, status = 200, cors = {}) {
-  return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', ...cors } });
+async function trackAudio(req, env, id) {
+  const s = await reqSess(req, env);
+  const row = await env.AL_DB.prepare('SELECT r2_key FROM tracks WHERE id = ? AND user_id = ?').bind(id, s.user_id).first();
+  if (!row) return J({ error: 'Nie znaleziono' }, 404);
+  const o = await env.AL_BUCKET.get(row.r2_key);
+  if (!o) return J({ error: 'Plik nie istnieje' }, 410);
+  return new Response(o.body, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=3600' } });
+}
+
+async function delTrack(req, env, id) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const row = await env.AL_DB.prepare('SELECT r2_key FROM tracks WHERE id = ? AND user_id = ?').bind(id, s.user_id).first();
+  if (!row) return J({ error: 'Nie znaleziono' }, 404);
+  await env.AL_BUCKET.delete(row.r2_key);
+  await env.AL_DB.prepare('DELETE FROM tracks WHERE id = ? AND user_id = ?').bind(id, s.user_id).run();
+  return J({ ok: true });
+}
+
+async function writeLyrics(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const style = (b.style || '').trim();
+  if (!style) return J({ error: 'Podaj styl' }, 400);
+  const prompt = `Napisz tekst piosenki w stylu: ${style}. Struktura [Verse],[Chorus],[Bridge],[Outro]. Język polski (chyba że styl sugeruje inny). Zwróć TYLKO tekst.`;
+  let out = '';
+  try {
+    const gk = await getKey(env, s.user_id, 'groq');
+    if (gk) {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + gk, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], temperature: 0.8, max_tokens: 1200 }) });
+      if (!r.ok) throw new Error('Groq HTTP ' + r.status);
+      const j = await r.json();
+      out = j.choices?.[0]?.message?.content || '';
+    } else if (env.AI) {
+      const r = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { messages: [{ role: 'user', content: prompt }] });
+      out = r.response || '';
+    } else return J({ error: 'Brak Groq / Workers AI' }, 400);
+  } catch (e) { return J({ error: e.message }, 502); }
+  return J({ lyrics: out.trim() });
+}
+
+// ============================================================
+// MEDIA
+// ============================================================
+async function genImage(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const prompt = (b.prompt || '').trim();
+  const provider = b.provider || 'pollinations';
+  const style = b.style || 'none';
+  const size = b.size || '1024x1024';
+  if (!prompt) return J({ error: 'Podaj prompt' }, 400);
+  const [w, h] = size.split('x').map(n => parseInt(n, 10) || 1024);
+  const styled = style !== 'none' ? `${prompt}, ${style} style` : prompt;
+  let buf = null;
+
+  if (provider === 'pollinations') {
+    const r = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(styled)}?width=${w}&height=${h}&model=flux&nologo=true`);
+    if (!r.ok) return J({ error: 'Pollinations HTTP ' + r.status }, 502);
+    buf = await r.arrayBuffer();
+  } else if (provider === 'cloudflare') {
+    if (!env.AI) return J({ error: 'Brak bindingu AI' }, 500);
+    try { const res = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt: styled, width: w, height: h }); buf = res instanceof ArrayBuffer ? res : res?.image instanceof ArrayBuffer ? res.image : null; if (!buf) return J({ error: 'Nieoczekiwany format CF Flux' }, 502); }
+    catch (e) { return J({ error: 'CF Flux: ' + e.message }, 502); }
+  } else if (provider === 'huggingface') {
+    const k = await getKey(env, s.user_id, 'huggingface');
+    if (!k) return J({ error: 'Brak klucza HF' }, 400);
+    const r = await fetch('https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell', { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ inputs: styled, parameters: { width: w, height: h } }) });
+    if (!r.ok) return J({ error: 'HF HTTP ' + r.status }, 502);
+    buf = await r.arrayBuffer();
+  }
+  if (!buf) return J({ error: 'Brak obrazu' }, 502);
+  const id = uid('img_'), r2k = `${s.user_id}/media/${id}.png`;
+  await env.AL_BUCKET.put(r2k, buf, { httpMetadata: { contentType: 'image/png' } });
+  await env.AL_DB.prepare('INSERT INTO media (id, user_id, kind, provider, prompt, r2_key) VALUES (?, ?, ?, ?, ?, ?)').bind(id, s.user_id, 'image', provider, prompt.slice(0, 1000), r2k).run();
+  return J({ id, url: '/api/media/file/' + id });
+}
+
+async function genVideo(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const prompt = (b.prompt || '').trim();
+  const dur = Math.min(Math.max(parseInt(b.duration, 10) || 5, 3), 10);
+  if (!prompt) return J({ error: 'Podaj prompt' }, 400);
+  const k = await getKey(env, s.user_id, 'magichour');
+  if (!k) return J({ error: 'Brak klucza Magic Hour' }, 400);
+  const r = await fetch('https://api.magichour.ai/v1/text-to-video', { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, duration: dur, resolution: '720p' }) });
+  if (!r.ok) return J({ error: 'Magic Hour HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200) }, 502);
+  const j = await r.json();
+  const u = j.video_url || j.url || j.output?.video_url;
+  if (u) return J({ url: u, provider: 'magichour' });
+  if (j.id || j.job_id) return J({ job_id: j.id || j.job_id, message: 'Wideo generowane w tle' });
+  return J({ error: 'Nieoczekiwany format' }, 502);
+}
+
+async function mediaFile(req, env, id) {
+  const s = await reqSess(req, env);
+  const row = await env.AL_DB.prepare('SELECT r2_key, kind FROM media WHERE id = ? AND user_id = ?').bind(id, s.user_id).first();
+  if (!row) return J({ error: 'Nie znaleziono' }, 404);
+  const o = await env.AL_BUCKET.get(row.r2_key);
+  if (!o) return J({ error: 'Plik nie istnieje' }, 410);
+  return new Response(o.body, { headers: { 'Content-Type': row.kind === 'video' ? 'video/mp4' : 'image/png', 'Cache-Control': 'private, max-age=86400' } });
+}
+
+async function uploadFile(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const ct = req.headers.get('content-type') || '';
+  if (!ct.includes('multipart/form-data')) return J({ error: 'Wymagany multipart/form-data' }, 400);
+  const form = await req.formData();
+  const file = form.get('file');
+  const projectId = form.get('project_id');
+  if (!file || typeof file === 'string') return J({ error: 'Brak pliku' }, 400);
+  if (file.size > 25 * 1024 * 1024) return J({ error: 'Plik > 25 MB' }, 413);
+  const id = uid('f_');
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+  const r2k = `${s.user_id}/files/${id}_${safe}`;
+  const buffer = await file.arrayBuffer();
+  await env.AL_BUCKET.put(r2k, buffer, { httpMetadata: { contentType: file.type || 'application/octet-stream' } });
+  if (projectId) {
+    const p = await env.AL_DB.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').bind(projectId, s.user_id).first();
+    if (!p) return J({ error: 'Projekt nie znaleziony' }, 404);
+    await env.AL_DB.prepare('INSERT INTO files (id, project_id, name, mime_type, size, r2_key) VALUES (?, ?, ?, ?, ?, ?)').bind(id, projectId, file.name, file.type, file.size, r2k).run();
+  }
+  return J({ id, name: file.name, size: file.size, r2_key: r2k });
+}
+
+// ============================================================
+// GITHUB
+// ============================================================
+async function saveGh(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const t = (b.token || '').trim();
+  if (!t) return J({ error: 'Brak tokenu' }, 400);
+  const e = await encrypt(env, t);
+  await env.AL_DB.prepare('INSERT INTO github_keys (user_id, encrypted_token, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(user_id) DO UPDATE SET encrypted_token=excluded.encrypted_token, updated_at=unixepoch()').bind(s.user_id, e).run();
+  return J({ ok: true });
+}
+async function testGh(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const r = await env.AL_DB.prepare('SELECT encrypted_token FROM github_keys WHERE user_id = ?').bind(s.user_id).first();
+  if (!r) return J({ error: 'Brak tokenu' }, 400);
+  const t = await decrypt(env, r.encrypted_token);
+  const resp = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + t, 'User-Agent': 'AL2100' } });
+  if (!resp.ok) return J({ error: 'GitHub HTTP ' + resp.status }, 502);
+  const u = await resp.json();
+  return J({ ok: true, login: u.login });
+}
+async function pushGh(req, env) {
+  const s = await reqSess(req, env); await reqCsrf(req, env, s);
+  const b = await safeJson(req);
+  const repo = (b.repo || '').trim(), path = (b.path || '').trim(), branch = (b.branch || 'main').trim(), content = b.content || '', message = (b.message || 'AL2100: update').trim();
+  if (!repo.includes('/')) return J({ error: 'Repo musi być owner/repo' }, 400);
+  if (!path) return J({ error: 'Brak ścieżki' }, 400);
+  const r = await env.AL_DB.prepare('SELECT encrypted_token FROM github_keys WHERE user_id = ?').bind(s.user_id).first();
+  if (!r) return J({ error: 'Brak tokenu GitHub' }, 400);
+  const t = await decrypt(env, r.encrypted_token);
+  const [owner, name] = repo.split('/');
+
+  let sha = null;
+  const g = await fetch(`https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`, { headers: { 'Authorization': 'Bearer ' + t, 'User-Agent': 'AL2100' } });
+  if (g.ok) sha = (await g.json()).sha;
+
+  const b64c = btoa(unescape(encodeURIComponent(content)));
+  const put = await fetch(`https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(path)}`, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + t, 'User-Agent': 'AL2100', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: b64c, branch, ...(sha ? { sha } : {}) })
+  });
+  if (!put.ok) return J({ error: 'GitHub HTTP ' + put.status + ': ' + (await put.text()).slice(0, 200) }, 502);
+  const j = await put.json();
+  return J({ ok: true, commit: j.commit?.sha, url: j.content?.html_url });
 }
