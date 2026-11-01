@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
   pin_hash TEXT,
   pin_salt TEXT,
   auth_provider TEXT DEFAULT 'local',
+  personality TEXT DEFAULT 'coder',
+  personality_custom TEXT,
+  last_login_at INTEGER,
   created_at INTEGER DEFAULT (unixepoch())
 );
 
@@ -25,7 +28,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(expires_at);
 
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
@@ -59,7 +61,6 @@ CREATE TABLE IF NOT EXISTS memory (
   created_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_mem_user ON memory(user_id, enabled);
 
 CREATE TABLE IF NOT EXISTS provider_keys (
   id TEXT PRIMARY KEY,
@@ -121,7 +122,6 @@ CREATE TABLE IF NOT EXISTS tracks (
   created_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_tracks_user ON tracks(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS media (
   id TEXT PRIMARY KEY,
