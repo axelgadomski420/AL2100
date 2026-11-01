@@ -2,9 +2,16 @@ PRAGMA journal_mode = WAL;
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  login TEXT NOT NULL UNIQUE,
+  login TEXT,
   name TEXT,
   avatar_url TEXT,
+  email TEXT UNIQUE,
+  password_hash TEXT,
+  password_salt TEXT,
+  master_salt TEXT,
+  pin_hash TEXT,
+  pin_salt TEXT,
+  auth_provider TEXT DEFAULT 'local',
   created_at INTEGER DEFAULT (unixepoch())
 );
 
@@ -12,11 +19,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   csrf_token TEXT NOT NULL,
+  master_key_wrapped TEXT NOT NULL,
   created_at INTEGER DEFAULT (unixepoch()),
   expires_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(expires_at);
 
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
