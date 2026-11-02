@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   personality_custom TEXT,
   role TEXT DEFAULT 'user',
   banned INTEGER DEFAULT 0,
+  settings TEXT DEFAULT '{}',
   last_login_at INTEGER,
   created_at INTEGER DEFAULT (unixepoch())
 );
@@ -35,11 +36,12 @@ CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   title TEXT NOT NULL DEFAULT 'Nowa rozmowa',
+  pinned INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (unixepoch()),
   updated_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id, pinned DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
@@ -87,6 +89,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS tracks (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  title TEXT,
   style TEXT,
   lyrics TEXT,
   engine TEXT NOT NULL,
@@ -95,6 +98,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   created_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_tracks_user ON tracks(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS media (
   id TEXT PRIMARY KEY,
