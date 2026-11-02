@@ -26,10 +26,5 @@ bucket_name = "al2100"
 binding = "AL_QUEUE"
 queue = "al2100beta"
 
-[[queues.consumers]]
-queue = "al2100beta"
-max_batch_size = 10
-max_batch_timeout = 30
-
 [ai]
 binding = "AI"
