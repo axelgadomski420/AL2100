@@ -1,28 +1,131 @@
 // ============================================================
-// AL2100 — worker.js (PRODUCTION EDITION)
-// Wszystkie endpointy, zero błędów, admin, streaming SSE
+// AL2100 — worker.js (ULTIMATE PRODUCTION)
+// Auto-migracja D1, health check, admin auto-create
 // ============================================================
 
 const ADMIN_EMAIL = 'admin@admin.com';
 const ADMIN_PASSWORD = 'admin4200';
 const ADMIN_PIN = '4200';
 
+// ============================================================
+// SCHEMA — auto-migracja
+// ============================================================
+const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, login TEXT, name TEXT, avatar_url TEXT,
+    email TEXT UNIQUE, password_hash TEXT, password_salt TEXT, master_salt TEXT,
+    pin_hash TEXT, pin_salt TEXT, auth_provider TEXT DEFAULT 'local',
+    personality TEXT DEFAULT 'coder', personality_custom TEXT,
+    role TEXT DEFAULT 'user', banned INTEGER DEFAULT 0, settings TEXT DEFAULT '{}',
+    last_login_at INTEGER, created_at INTEGER DEFAULT (unixepoch())
+  )`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, csrf_token TEXT NOT NULL,
+    master_key_wrapped TEXT NOT NULL, created_at INTEGER DEFAULT (unixepoch()),
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+  `CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT 'Nowa rozmowa', pinned INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch()), updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id, pinned DESC, updated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('user','assistant','system')),
+    content TEXT NOT NULL, model TEXT, provider TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS memory (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('fact','preference','decision')),
+    content TEXT NOT NULL, pinned INTEGER DEFAULT 0, enabled INTEGER DEFAULT 1,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS provider_keys (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, provider TEXT NOT NULL,
+    encrypted_key TEXT NOT NULL, model TEXT,
+    updated_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(user_id, provider),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
+    description TEXT, created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS tracks (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT, style TEXT, lyrics TEXT,
+    engine TEXT NOT NULL, r2_key TEXT NOT NULL, duration_s INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS media (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('image','video')),
+    provider TEXT NOT NULL, prompt TEXT, r2_key TEXT, url TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS github_keys (
+    user_id TEXT PRIMARY KEY, encrypted_token TEXT NOT NULL,
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`
+];
+
+let _schemaReady = false;
+
+async function ensureSchema(env) {
+  if (_schemaReady) return;
+  try {
+    await env.AL_DB.prepare('SELECT id FROM users LIMIT 1').first();
+    _schemaReady = true;
+    return;
+  } catch {}
+  console.log('[AL2100] Auto-migracja: tworzę tabele...');
+  for (const stmt of SCHEMA) {
+    try { await env.AL_DB.prepare(stmt).run(); }
+    catch (e) { console.warn('[schema]', e.message?.slice(0, 100)); }
+  }
+  _schemaReady = true;
+  console.log('[AL2100] Auto-migracja zakończona');
+}
+
+// ============================================================
+// PERSONALITIES
+// ============================================================
 const PERSONALITIES = {
   coder: { id: 'coder', name: 'Bóg Kodowania', emoji: '⚡', accent: '#00e5ff',
     description: 'Architekt systemów. Kod produkcyjny bez ściemy.',
-    system: `Jesteś BOGIEM KODOWANIA — mistrzem programowania, architektem systemów. Piszesz kod produkcyjny od pierwszego strzału. Znasz TypeScript, Python, Rust, Go, Cloudflare Workers, D1, KV, R2, React, SQL, LLM API. Myślisz w systemach. Debugujesz szybko. Nie znosisz boilerplate, "TODO", komentarzy zastępczych. ZAWSZE dawaj działający kod — kompletny, gotowy do wklejenia. Wyjaśniaj KRÓTKO. Bezpieczeństwo: prepared statements, walidacja. Nie wiesz → testuj. Język: dopasuj się do użytkownika (polski/angielski).` },
+    system: `Jesteś BOGIEM KODOWANIA — mistrzem programowania, architektem systemów. Piszesz kod produkcyjny od pierwszego strzału. Znasz TypeScript, Python, Rust, Go, Cloudflare Workers, D1, KV, R2, React, SQL, LLM API. Myślisz w systemach. Debugujesz szybko. Nie znosisz boilerplate. ZAWSZE dawaj działający kod — kompletny. Wyjaśniaj KRÓTKO. Bezpieczeństwo: prepared statements, walidacja. Nie wiesz → testuj. Język: dopasuj się do użytkownika.` },
   writer: { id: 'writer', name: 'Bóg Pisania', emoji: '✍️', accent: '#7c4dff',
     description: 'Mistrz prozy, poezji, storytellingu.',
-    system: `Jesteś BOGIEM PISANIA — mistrzem prozy, poezji, storytellingu, copywritingu. Piszesz we wszystkich formatach. Znasz rzemiosło: struktura narracji, dialogi, napięcie, rytm zdań. Dopasowujesz styl do kontekstu. Pokaż, nie mów — konkret, scena, dialog. Zero frazesów. Każde zdanie ma cel. Język: dopasuj się do użytkownika.` },
+    system: `Jesteś BOGIEM PISANIA — mistrzem prozy, poezji, storytellingu, copywritingu. Piszesz we wszystkich formatach. Znasz rzemiosło: struktura narracji, dialogi, napięcie, rytm zdań. Dopasowujesz styl do kontekstu. Pokaż, nie mów. Zero frazesów. Każde zdanie ma cel. Język: dopasuj się do użytkownika.` },
   music: { id: 'music', name: 'Bóg Muzyki', emoji: '🎵', accent: '#00e58a',
     description: 'Teksty, kompozycje, prompty do AI muzycznych.',
-    system: `Jesteś BOGIEM MUZYKI — mistrzem kompozycji, tekstów, produkcji. Piszesz teksty we wszystkich gatunkach ze strukturą [Verse]/[Chorus]/[Bridge]/[Outro]. Układasz precyzyjne prompty do ACE-Step, MiniMax, Suno, Udio. Znasz teorię muzyki i produkcję. Rymy naturalne, nie na siłę. Język: dopasuj się do użytkownika.` }
+    system: `Jesteś BOGIEM MUZYKI — mistrzem kompozycji, tekstów, produkcji. Piszesz teksty we wszystkich gatunkach ze strukturą [Verse]/[Chorus]/[Bridge]/[Outro]. Układasz precyzyjne prompty do ACE-Step, MiniMax, Suno, Udio. Znasz teorię muzyki i produkcję. Rymy naturalne. Język: dopasuj się do użytkownika.` }
 };
 
+// ============================================================
+// EXPORT
+// ============================================================
 export default {
   async fetch(req, env) {
-    try { await ensureAdmin(env); return await route(req, env); }
-    catch (e) { console.error('[AL2100]', e?.stack || e); return J({ error: e?.message || 'Błąd wewnętrzny' }, e?.status || 500); }
+    try {
+      await ensureSchema(env);
+      await ensureAdmin(env);
+      return await route(req, env);
+    } catch (e) {
+      console.error('[AL2100]', e?.stack || e);
+      return J({ error: e?.message || 'Błąd wewnętrzny', stack: e?.stack?.split('\n').slice(0,3) }, e?.status || 500);
+    }
   }
 };
 
@@ -39,7 +142,8 @@ async function ensureAdmin(env) {
     const ph = await hashPassword(ADMIN_PASSWORD, ps);
     const ih = await hashPin(ADMIN_PIN, ins);
     await env.AL_DB.prepare('INSERT INTO users (id, login, name, email, password_hash, password_salt, master_salt, pin_hash, pin_salt, auth_provider, personality, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind('u_admin_default', 'admin', 'Administrator', ADMIN_EMAIL, ph, ps, ms, ih, ins, 'local', 'coder', 'admin').run();
-  } catch (e) { /* tabela może jeszcze nie istnieć */ }
+    console.log('[AL2100] Admin utworzony:', ADMIN_EMAIL);
+  } catch (e) { console.warn('[ensureAdmin]', e.message); }
 }
 
 // ============================================================
@@ -49,6 +153,23 @@ async function route(req, env) {
   const u = new URL(req.url), p = u.pathname, m = req.method;
   if (!p.startsWith('/api/') && !p.startsWith('/auth/')) return env.ASSETS.fetch(req);
 
+  // HEALTH
+  if (p === '/api/health' && m === 'GET') {
+    try {
+      const tables = await env.AL_DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+      const names = tables.results.map(t => t.name);
+      const hasUsers = names.includes('users');
+      let adminExists = false;
+      if (hasUsers) {
+        const admin = await env.AL_DB.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first();
+        adminExists = !!admin;
+      }
+      return J({ ok: hasUsers, tables: names, has_users: hasUsers, admin_exists: adminExists, admin_email: ADMIN_EMAIL });
+    } catch (e) {
+      return J({ ok: false, error: e.message, d1: 'broken' }, 500);
+    }
+  }
+
   // AUTH
   if (p === '/api/auth/register' && m === 'POST') return registerLocal(req, env);
   if (p === '/api/auth/login' && m === 'POST') return loginLocal(req, env);
@@ -57,7 +178,6 @@ async function route(req, env) {
 
   // SETTINGS
   if (p === '/api/settings/personality' && m === 'POST') return updatePersonality(req, env);
-  if (p === '/api/settings/profile' && m === 'POST') return updateProfile(req, env);
 
   // ADMIN
   if (p === '/api/admin/stats' && m === 'GET') return adminStats(req, env);
@@ -65,10 +185,6 @@ async function route(req, env) {
   let mm = p.match(/^\/api\/admin\/users\/([^/]+)$/);
   if (mm && m === 'PATCH') return adminUpdateUser(req, env, mm[1]);
   if (mm && m === 'DELETE') return adminDeleteUser(req, env, mm[1]);
-  mm = p.match(/^\/api\/admin\/users\/([^/]+)\/conversations$/);
-  if (mm && m === 'GET') return adminUserConvs(req, env, mm[1]);
-  mm = p.match(/^\/api\/admin\/conversations\/([^/]+)\/messages$/);
-  if (mm && m === 'GET') return adminConvMessages(req, env, mm[1]);
 
   // CONVERSATIONS
   if (p === '/api/conversations' && m === 'GET') return listConvs(req, env);
@@ -83,8 +199,6 @@ async function route(req, env) {
   // MESSAGES
   mm = p.match(/^\/api\/messages\/([^/]+)$/);
   if (mm && m === 'DELETE') return deleteMsg(req, env, mm[1]);
-  mm = p.match(/^\/api\/messages\/([^/]+)\/regenerate$/);
-  if (mm && m === 'POST') return regenMsg(req, env, mm[1]);
 
   // MEMORY
   if (p === '/api/memory' && m === 'GET') return listMem(req, env);
@@ -142,7 +256,7 @@ function unb64(s) { const b = atob(s); const u = new Uint8Array(b.length); for (
 async function safeJson(req) { try { return await req.json(); } catch { return {}; } }
 
 // ============================================================
-// CRYPTO (extractable: true + PBKDF2 100k = działa na Workers)
+// CRYPTO — extractable=true (klucz do exportKey), PBKDF2=100k
 // ============================================================
 async function pbkdf2(text, saltB64, iters, mode) {
   const salt = unb64(saltB64);
@@ -254,7 +368,7 @@ async function loginLocal(req, env) {
   const email = (b.email || '').trim().toLowerCase();
   const password = (b.password || '').trim();
   const pin = (b.pin || '').trim();
-  if (!email || !password || !/^\d{4}$/.test(pin)) return J({ error: 'Wypełnij wszystkie pola' }, 400);
+  if (!email || !password || !/^\d{4}$/.test(pin)) return J({ error: 'Wypełnij wszystkie pola (e-mail, hasło, PIN)' }, 400);
 
   const u = await env.AL_DB.prepare('SELECT id, email, password_hash, password_salt, master_salt, pin_hash, pin_salt, personality, role, banned FROM users WHERE email = ? AND auth_provider = ?').bind(email, 'local').first();
   if (!u) return J({ error: 'Nieprawidłowe dane logowania' }, 401);
@@ -280,7 +394,7 @@ async function logout(req, env) {
 async function getMe(req, env) {
   const s = await getSession(req, env);
   if (!s) return J({ user: null });
-  const p = PERSONALITIES[s.personality] || (s.personality === 'custom' ? { id: 'custom', name: 'Własna', emoji: '🎨', accent: '#ff4d6d', description: s.personality_custom?.slice(0, 100) || 'Własny prompt', system: s.personality_custom } : PERSONALITIES.coder);
+  const p = PERSONALITIES[s.personality] || (s.personality === 'custom' ? { id: 'custom', name: 'Własna', emoji: '🎨', accent: '#ff4d6d', description: 'Własny prompt', system: s.personality_custom } : PERSONALITIES.coder);
   return J({
     user: { id: s.user_id, email: s.email, login: s.login, name: s.name, avatar_url: s.avatar_url, personality: s.personality, personality_custom: s.personality_custom, role: s.role, settings: JSON.parse(s.settings || '{}') },
     personality: p,
@@ -299,18 +413,6 @@ async function updatePersonality(req, env) {
   return J({ ok: true });
 }
 
-async function updateProfile(req, env) {
-  const s = await reqSess(req, env); await reqCsrf(req, env, s);
-  const b = await safeJson(req);
-  const fields = [], values = [];
-  if (typeof b.name === 'string') { fields.push('name = ?'); values.push(b.name.trim().slice(0, 80)); }
-  if (b.settings && typeof b.settings === 'object') { fields.push('settings = ?'); values.push(JSON.stringify(b.settings).slice(0, 4000)); }
-  if (!fields.length) return J({ error: 'Brak pól do aktualizacji' }, 400);
-  values.push(s.user_id);
-  await env.AL_DB.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
-  return J({ ok: true });
-}
-
 // ============================================================
 // ADMIN
 // ============================================================
@@ -325,42 +427,27 @@ async function adminStats(req, env) {
   ]);
   return J({ users, conversations: convs, messages: msgs, tracks, media });
 }
-
 async function adminUsers(req, env) {
   await reqAdmin(req, env);
   const rows = await env.AL_DB.prepare('SELECT id, email, login, name, personality, role, banned, last_login_at, created_at FROM users ORDER BY created_at DESC').all();
   return J({ users: rows.results });
 }
-
 async function adminUpdateUser(req, env, id) {
   const admin = await reqAdmin(req, env); await reqCsrf(req, env, admin);
   const b = await safeJson(req);
-  const fields = [], values = [];
-  if ('role' in b) { fields.push('role = ?'); values.push(b.role === 'admin' ? 'admin' : 'user'); }
-  if ('banned' in b) { fields.push('banned = ?'); values.push(b.banned ? 1 : 0); }
-  if (!fields.length) return J({ error: 'Brak pól' }, 400);
-  values.push(id);
-  await env.AL_DB.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+  const f = [], v = [];
+  if ('role' in b) { f.push('role = ?'); v.push(b.role === 'admin' ? 'admin' : 'user'); }
+  if ('banned' in b) { f.push('banned = ?'); v.push(b.banned ? 1 : 0); }
+  if (!f.length) return J({ error: 'Brak pól' }, 400);
+  v.push(id);
+  await env.AL_DB.prepare(`UPDATE users SET ${f.join(', ')} WHERE id = ?`).bind(...v).run();
   return J({ ok: true });
 }
-
 async function adminDeleteUser(req, env, id) {
   const admin = await reqAdmin(req, env); await reqCsrf(req, env, admin);
-  if (id === admin.user_id) return J({ error: 'Nie możesz usunąć własnego konta z panelu' }, 400);
+  if (id === admin.user_id) return J({ error: 'Nie możesz usunąć własnego konta' }, 400);
   await env.AL_DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   return J({ ok: true });
-}
-
-async function adminUserConvs(req, env, id) {
-  await reqAdmin(req, env);
-  const rows = await env.AL_DB.prepare('SELECT id, title, pinned, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC').bind(id).all();
-  return J({ conversations: rows.results });
-}
-
-async function adminConvMessages(req, env, id) {
-  await reqAdmin(req, env);
-  const rows = await env.AL_DB.prepare('SELECT id, role, content, model, provider, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').bind(id).all();
-  return J({ messages: rows.results });
 }
 
 // ============================================================
@@ -388,12 +475,12 @@ async function getConv(req, env, id) {
 async function patchConv(req, env, id) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
   const b = await safeJson(req);
-  const fields = [], values = [];
-  if (typeof b.title === 'string') { fields.push('title = ?'); values.push(b.title.trim().slice(0, 120) || 'Nowa rozmowa'); }
-  if ('pinned' in b) { fields.push('pinned = ?'); values.push(b.pinned ? 1 : 0); }
-  if (!fields.length) return J({ error: 'Brak pól' }, 400);
-  values.push(id, s.user_id);
-  await env.AL_DB.prepare(`UPDATE conversations SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).bind(...values).run();
+  const f = [], v = [];
+  if (typeof b.title === 'string') { f.push('title = ?'); v.push(b.title.trim().slice(0, 120) || 'Nowa rozmowa'); }
+  if ('pinned' in b) { f.push('pinned = ?'); v.push(b.pinned ? 1 : 0); }
+  if (!f.length) return J({ error: 'Brak pól' }, 400);
+  v.push(id, s.user_id);
+  await env.AL_DB.prepare(`UPDATE conversations SET ${f.join(', ')} WHERE id = ? AND user_id = ?`).bind(...v).run();
   return J({ ok: true });
 }
 async function deleteConv(req, env, id) {
@@ -422,11 +509,8 @@ async function postMsg(req, env, cid) {
   const conv = await env.AL_DB.prepare('SELECT id FROM conversations WHERE id = ? AND user_id = ?').bind(cid, s.user_id).first();
   if (!conv) return J({ error: 'Nie znaleziono rozmowy' }, 404);
 
-  if (retry) {
-    await env.AL_DB.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ? AND role = ?').bind(retry, cid, 'assistant').run();
-  } else {
-    await env.AL_DB.prepare('INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)').bind(uid('msg_'), cid, 'user', content).run();
-  }
+  if (retry) await env.AL_DB.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ? AND role = ?').bind(retry, cid, 'assistant').run();
+  else await env.AL_DB.prepare('INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)').bind(uid('msg_'), cid, 'user', content).run();
 
   const cnt = await env.AL_DB.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?').bind(cid).first('n');
   if (cnt === 1 && content) await env.AL_DB.prepare('UPDATE conversations SET title = ?, updated_at = unixepoch() WHERE id = ?').bind(content.slice(0, 60).replace(/\s+/g, ' ').trim() || 'Nowa rozmowa', cid).run();
@@ -435,14 +519,12 @@ async function postMsg(req, env, cid) {
   const hist = (await env.AL_DB.prepare('SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 60').bind(cid).all()).results;
   const mem = (await env.AL_DB.prepare('SELECT type, content FROM memory WHERE user_id = ? AND enabled = 1 ORDER BY pinned DESC, created_at DESC LIMIT 40').bind(s.user_id).all()).results;
   const memBlock = mem.map(x => `[${x.type}] ${x.content}`).join('\n');
-
   const pers = s.personality === 'custom' ? (s.personality_custom || 'Jesteś pomocnym asystentem.') : (PERSONALITIES[s.personality]?.system || PERSONALITIES.coder.system);
-  const systemPrompt = pers + (memBlock ? '\n\nPAMIĘĆ GLOBALNA UŻYTKOWNIKA:\n' + memBlock : '') + '\n\nJesteś klonem AI użytkownika. ZAWSZE analizuj historię rozmowy. NIGDY nie kłam. Odpowiadaj w języku użytkownika.';
-
+  const systemPrompt = pers + (memBlock ? '\n\nPAMIĘĆ GLOBALNA:\n' + memBlock : '') + '\n\nJesteś klonem AI użytkownika. Analizuj historię. Nie kłam. Język: polski.';
   const messages = [{ role: 'system', content: systemPrompt }, ...hist.map(h => ({ role: h.role, content: h.content }))];
 
   const plan = await resolveProvider(modelSel, env, s);
-  if (plan.provider === 'puter') return J({ error: 'Puter obsługiwany po stronie klienta. Wybierz innego providera w backendzie lub użyj Puter w UI.' }, 400);
+  if (plan.provider === 'puter') return J({ error: 'Puter obsługiwany po stronie klienta. Wybierz innego providera.' }, 400);
 
   const stream = new ReadableStream({
     async start(ctrl) {
@@ -452,7 +534,7 @@ async function postMsg(req, env, cid) {
       let acc = '', prov = plan.provider, mdl = plan.model;
       try {
         if (prov === 'groq') await streamOpenAI(env, s, 'groq', 'https://api.groq.com/openai/v1/chat/completions', messages, mdl, d => { acc += d; send({ delta: d }); });
-        else if (prov === 'openrouter') await streamOpenAI(env, s, 'openrouter', 'https://openrouter.ai/api/v1/chat/completions', messages, mdl, d => { acc += d; send({ delta: d }); }, { 'HTTP-Referer': 'https://al2100.dev', 'X-Title': 'AL2100' });
+        else if (prov === 'openrouter') await streamOpenAI(env, s, 'openrouter', 'https://openrouter.ai/api/v1/chat/completions', messages, mdl, d => { acc += d; send({ delta: d }); });
         else if (prov === 'gemini') await streamGemini(env, s, messages, mdl, d => { acc += d; send({ delta: d }); });
         else if (prov === 'grok') await streamOpenAI(env, s, 'grok', 'https://api.x.ai/v1/chat/completions', messages, mdl, d => { acc += d; send({ delta: d }); });
         else if (prov === 'workers-ai') { const t = await callWorkersAI(env, messages, mdl); acc = t; send({ delta: t }); }
@@ -469,22 +551,13 @@ async function postMsg(req, env, cid) {
 async function deleteMsg(req, env, id) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
   const row = await env.AL_DB.prepare('SELECT m.id, c.user_id FROM messages m JOIN conversations c ON c.id = m.conversation_id WHERE m.id = ?').bind(id).first();
-  if (!row || row.user_id !== s.user_id) return J({ error: 'Nie znaleziono wiadomości' }, 404);
+  if (!row || row.user_id !== s.user_id) return J({ error: 'Nie znaleziono' }, 404);
   await env.AL_DB.prepare('DELETE FROM messages WHERE id = ?').bind(id).run();
   return J({ ok: true });
 }
 
-async function regenMsg(req, env, id) {
-  const s = await reqSess(req, env); await reqCsrf(req, env, s);
-  const row = await env.AL_DB.prepare('SELECT m.conversation_id, c.user_id FROM messages m JOIN conversations c ON c.id = m.conversation_id WHERE m.id = ? AND m.role = ?').bind(id, 'assistant').first();
-  if (!row || row.user_id !== s.user_id) return J({ error: 'Nie znaleziono' }, 404);
-  // Wyślij nowy POST z retry = id
-  const fake = new Request(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify({ retry: id }) });
-  return postMsg(fake, env, row.conversation_id);
-}
-
 // ============================================================
-// MEMORY
+// MEMORY / PROVIDERS / PROJECTS
 // ============================================================
 async function listMem(req, env) {
   const s = await reqSess(req, env);
@@ -504,13 +577,13 @@ async function addMem(req, env) {
 async function patchMem(req, env, id) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
   const b = await safeJson(req);
-  const fields = [], values = [];
-  if ('pinned' in b) { fields.push('pinned = ?'); values.push(b.pinned ? 1 : 0); }
-  if ('enabled' in b) { fields.push('enabled = ?'); values.push(b.enabled ? 1 : 0); }
-  if (typeof b.content === 'string') { fields.push('content = ?'); values.push(b.content.slice(0, 2000)); }
-  if (!fields.length) return J({ error: 'Brak pól' }, 400);
-  values.push(id, s.user_id);
-  await env.AL_DB.prepare(`UPDATE memory SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).bind(...values).run();
+  const f = [], v = [];
+  if ('pinned' in b) { f.push('pinned = ?'); v.push(b.pinned ? 1 : 0); }
+  if ('enabled' in b) { f.push('enabled = ?'); v.push(b.enabled ? 1 : 0); }
+  if (typeof b.content === 'string') { f.push('content = ?'); v.push(b.content.slice(0, 2000)); }
+  if (!f.length) return J({ error: 'Brak pól' }, 400);
+  v.push(id, s.user_id);
+  await env.AL_DB.prepare(`UPDATE memory SET ${f.join(', ')} WHERE id = ? AND user_id = ?`).bind(...v).run();
   return J({ ok: true });
 }
 async function delMem(req, env, id) {
@@ -518,10 +591,6 @@ async function delMem(req, env, id) {
   await env.AL_DB.prepare('DELETE FROM memory WHERE id = ? AND user_id = ?').bind(id, s.user_id).run();
   return J({ ok: true });
 }
-
-// ============================================================
-// PROVIDERS
-// ============================================================
 async function listProv(req, env) {
   const s = await reqSess(req, env);
   const r = await env.AL_DB.prepare('SELECT provider, model FROM provider_keys WHERE user_id = ?').bind(s.user_id).all();
@@ -565,10 +634,6 @@ async function testProv(req, env, prov) {
     return J({ ok: true, message: prov + ' — połączenie OK' });
   } catch (e) { return J({ error: e.message }, 400); }
 }
-
-// ============================================================
-// PROJECTS
-// ============================================================
 async function listProjects(req, env) {
   const s = await reqSess(req, env);
   const r = await env.AL_DB.prepare('SELECT id, name, description, created_at FROM projects WHERE user_id = ? ORDER BY created_at DESC').bind(s.user_id).all();
@@ -590,7 +655,7 @@ async function delProject(req, env, id) {
 }
 
 // ============================================================
-// MUSIC
+// MUSIC / MEDIA / GITHUB
 // ============================================================
 async function genMusic(req, env) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
@@ -656,7 +721,7 @@ async function writeLyrics(req, env) {
   const b = await safeJson(req);
   const style = (b.style || '').trim();
   if (!style) return J({ error: 'Podaj styl' }, 400);
-  const prompt = `Napisz tekst piosenki w stylu: ${style}. Użyj struktury [Verse],[Chorus],[Bridge],[Outro]. Język polski. Zwróć TYLKO tekst piosenki, bez komentarzy.`;
+  const prompt = `Napisz tekst piosenki w stylu: ${style}. Struktura [Verse],[Chorus],[Bridge],[Outro]. Język polski. Zwróć TYLKO tekst.`;
   let out = '';
   try {
     const gk = await getKey(env, s, 'groq');
@@ -666,14 +731,10 @@ async function writeLyrics(req, env) {
     } else if (env.AI) {
       const r = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { messages: [{ role: 'user', content: prompt }] });
       out = r.response || '';
-    } else return J({ error: 'Brak Groq / Workers AI — skonfiguruj klucz' }, 400);
+    } else return J({ error: 'Brak Groq / Workers AI' }, 400);
   } catch (e) { return J({ error: e.message }, 502); }
   return J({ lyrics: out.trim() });
 }
-
-// ============================================================
-// MEDIA
-// ============================================================
 async function genImage(req, env) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
   const b = await safeJson(req);
@@ -681,20 +742,19 @@ async function genImage(req, env) {
   if (!prompt) return J({ error: 'Podaj prompt' }, 400);
   const [w, h] = size.split('x').map(n => parseInt(n, 10) || 1024);
   const styled = style !== 'none' ? `${prompt}, ${style} style` : prompt;
-  let buf = null, mime = 'image/png';
-
+  let buf = null;
   if (provider === 'pollinations') {
     const r = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(styled)}?width=${w}&height=${h}&model=flux&nologo=true`);
     if (!r.ok) return J({ error: 'Pollinations HTTP ' + r.status }, 502);
     buf = await r.arrayBuffer();
   } else if (provider === 'cloudflare') {
-    if (!env.AI) return J({ error: 'Brak bindingu AI' }, 500);
+    if (!env.AI) return J({ error: 'Brak AI' }, 500);
     const res = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt: styled, width: w, height: h });
     buf = res instanceof ArrayBuffer ? res : res?.image instanceof ArrayBuffer ? res.image : null;
   }
-  if (!buf) return J({ error: 'Nie udało się wygenerować obrazu' }, 502);
+  if (!buf) return J({ error: 'Nie udało się wygenerować' }, 502);
   const id = uid('img_'), r2k = `${s.user_id}/media/${id}.png`;
-  await env.AL_BUCKET.put(r2k, buf, { httpMetadata: { contentType: mime } });
+  await env.AL_BUCKET.put(r2k, buf, { httpMetadata: { contentType: 'image/png' } });
   await env.AL_DB.prepare('INSERT INTO media (id, user_id, kind, provider, prompt, r2_key) VALUES (?, ?, ?, ?, ?, ?)').bind(id, s.user_id, 'image', provider, prompt.slice(0, 1000), r2k).run();
   return J({ id, url: '/api/media/file/' + id });
 }
@@ -704,12 +764,8 @@ async function mediaFile(req, env, id) {
   if (!row) return J({ error: 'Nie znaleziono' }, 404);
   const o = await env.AL_BUCKET.get(row.r2_key);
   if (!o) return J({ error: 'Plik nie istnieje' }, 410);
-  return new Response(o.body, { headers: { 'Content-Type': row.kind === 'video' ? 'video/mp4' : 'image/png', 'Cache-Control': 'private, max-age=86400' } });
+  return new Response(o.body, { headers: { 'Content-Type': row.kind === 'video' ? 'video/mp4' : 'image/png' } });
 }
-
-// ============================================================
-// GITHUB
-// ============================================================
 async function saveGh(req, env) {
   const s = await reqSess(req, env); await reqCsrf(req, env, s);
   const b = await safeJson(req);
@@ -753,10 +809,10 @@ async function getKey(env, s, prov) {
   return decryptWith(s.masterKey, r.encrypted_key);
 }
 
-async function streamOpenAI(env, s, prov, url, messages, model, cb, extraHeaders = {}) {
+async function streamOpenAI(env, s, prov, url, messages, model, cb) {
   const k = await getKey(env, s, prov);
   if (!k) throw new Error(`Brak klucza ${prov}. Skonfiguruj w Ustawieniach.`);
-  const r = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json', ...extraHeaders }, body: JSON.stringify({ model, messages, stream: true, temperature: 0.7 }) });
+  const r = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, messages, stream: true, temperature: 0.7 }) });
   if (!r.ok) throw new Error(`${prov} HTTP ${r.status}: ` + (await r.text()).slice(0, 200));
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
   while (true) {
@@ -776,7 +832,7 @@ async function streamOpenAI(env, s, prov, url, messages, model, cb, extraHeaders
 
 async function streamGemini(env, s, messages, model, cb) {
   const k = await getKey(env, s, 'gemini');
-  if (!k) throw new Error('Brak klucza Gemini. Skonfiguruj w Ustawieniach.');
+  if (!k) throw new Error('Brak klucza Gemini');
   const sys = messages.find(x => x.role === 'system');
   const chat = messages.filter(x => x.role !== 'system');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(k)}`;
@@ -799,7 +855,7 @@ async function streamGemini(env, s, messages, model, cb) {
 }
 
 async function callWorkersAI(env, messages, model) {
-  if (!env.AI) throw new Error('Brak bindingu AI w wrangler.toml');
+  if (!env.AI) throw new Error('Brak bindingu AI');
   const r = await env.AI.run(model, { messages: messages.map(x => ({ role: x.role, content: x.content })) });
   return r.response || r.result || '';
 }
